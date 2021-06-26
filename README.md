@@ -1,7 +1,7 @@
 # Go Micro Template
 
 This small sample project was created as a collection of the various things I've learned about best
-practices building applications using Go. I structured the project using a hexagonal style abstracting
+practices building microservices using Go. I structured the project using a hexagonal style abstracting
 away business logic from dependencies like the RESTful API, the Postgres, and RabbitMQ.
 
 ## Structure
@@ -43,7 +43,57 @@ make build
 docker-compose up
 ```
 
-## Database Migrations
+## Application Features
+
+### RESTful API
+
+This application uses the wonderful [go-chi](github.com/go-chi/chi) for routing
+[beautifuly documentation](https://github.com/go-chi/chi/blob/master/_examples/rest/main.go) served as the main inspiration for
+how to structure the API. Seriously, I was so impressed.
+
+In Java I like to generate the controller layer using Open API so that the contract and implementation always match exactly.
+I couldn't quite find an equivalent solution I liked.
+
+Truth be told, if I were doing inter-microservice communication I would strongly consider using gRPC rather than a RESTful API.
+
+### Authentication
+
+Many of the endpoints in this project are protected by using a [simple authentication middleware](internal/api/util.go). If you're
+interested in hitting them you can use basic auth admin:admin. Users are stored in the database along with their hashed password.
+Users are locally cached using [golang-lru](github.com/hashicorp/golang-lru). In a production setting if I actually wanted caching
+I'd either use a remote cache like Redis, or a distributed local cache like groupcache to prevent stale or out of sync data.
+
+### Metrics
+
+This application outputs prometheus metrics using middleware I plugged into the go-chi router. If you're running
+locally check them out at [http://localhost:8080/metrics](http://localhost:8080/metrics). Every URL automatically
+gets a hit count and a latency metric added. You can find the configurations [here](internal/api/metrics.go).
+
+### Logging
+
+I ended up going with [zerolog](https://github.com/rs/zerolog) for logging in this project. I really like its API
+and their benchmarks look really great too! You can get structured logging or nice human readable logging by
+[changing some configs](cmd/app/config.go)
+
+### Configuration
+
+I'm most comfortable with using Spring Cloud Config for externalized configurations, but I couldn't find any
+libraries written for Go that can connect to Spring Cloud Config servers
+[so I wrote one](https://github.com/sksmith/go-spring-config).
+
+### Testing
+
+I chose not to go with any of the test frameworks when putting this project together. I felt like using
+interfaces and injecting dependencies would be enough to allow me to mock what I need to. There's a fair bit of
+boilerplate code required to mock, say, the inventory repository but not having to pull in and learn yet
+another dependency for testing seemed like a fair tradeoff.
+
+The testing in this project is pretty bare-bones and mostly just proof-of-concept. If you want to see some
+tests, though, they're in [internal/api/invapi](internal/api/invapi). I personally prefer more integration
+tests that test an application front-to-back for features rather than tons and tons of tightly-coupled
+unit tests.
+
+### Database Migrations
 
 I'm using the migrate project to manage database migrations.
 
