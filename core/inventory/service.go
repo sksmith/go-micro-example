@@ -231,6 +231,8 @@ func (s *service) fillReserves(ctx context.Context, product Product) error {
 	}
 
 	for _, reservation := range openReservations {
+		reservation := reservation
+
 		log.Trace().
 			Str("func", funcName).
 			Str("sku", product.Sku).
