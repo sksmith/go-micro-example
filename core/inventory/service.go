@@ -47,6 +47,9 @@ func (s *service) CreateProduct(ctx context.Context, product Product) error {
 	}
 
 	tx, err := s.repo.BeginTransaction(ctx)
+	if err != nil {
+		return errors.WithStack(err)
+	}
 
 	log.Info().
 		Str("func", funcName).
@@ -228,6 +231,8 @@ func (s *service) fillReserves(ctx context.Context, product Product) error {
 	}
 
 	for _, reservation := range openReservations {
+		reservation := reservation
+
 		log.Trace().
 			Str("func", funcName).
 			Str("sku", product.Sku).
@@ -355,15 +360,6 @@ func rollback(ctx context.Context, tx core.Transaction, err error) {
 	if e != nil {
 		log.Warn().Err(err).Msg("failed to rollback")
 	}
-}
-
-func (s *service) getTx(ctx context.Context, txs ...core.Transaction) (tx core.Transaction, err error) {
-	if len(txs) > 0 {
-		tx = txs[0]
-	} else {
-		tx, err = s.repo.BeginTransaction(ctx)
-	}
-	return tx, err
 }
 
 type Repository interface {
