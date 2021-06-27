@@ -22,6 +22,13 @@ func NewApi(service inventory.Service) *Api {
 	return &Api{service: service}
 }
 
+type CtxKey string
+
+const (
+	CtxKeyProduct = "product"
+	CtxKeyReservation = "reservation"
+)
+
 func (a *Api) ConfigureRouter(r chi.Router) {
 	r.Route("/v1", func(r chi.Router) {
 		r.With(api.Paginate).Get("/", a.List)
@@ -113,7 +120,7 @@ func (a *Api) ProductCtx(next http.Handler) http.Handler {
 			return
 		}
 
-		ctx := context.WithValue(r.Context(), "product", product)
+		ctx := context.WithValue(r.Context(), CtxKeyProduct, product)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -211,7 +218,7 @@ func (r *ReservationResponse) Render(_ http.ResponseWriter, _ *http.Request) err
 }
 
 func (a *Api) CreateProductionEvent(w http.ResponseWriter, r *http.Request) {
-	product := r.Context().Value("product").(inventory.Product)
+	product := r.Context().Value(CtxKeyProduct).(inventory.Product)
 
 	data := &CreateProductionEventRequest{}
 	if err := render.Bind(r, data); err != nil {
@@ -227,26 +234,23 @@ func (a *Api) CreateProductionEvent(w http.ResponseWriter, r *http.Request) {
 
 	render.Status(r, http.StatusCreated)
 	api.Render(w, r, &ProductionEventResponse{})
-
-	return
 }
 
 func (a *Api) CancelReservation(_ http.ResponseWriter, _ *http.Request) {
 	// Not implemented
-	return
 }
 
 func (a *Api) ReservationCtx(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Not implemented
-		ctx := context.WithValue(r.Context(), "reservation", nil)
+		ctx := context.WithValue(r.Context(), CtxKeyReservation, nil)
 		next.ServeHTTP(w, r.WithContext(ctx))
 		return
 	})
 }
 
 func (a *Api) CreateReservation(w http.ResponseWriter, r *http.Request) {
-	product := r.Context().Value("product").(inventory.Product)
+	product := r.Context().Value(CtxKeyProduct).(inventory.Product)
 
 	data := &ReservationRequest{}
 	if err := render.Bind(r, data); err != nil {
@@ -269,7 +273,7 @@ func (a *Api) CreateReservation(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *Api) GetProductInventory(w http.ResponseWriter, r *http.Request) {
-	product := r.Context().Value("product").(inventory.Product)
+	product := r.Context().Value(CtxKeyProduct).(inventory.Product)
 
 	res, err := a.service.GetProductInventory(r.Context(), product.Sku)
 
@@ -291,7 +295,7 @@ func (a *Api) GetProductInventory(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *Api) GetReservations(w http.ResponseWriter, r *http.Request) {
-	product := r.Context().Value("product").(inventory.Product)
+	product := r.Context().Value(CtxKeyProduct).(inventory.Product)
 	limit := r.Context().Value("limit").(int)
 	offset := r.Context().Value("offset").(int)
 

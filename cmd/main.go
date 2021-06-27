@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"syscall"
 	"time"
 
 	"github.com/sksmith/go-micro-example/api/invapi"
@@ -122,7 +123,7 @@ func loadConfigs() (config *Config) {
 
 func rabbit(config *Config) inventory.Queue {
 	osChannel := make(chan os.Signal, 1)
-	signal.Notify(osChannel, os.Kill)
+	signal.Notify(osChannel, syscall.SIGTERM)
 	var bq *bunnyq.BunnyQ
 
 	for {
@@ -263,7 +264,6 @@ func createRouteDocs(r chi.Router) {
 		ProjectPath: "github.com/sksmith/" + ApplicationName,
 		Intro:       "The generated API documentation for " + ApplicationName,
 	}))
-	return
 }
 
 func configLogging(config *Config) {
