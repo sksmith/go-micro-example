@@ -11,6 +11,14 @@ import (
 
 const DefaultPageLimit = 50
 
+type CtxKey string
+
+const (
+	CtxKeyLimit CtxKey = "limit"
+	CtxKeyOffset CtxKey = "offset"
+	CtxKeyUser CtxKey = "user"
+)
+
 func Paginate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		limitStr := r.URL.Query().Get("limit")
@@ -34,8 +42,8 @@ func Paginate(next http.Handler) http.Handler {
 		}
 
 		log.Debug().Int("limit", limit).Int("offset", offset).Send()
-		ctx := context.WithValue(r.Context(), "limit", limit)
-		ctx = context.WithValue(ctx, "offset", offset)
+		ctx := context.WithValue(r.Context(), CtxKeyLimit, limit)
+		ctx = context.WithValue(ctx, CtxKeyOffset, offset)
 
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
@@ -61,7 +69,7 @@ func Authenticate(ua UserAccess) func(http.Handler) http.Handler {
 				return
 			}
 
-			ctx := context.WithValue(r.Context(), "user", u)
+			ctx := context.WithValue(r.Context(), CtxKeyUser, u)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
@@ -69,7 +77,7 @@ func Authenticate(ua UserAccess) func(http.Handler) http.Handler {
 
 func AdminOnly(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		usr, ok := r.Context().Value("user").(user.User)
+		usr, ok := r.Context().Value(CtxKeyUser).(user.User)
 
 		if !ok || !usr.IsAdmin {
 			authErr(w)
