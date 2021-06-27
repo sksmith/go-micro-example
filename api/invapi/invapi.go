@@ -313,6 +313,4 @@ func (a *Api) GetReservations(w http.ResponseWriter, r *http.Request) {
 	resList := NewReservationListResponse(res)
 	render.Status(r, http.StatusOK)
 	api.RenderList(w, r, resList)
-
-	return
 }
