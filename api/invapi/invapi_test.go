@@ -12,11 +12,11 @@ import (
 	"time"
 
 	"github.com/go-chi/chi"
-	"github.com/sksmith/go-micro-example/internal/api/invapi"
-	"github.com/sksmith/go-micro-example/internal/core"
-	"github.com/sksmith/go-micro-example/internal/core/inventory"
-	"github.com/sksmith/go-micro-example/internal/db/invrepo"
-	"github.com/sksmith/go-micro-example/internal/queue/invqueue"
+	"github.com/sksmith/go-micro-example/api/invapi"
+	"github.com/sksmith/go-micro-example/core"
+	"github.com/sksmith/go-micro-example/core/inventory"
+	"github.com/sksmith/go-micro-example/db/invrepo"
+	"github.com/sksmith/go-micro-example/queue/invqueue"
 
 	"github.com/pkg/errors"
 )

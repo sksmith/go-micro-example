@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/sksmith/go-micro-example/internal/core"
+	"github.com/sksmith/go-micro-example/core"
 	"golang.org/x/crypto/bcrypt"
 )
 

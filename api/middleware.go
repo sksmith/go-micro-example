@@ -6,7 +6,7 @@ import (
 	"strconv"
 
 	"github.com/rs/zerolog/log"
-	"github.com/sksmith/go-micro-example/internal/core/user"
+	"github.com/sksmith/go-micro-example/core/user"
 )
 
 const DefaultPageLimit = 50

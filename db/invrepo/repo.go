@@ -5,9 +5,9 @@ import (
 
 	"github.com/jackc/pgx/v4"
 	"github.com/pkg/errors"
-	"github.com/sksmith/go-micro-example/internal/core"
-	"github.com/sksmith/go-micro-example/internal/core/inventory"
-	"github.com/sksmith/go-micro-example/internal/db"
+	"github.com/sksmith/go-micro-example/core"
+	"github.com/sksmith/go-micro-example/core/inventory"
+	"github.com/sksmith/go-micro-example/db"
 )
 
 type dbRepo struct {

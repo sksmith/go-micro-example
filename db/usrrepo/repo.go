@@ -6,9 +6,9 @@ import (
 	"github.com/jackc/pgx/v4"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
-	"github.com/sksmith/go-micro-example/internal/core"
-	"github.com/sksmith/go-micro-example/internal/core/user"
-	"github.com/sksmith/go-micro-example/internal/db"
+	"github.com/sksmith/go-micro-example/core"
+	"github.com/sksmith/go-micro-example/core/user"
+	"github.com/sksmith/go-micro-example/db"
 
 	lru "github.com/hashicorp/golang-lru"
 )

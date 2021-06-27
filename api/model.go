@@ -1,9 +1,10 @@
 package api
 
 import (
+	"net/http"
+
 	"github.com/go-chi/render"
 	"github.com/rs/zerolog/log"
-	"net/http"
 )
 
 //--
@@ -32,7 +33,7 @@ func (e *ErrResponse) Render(_ http.ResponseWriter, r *http.Request) error {
 func ErrInvalidRequest(err error) render.Renderer {
 	return &ErrResponse{
 		Err:            err,
-		HTTPStatusCode: 400,
+		HTTPStatusCode: http.StatusBadRequest,
 		StatusText:     "Invalid request.",
 		ErrorText:      err.Error(),
 	}
@@ -50,10 +51,10 @@ func RenderList(w http.ResponseWriter, r *http.Request, l []render.Renderer) {
 	}
 }
 
-var ErrNotFound = &ErrResponse{HTTPStatusCode: 404, StatusText: "Resource not found."}
+var ErrNotFound = &ErrResponse{HTTPStatusCode: http.StatusNotFound, StatusText: "Resource not found."}
 var ErrInternalServer = &ErrResponse{
 	Err:            nil,
-	HTTPStatusCode: 500,
+	HTTPStatusCode: http.StatusInternalServerError,
 	StatusText:     "Internal server error.",
 	ErrorText:      "An internal server error has occurred.",
 }

@@ -9,13 +9,13 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/sksmith/go-micro-example/internal/api/invapi"
-	"github.com/sksmith/go-micro-example/internal/api/usrapi"
-	"github.com/sksmith/go-micro-example/internal/core/inventory"
-	"github.com/sksmith/go-micro-example/internal/core/user"
-	"github.com/sksmith/go-micro-example/internal/db/invrepo"
-	"github.com/sksmith/go-micro-example/internal/db/usrrepo"
-	"github.com/sksmith/go-micro-example/internal/queue/invqueue"
+	"github.com/sksmith/go-micro-example/api/invapi"
+	"github.com/sksmith/go-micro-example/api/usrapi"
+	"github.com/sksmith/go-micro-example/core/inventory"
+	"github.com/sksmith/go-micro-example/core/user"
+	"github.com/sksmith/go-micro-example/db/invrepo"
+	"github.com/sksmith/go-micro-example/db/usrrepo"
+	"github.com/sksmith/go-micro-example/queue/invqueue"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
@@ -25,8 +25,8 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/sksmith/bunnyq"
-	"github.com/sksmith/go-micro-example/internal/api"
-	"github.com/sksmith/go-micro-example/internal/db"
+	"github.com/sksmith/go-micro-example/api"
+	"github.com/sksmith/go-micro-example/db"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
