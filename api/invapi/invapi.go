@@ -9,9 +9,9 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/go-chi/render"
 	"github.com/rs/zerolog/log"
-	"github.com/sksmith/go-micro-example/internal/api"
-	"github.com/sksmith/go-micro-example/internal/core"
-	"github.com/sksmith/go-micro-example/internal/core/inventory"
+	"github.com/sksmith/go-micro-example/api"
+	"github.com/sksmith/go-micro-example/core"
+	"github.com/sksmith/go-micro-example/core/inventory"
 )
 
 type Api struct {

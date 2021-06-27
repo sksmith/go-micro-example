@@ -7,8 +7,8 @@ import (
 	"github.com/go-chi/render"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
-	"github.com/sksmith/go-micro-example/internal/api"
-	"github.com/sksmith/go-micro-example/internal/core/user"
+	"github.com/sksmith/go-micro-example/api"
+	"github.com/sksmith/go-micro-example/core/user"
 )
 
 type Api struct {

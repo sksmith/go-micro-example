@@ -6,7 +6,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/sksmith/bunnyq"
-	"github.com/sksmith/go-micro-example/internal/core/inventory"
+	"github.com/sksmith/go-micro-example/core/inventory"
 )
 
 type inventoryQueue struct {
