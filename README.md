@@ -1,4 +1,4 @@
-# Go Micro Template
+# Go Micro Example
 
 This small sample project was created as a collection of the various things I've learned about best
 practices building microservices using Go. I structured the project using a hexagonal style abstracting

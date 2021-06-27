@@ -6,7 +6,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
-	"github.com/sksmith/go-micro-example/internal/core"
+	"github.com/sksmith/go-micro-example/core"
 )
 
 func NewService(repo Repository, q Queue, invExchange, resExchange string) *service {

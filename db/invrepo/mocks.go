@@ -5,8 +5,8 @@ import (
 
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
-	"github.com/sksmith/go-micro-example/internal/core"
-	"github.com/sksmith/go-micro-example/internal/core/inventory"
+	"github.com/sksmith/go-micro-example/core"
+	"github.com/sksmith/go-micro-example/core/inventory"
 )
 
 type MockRepo struct {

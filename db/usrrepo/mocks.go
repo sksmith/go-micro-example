@@ -3,8 +3,8 @@ package usrrepo
 import (
 	"context"
 
-	"github.com/sksmith/go-micro-example/internal/core"
-	"github.com/sksmith/go-micro-example/internal/core/user"
+	"github.com/sksmith/go-micro-example/core"
+	"github.com/sksmith/go-micro-example/core/user"
 )
 
 type MockRepo struct {

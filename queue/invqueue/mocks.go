@@ -3,7 +3,7 @@ package invqueue
 import (
 	"context"
 
-	"github.com/sksmith/go-micro-example/internal/core/inventory"
+	"github.com/sksmith/go-micro-example/core/inventory"
 )
 
 type MockQueue struct {
