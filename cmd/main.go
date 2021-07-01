@@ -252,7 +252,7 @@ func userApi(s user.Service) func(r chi.Router) {
 }
 
 func inventoryApi(s inventory.Service) func(r chi.Router) {
-	invApi := api.NewUserApi(s)
+	invApi := api.NewInventoryApi(s)
 	return invApi.ConfigureRouter
 }
 
