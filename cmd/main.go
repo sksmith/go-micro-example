@@ -3,20 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
+	queue2 "github.com/sksmith/go-micro-example/queue"
 	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
 	"syscall"
 	"time"
-
-	"github.com/sksmith/go-micro-example/api/invapi"
-	"github.com/sksmith/go-micro-example/api/usrapi"
-	"github.com/sksmith/go-micro-example/core/inventory"
-	"github.com/sksmith/go-micro-example/core/user"
-	"github.com/sksmith/go-micro-example/db/invrepo"
-	"github.com/sksmith/go-micro-example/db/usrrepo"
-	"github.com/sksmith/go-micro-example/queue/invqueue"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
@@ -27,7 +20,11 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/sksmith/bunnyq"
 	"github.com/sksmith/go-micro-example/api"
+	"github.com/sksmith/go-micro-example/core/inventory"
+	"github.com/sksmith/go-micro-example/core/user"
 	"github.com/sksmith/go-micro-example/db"
+	"github.com/sksmith/go-micro-example/db/invrepo"
+	"github.com/sksmith/go-micro-example/db/usrrepo"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -94,7 +91,7 @@ func main() {
 func configQueue(config *Config) (queue inventory.Queue) {
 	if config.QMock {
 		log.Info().Msg("creating mock queue...")
-		queue = invqueue.NewMockQueue()
+		queue = queue2.NewMockQueue()
 	} else {
 		log.Info().Msg("connecting to rabbitmq...")
 		queue = rabbit(config)
@@ -141,7 +138,7 @@ func rabbit(config *Config) inventory.Queue {
 		break
 	}
 
-	return invqueue.New(bq, config.QInventoryExchange, config.QReservationExchange)
+	return queue2.New(bq, config.QInventoryExchange, config.QReservationExchange)
 }
 
 type logger struct {
@@ -250,12 +247,12 @@ func configureRouter(service inventory.Service, userService user.Service) chi.Ro
 }
 
 func userApi(s user.Service) func(r chi.Router) {
-	userApi := usrapi.NewApi(s)
+	userApi := api.NewUserApi(s)
 	return userApi.ConfigureRouter
 }
 
 func inventoryApi(s inventory.Service) func(r chi.Router) {
-	invApi := invapi.NewApi(s)
+	invApi := api.NewUserApi(s)
 	return invApi.ConfigureRouter
 }
 

@@ -1,4 +1,4 @@
-package invqueue
+package queue
 
 import (
 	"context"

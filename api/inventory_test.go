@@ -1,10 +1,12 @@
-package invapi_test
+package api_test
 
 import (
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/sksmith/go-micro-example/api"
+	"github.com/sksmith/go-micro-example/queue"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -12,19 +14,16 @@ import (
 	"time"
 
 	"github.com/go-chi/chi"
-	"github.com/sksmith/go-micro-example/api/invapi"
+	"github.com/pkg/errors"
 	"github.com/sksmith/go-micro-example/core"
 	"github.com/sksmith/go-micro-example/core/inventory"
 	"github.com/sksmith/go-micro-example/db/invrepo"
-	"github.com/sksmith/go-micro-example/queue/invqueue"
-
-	"github.com/pkg/errors"
 )
 
 func configureServer(s inventory.Service) *httptest.Server {
 	r := chi.NewRouter()
 
-	invApi := invapi.NewApi(s)
+	invApi := api.NewInventoryApi(s)
 	invApi.ConfigureRouter(r)
 
 	return httptest.NewServer(r)
@@ -32,7 +31,7 @@ func configureServer(s inventory.Service) *httptest.Server {
 
 func TestList(t *testing.T) {
 	mockRepo := invrepo.NewMockRepo()
-	mockQueue := invqueue.NewMockQueue()
+	mockQueue := queue.NewMockQueue()
 
 	mockRepo.GetAllProductInventoryFunc = func(ctx context.Context, limit int, offset int, tx ...core.Transaction) ([]inventory.ProductInventory, error) {
 		products := make([]inventory.ProductInventory, 2)
@@ -61,7 +60,7 @@ func TestList(t *testing.T) {
 
 func TestListError(t *testing.T) {
 	mockRepo := invrepo.NewMockRepo()
-	mockQueue := invqueue.NewMockQueue()
+	mockQueue := queue.NewMockQueue()
 
 	mockRepo.GetAllProductInventoryFunc = func(ctx context.Context, limit int, offset int, tx ...core.Transaction) ([]inventory.ProductInventory, error) {
 		return nil, errors.New("some terrible error has occurred in the db")
@@ -83,7 +82,7 @@ func TestListError(t *testing.T) {
 
 func TestPagination(t *testing.T) {
 	mockRepo := invrepo.NewMockRepo()
-	mockQueue := invqueue.NewMockQueue()
+	mockQueue := queue.NewMockQueue()
 
 	wantLimit := 10
 	wantOffset := 50
@@ -111,7 +110,7 @@ func TestPagination(t *testing.T) {
 
 func TestCreate(t *testing.T) {
 	mockRepo := invrepo.NewMockRepo()
-	mockQueue := invqueue.NewMockQueue()
+	mockQueue := queue.NewMockQueue()
 
 	tp := testProducts[0]
 
@@ -152,7 +151,7 @@ func TestCreate(t *testing.T) {
 
 func TestCreateProductionEvent(t *testing.T) {
 	mockRepo := invrepo.NewMockRepo()
-	mockQueue := invqueue.NewMockQueue()
+	mockQueue := queue.NewMockQueue()
 
 	tpe := testProductionEvents[0]
 
@@ -213,7 +212,7 @@ func TestCreateProductionEvent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	resp := &invapi.ProductionEventResponse{}
+	resp := &api.ProductionEventResponse{}
 	err = json.Unmarshal(body, resp)
 	if err != nil {
 		t.Fatal(err)
@@ -222,7 +221,7 @@ func TestCreateProductionEvent(t *testing.T) {
 
 func TestCreateProductNotFound(t *testing.T) {
 	mockRepo := invrepo.NewMockRepo()
-	mockQueue := invqueue.NewMockQueue()
+	mockQueue := queue.NewMockQueue()
 
 	tpe := testProductionEvents[0]
 
@@ -254,7 +253,7 @@ func TestCreateProductNotFound(t *testing.T) {
 
 func TestCreateReservation(t *testing.T) {
 	mockRepo := invrepo.NewMockRepo()
-	mockQueue := invqueue.NewMockQueue()
+	mockQueue := queue.NewMockQueue()
 
 	trr := testReservationRequests[0]
 	tr := testReservations[0]
@@ -363,7 +362,7 @@ func TestCreateReservation(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	resp := &invapi.ReservationResponse{}
+	resp := &api.ReservationResponse{}
 	err = json.Unmarshal(body, resp)
 	if err != nil {
 		t.Fatal(err)

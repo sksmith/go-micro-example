@@ -1,4 +1,4 @@
-package invapi
+package api
 
 import (
 	"context"
@@ -9,27 +9,26 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/go-chi/render"
 	"github.com/rs/zerolog/log"
-	"github.com/sksmith/go-micro-example/api"
 	"github.com/sksmith/go-micro-example/core"
 	"github.com/sksmith/go-micro-example/core/inventory"
 )
 
-type Api struct {
+type InventoryApi struct {
 	service inventory.Service
 }
 
-func NewApi(service inventory.Service) *Api {
-	return &Api{service: service}
+func NewInventoryApi(service inventory.Service) *InventoryApi {
+	return &InventoryApi{service: service}
 }
 
 const (
-	CtxKeyProduct api.CtxKey = "product"
-	CtxKeyReservation api.CtxKey = "reservation"
+	CtxKeyProduct     CtxKey = "product"
+	CtxKeyReservation CtxKey = "reservation"
 )
 
-func (a *Api) ConfigureRouter(r chi.Router) {
+func (a *InventoryApi) ConfigureRouter(r chi.Router) {
 	r.Route("/v1", func(r chi.Router) {
-		r.With(api.Paginate).Get("/", a.List)
+		r.With(Paginate).Get("/", a.List)
 		r.Put("/", a.Create)
 
 		r.Route("/{sku}", func(r chi.Router) {
@@ -39,7 +38,7 @@ func (a *Api) ConfigureRouter(r chi.Router) {
 
 			r.Route("/reservation", func(r chi.Router) {
 				r.Put("/", a.CreateReservation)
-				r.With(api.Paginate).Get("/", a.GetReservations)
+				r.With(Paginate).Get("/", a.GetReservations)
 
 				r.Route("/{reservationID}", func(r chi.Router) {
 					r.Use(a.ReservationCtx)
@@ -64,45 +63,45 @@ func (rd *ProductResponse) Render(_ http.ResponseWriter, _ *http.Request) error 
 	return nil
 }
 
-func (a *Api) List(w http.ResponseWriter, r *http.Request) {
-	limit := r.Context().Value(api.CtxKeyLimit).(int)
-	offset := r.Context().Value(api.CtxKeyOffset).(int)
+func (a *InventoryApi) List(w http.ResponseWriter, r *http.Request) {
+	limit := r.Context().Value(CtxKeyLimit).(int)
+	offset := r.Context().Value(CtxKeyOffset).(int)
 
 	products, err := a.service.GetAllProductInventory(r.Context(), limit, offset)
 	if err != nil {
 		log.Err(err).Send()
-		api.Render(w, r, api.ErrInternalServer)
+		Render(w, r, ErrInternalServer)
 		return
 	}
 
-	api.RenderList(w, r, NewProductListResponse(products))
+	RenderList(w, r, NewProductListResponse(products))
 }
 
-func (a *Api) Create(w http.ResponseWriter, r *http.Request) {
+func (a *InventoryApi) Create(w http.ResponseWriter, r *http.Request) {
 	data := &CreateProductRequest{}
 	if err := render.Bind(r, data); err != nil {
-		api.Render(w, r, api.ErrInvalidRequest(err))
+		Render(w, r, ErrInvalidRequest(err))
 		return
 	}
 
 	if err := a.service.CreateProduct(r.Context(), *data.Product); err != nil {
 		log.Err(err).Send()
-		api.Render(w, r, api.ErrInternalServer)
+		Render(w, r, ErrInternalServer)
 		return
 	}
 
 	render.Status(r, http.StatusCreated)
-	api.Render(w, r, NewProductResponse(inventory.ProductInventory{Product: *data.Product}))
+	Render(w, r, NewProductResponse(inventory.ProductInventory{Product: *data.Product}))
 }
 
-func (a *Api) ProductCtx(next http.Handler) http.Handler {
+func (a *InventoryApi) ProductCtx(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var product inventory.Product
 		var err error
 
 		sku := chi.URLParam(r, "sku")
 		if sku == "" {
-			api.Render(w, r, api.ErrInvalidRequest(errors.New("sku is required")))
+			Render(w, r, ErrInvalidRequest(errors.New("sku is required")))
 			return
 		}
 
@@ -110,10 +109,10 @@ func (a *Api) ProductCtx(next http.Handler) http.Handler {
 
 		if err != nil {
 			if errors.Is(err, core.ErrNotFound) {
-				api.Render(w, r, api.ErrNotFound)
+				Render(w, r, ErrNotFound)
 			} else {
 				log.Error().Err(err).Str("sku", sku).Msg("error acquiring product")
-				api.Render(w, r, api.ErrInternalServer)
+				Render(w, r, ErrInternalServer)
 			}
 			return
 		}
@@ -215,30 +214,30 @@ func (r *ReservationResponse) Render(_ http.ResponseWriter, _ *http.Request) err
 	return nil
 }
 
-func (a *Api) CreateProductionEvent(w http.ResponseWriter, r *http.Request) {
+func (a *InventoryApi) CreateProductionEvent(w http.ResponseWriter, r *http.Request) {
 	product := r.Context().Value(CtxKeyProduct).(inventory.Product)
 
 	data := &CreateProductionEventRequest{}
 	if err := render.Bind(r, data); err != nil {
-		api.Render(w, r, api.ErrInvalidRequest(err))
+		Render(w, r, ErrInvalidRequest(err))
 		return
 	}
 
 	if err := a.service.Produce(r.Context(), product, *data.ProductionRequest); err != nil {
 		log.Err(err).Send()
-		api.Render(w, r, api.ErrInternalServer)
+		Render(w, r, ErrInternalServer)
 		return
 	}
 
 	render.Status(r, http.StatusCreated)
-	api.Render(w, r, &ProductionEventResponse{})
+	Render(w, r, &ProductionEventResponse{})
 }
 
-func (a *Api) CancelReservation(_ http.ResponseWriter, _ *http.Request) {
+func (a *InventoryApi) CancelReservation(_ http.ResponseWriter, _ *http.Request) {
 	// Not implemented
 }
 
-func (a *Api) ReservationCtx(next http.Handler) http.Handler {
+func (a *InventoryApi) ReservationCtx(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Not implemented
 		ctx := context.WithValue(r.Context(), CtxKeyReservation, nil)
@@ -246,55 +245,55 @@ func (a *Api) ReservationCtx(next http.Handler) http.Handler {
 	})
 }
 
-func (a *Api) CreateReservation(w http.ResponseWriter, r *http.Request) {
+func (a *InventoryApi) CreateReservation(w http.ResponseWriter, r *http.Request) {
 	product := r.Context().Value(CtxKeyProduct).(inventory.Product)
 
 	data := &ReservationRequest{}
 	if err := render.Bind(r, data); err != nil {
-		api.Render(w, r, api.ErrInvalidRequest(err))
+		Render(w, r, ErrInvalidRequest(err))
 		return
 	}
 
 	res, err := a.service.Reserve(r.Context(), product, *data.ReservationRequest)
 	if err != nil {
 		log.Err(err).Send()
-		api.Render(w, r, api.ErrInternalServer)
+		Render(w, r, ErrInternalServer)
 		return
 	}
 
 	resp := &ReservationResponse{Reservation: res}
 	render.Status(r, http.StatusCreated)
-	api.Render(w, r, resp)
+	Render(w, r, resp)
 }
 
-func (a *Api) GetProductInventory(w http.ResponseWriter, r *http.Request) {
+func (a *InventoryApi) GetProductInventory(w http.ResponseWriter, r *http.Request) {
 	product := r.Context().Value(CtxKeyProduct).(inventory.Product)
 
 	res, err := a.service.GetProductInventory(r.Context(), product.Sku)
 
 	if err != nil {
 		if errors.Is(err, core.ErrNotFound) {
-			api.Render(w, r, api.ErrNotFound)
+			Render(w, r, ErrNotFound)
 		} else {
 			log.Err(err).Send()
-			api.Render(w, r, api.ErrInternalServer)
+			Render(w, r, ErrInternalServer)
 		}
 		return
 	}
 
 	resp := &ProductResponse{ProductInventory: res}
 	render.Status(r, http.StatusOK)
-	api.Render(w, r, resp)
+	Render(w, r, resp)
 }
 
-func (a *Api) GetReservations(w http.ResponseWriter, r *http.Request) {
+func (a *InventoryApi) GetReservations(w http.ResponseWriter, r *http.Request) {
 	product := r.Context().Value(CtxKeyProduct).(inventory.Product)
-	limit := r.Context().Value(api.CtxKeyLimit).(int)
-	offset := r.Context().Value(api.CtxKeyOffset).(int)
+	limit := r.Context().Value(CtxKeyLimit).(int)
+	offset := r.Context().Value(CtxKeyOffset).(int)
 
 	state, err := inventory.ParseReserveState(r.URL.Query().Get("state"))
 	if err != nil {
-		api.Render(w, r, api.ErrInvalidRequest(errors.New("invalid state")))
+		Render(w, r, ErrInvalidRequest(errors.New("invalid state")))
 		return
 	}
 
@@ -302,15 +301,15 @@ func (a *Api) GetReservations(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		if errors.Is(err, core.ErrNotFound) {
-			api.Render(w, r, api.ErrNotFound)
+			Render(w, r, ErrNotFound)
 		} else {
 			log.Err(err).Send()
-			api.Render(w, r, api.ErrInternalServer)
+			Render(w, r, ErrInternalServer)
 		}
 		return
 	}
 
 	resList := NewReservationListResponse(res)
 	render.Status(r, http.StatusOK)
-	api.RenderList(w, r, resList)
+	RenderList(w, r, resList)
 }
