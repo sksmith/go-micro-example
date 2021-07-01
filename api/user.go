@@ -1,4 +1,4 @@
-package usrapi
+package api
 
 import (
 	"net/http"
@@ -7,21 +7,20 @@ import (
 	"github.com/go-chi/render"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
-	"github.com/sksmith/go-micro-example/api"
 	"github.com/sksmith/go-micro-example/core/user"
 )
 
-type Api struct {
+type UserApi struct {
 	service user.Service
 }
 
-func NewApi(service user.Service) *Api {
-	return &Api{service: service}
+func NewUserApi(service user.Service) *UserApi {
+	return &UserApi{service: service}
 }
 
-func (a *Api) ConfigureRouter(r chi.Router) {
+func (a *UserApi) ConfigureRouter(r chi.Router) {
 	r.Route("/v1", func(r chi.Router) {
-		r.With(api.AdminOnly).Post("/", a.Create)
+		r.With(AdminOnly).Post("/", a.Create)
 	})
 }
 
@@ -40,10 +39,10 @@ func (p *CreateUserRequestDto) Bind(_ *http.Request) error {
 	return nil
 }
 
-func (a *Api) Create(w http.ResponseWriter, r *http.Request) {
+func (a *UserApi) Create(w http.ResponseWriter, r *http.Request) {
 	data := &CreateUserRequestDto{}
 	if err := render.Bind(r, data); err != nil {
-		api.Render(w, r, api.ErrInvalidRequest(err))
+		Render(w, r, ErrInvalidRequest(err))
 		return
 	}
 
@@ -51,7 +50,7 @@ func (a *Api) Create(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		log.Err(err).Send()
-		api.Render(w, r, api.ErrInternalServer)
+		Render(w, r, ErrInternalServer)
 		return
 	}
 }
