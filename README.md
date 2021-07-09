@@ -13,8 +13,8 @@ fan of [Domain Driven Design](https://martinfowler.com/bliki/DomainDrivenDesign.
 nicely with [Hexagonal Architecture](https://alistair.cockburn.us/hexagonal-architecture/) and I wanted
 to see how a Go microservice might look structured using them.
 
-The starting point of the application is under the [cmd/app](cmd/app/main.go) directory. The "domain"
-core of the application where all business logic should reside is under the [internal/core](internal/core)
+The starting point of the application is under the [cmd](cmd/main.go) directory. The "domain"
+core of the application where all business logic should reside is under the [core](core)
 directory. The other directories listed there are each of the external dependencies for the project.
 
 ![structure diagram](inventory.jpg)
@@ -47,7 +47,7 @@ docker-compose up
 
 ### RESTful API
 
-This application uses the wonderful [go-chi](github.com/go-chi/chi) for routing
+This application uses the wonderful [go-chi](https://github.com/go-chi/chi) for routing
 [beautifuly documentation](https://github.com/go-chi/chi/blob/master/_examples/rest/main.go) served as the main inspiration for
 how to structure the API. Seriously, I was so impressed.
 
@@ -67,13 +67,13 @@ I'd either use a remote cache like Redis, or a distributed local cache like grou
 
 This application outputs prometheus metrics using middleware I plugged into the go-chi router. If you're running
 locally check them out at [http://localhost:8080/metrics](http://localhost:8080/metrics). Every URL automatically
-gets a hit count and a latency metric added. You can find the configurations [here](internal/api/metrics.go).
+gets a hit count and a latency metric added. You can find the configurations [here](api/middleware.go).
 
 ### Logging
 
 I ended up going with [zerolog](https://github.com/rs/zerolog) for logging in this project. I really like its API
 and their benchmarks look really great too! You can get structured logging or nice human readable logging by
-[changing some configs](cmd/app/config.go)
+[changing some configs](cmd/config.go)
 
 ### Configuration
 
@@ -89,7 +89,7 @@ boilerplate code required to mock, say, the inventory repository but not having 
 another dependency for testing seemed like a fair tradeoff.
 
 The testing in this project is pretty bare-bones and mostly just proof-of-concept. If you want to see some
-tests, though, they're in [internal/api/invapi](internal/api/invapi). I personally prefer more integration
+tests, though, they're in [api](api). I personally prefer more integration
 tests that test an application front-to-back for features rather than tons and tons of tightly-coupled
 unit tests.
 
