@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	queue2 "github.com/sksmith/go-micro-example/queue"
 	"net/http"
 	"os"
 	"os/signal"
@@ -25,6 +24,7 @@ import (
 	"github.com/sksmith/go-micro-example/db"
 	"github.com/sksmith/go-micro-example/db/invrepo"
 	"github.com/sksmith/go-micro-example/db/usrrepo"
+	"github.com/sksmith/go-micro-example/queue"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -63,11 +63,11 @@ func main() {
 	configLogging(config)
 	printLogHeader(config)
 	dbPool := configDatabase(ctx, config)
-	queue := configQueue(config)
+	q := configQueue(config)
 
 	log.Info().Msg("creating inventory service...")
 	ir := invrepo.NewPostgresRepo(dbPool)
-	inventoryService := inventory.NewService(ir, queue, config.QInventoryExchange, config.QReservationExchange)
+	inventoryService := inventory.NewService(ir, q, config.QInventoryExchange, config.QReservationExchange)
 
 	log.Info().Msg("creating user service...")
 	ur := usrrepo.NewPostgresRepo(dbPool)
@@ -88,16 +88,16 @@ func main() {
 	log.Fatal().Err(http.ListenAndServe(":"+config.Port, r))
 }
 
-func configQueue(config *Config) (queue inventory.Queue) {
+func configQueue(config *Config) (q inventory.Queue) {
 	if config.QMock {
 		log.Info().Msg("creating mock queue...")
-		queue = queue2.NewMockQueue()
+		q = queue.NewMockQueue()
 	} else {
 		log.Info().Msg("connecting to rabbitmq...")
-		queue = rabbit(config)
+		q = rabbit(config)
 	}
 
-	return queue
+	return q
 }
 
 func loadConfigs() (config *Config) {
@@ -138,7 +138,7 @@ func rabbit(config *Config) inventory.Queue {
 		break
 	}
 
-	return queue2.New(bq, config.QInventoryExchange, config.QReservationExchange)
+	return queue.New(bq, config.QInventoryExchange, config.QReservationExchange)
 }
 
 type logger struct {
@@ -235,9 +235,9 @@ func configureRouter(service inventory.Service, userService user.Service) chi.Ro
 
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Recoverer)
-	r.Use(api.MetricsMiddleware)
+	r.Use(api.Metrics)
 	r.Use(render.SetContentType(render.ContentTypeJSON))
-	r.Use(api.LoggingMiddleware)
+	r.Use(api.Logging)
 
 	r.Handle("/metrics", promhttp.Handler())
 	r.With(api.Authenticate(userService)).Route("/inventory", inventoryApi(service))

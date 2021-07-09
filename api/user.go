@@ -1,13 +1,12 @@
 package api
 
 import (
-	"net/http"
-
 	"github.com/go-chi/chi"
 	"github.com/go-chi/render"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/core/user"
+	"net/http"
 )
 
 type UserApi struct {
