@@ -31,7 +31,7 @@ import (
 
 const (
 	ApplicationName = "go-micro-example"
-	Revision        = "2"
+	Revision        = "1"
 )
 
 var (

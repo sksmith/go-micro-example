@@ -59,7 +59,7 @@ type ProductHandler interface {
 }
 
 func (p *ProductQueue) ConsumeProducts(ctx context.Context, handler ProductHandler) {
-	p.queue.Stream(ctx, p.newProductQueue, func(delivery amqp.Delivery) {
+	err := p.queue.Stream(ctx, p.newProductQueue, func(delivery amqp.Delivery) {
 		product := inventory.Product{}
 		err := json.Unmarshal(delivery.Body, &product)
 		if err != nil {
@@ -73,6 +73,10 @@ func (p *ProductQueue) ConsumeProducts(ctx context.Context, handler ProductHandl
 			p.sendToDlt(ctx, delivery.Body)
 		}
 	}, bunnyq.StreamOpAutoAck)
+
+	if err != nil {
+		log.Error().Err(err).Msg("error reading stream")
+	}
 }
 
 func (p *ProductQueue) sendToDlt(ctx context.Context, data []byte) {
