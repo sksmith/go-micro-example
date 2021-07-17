@@ -51,7 +51,7 @@ type ProductQueue struct {
 }
 
 func NewProductQueue(bq *bunnyq.BunnyQ, newProductQueue, newProductDltExchange string) *ProductQueue {
-	return &ProductQueue{queue: bq, newProductDltExchange: newProductDltExchange}
+	return &ProductQueue{queue: bq, newProductQueue: newProductQueue, newProductDltExchange: newProductDltExchange}
 }
 
 type ProductHandler interface {
