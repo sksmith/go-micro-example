@@ -3,6 +3,8 @@ package db
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
@@ -10,16 +12,15 @@ import (
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"time"
 )
 
 type config struct {
-	timeZone string
-	sslMode string
-	poolMaxConns int32
-	poolMinConns int32
-	poolMaxConnLifetime time.Duration
-	poolMaxConnIdleTime time.Duration
+	timeZone              string
+	sslMode               string
+	poolMaxConns          int32
+	poolMinConns          int32
+	poolMaxConnLifetime   time.Duration
+	poolMaxConnIdleTime   time.Duration
 	poolHealthCheckPeriod time.Duration
 }
 
@@ -119,9 +120,9 @@ func (l logger) Log(ctx context.Context, level pgx.LogLevel, msg string, data ma
 func RunMigrations(host, database, port, user, password string, clean bool) error {
 	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
 		user, password, host, port, database)
-	m, err := migrate.New("file:internal/db/migrations", connStr)
+	m, err := migrate.New("file:db/migrations", connStr)
 	if err != nil {
-		m, err = migrate.New("file:internal/db/migrations", connStr)
+		m, err = migrate.New("file:db/migrations", connStr)
 		if err != nil {
 			return err
 		}
