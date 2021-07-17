@@ -63,7 +63,8 @@ func main() {
 	configLogging(config)
 	printLogHeader(config)
 	dbPool := configDatabase(ctx, config)
-	q := configQueue(config)
+	bq := rabbit(config)
+	q := configInventoryQueue(bq, config)
 
 	log.Info().Msg("creating inventory service...")
 	ir := invrepo.NewPostgresRepo(dbPool)
@@ -84,20 +85,26 @@ func main() {
 		createRouteDocs(r)
 	}
 
+	log.Info().Msg("consuming products...")
+	prodQueue := configProductQueue(bq, config)
+	go prodQueue.ConsumeProducts(context.Background(), inventoryService)
+
 	log.Info().Str("port", config.Port).Msg("listening")
 	log.Fatal().Err(http.ListenAndServe(":"+config.Port, r))
 }
 
-func configQueue(config *Config) (q inventory.Queue) {
+func configInventoryQueue(bq *bunnyq.BunnyQ, config *Config) (q inventory.Queue) {
 	if config.QMock {
 		log.Info().Msg("creating mock queue...")
-		q = queue.NewMockQueue()
+		return queue.NewMockQueue()
 	} else {
 		log.Info().Msg("connecting to rabbitmq...")
-		q = rabbit(config)
+		return queue.New(bq, config.QInventoryExchange, config.QReservationExchange)
 	}
+}
 
-	return q
+func configProductQueue(bq *bunnyq.BunnyQ, config *Config) (q *queue.ProductQueue) {
+	return queue.NewProductQueue(bq, config.QNewProduct, config.QNewProductDltExchange)
 }
 
 func loadConfigs() (config *Config) {
@@ -118,7 +125,7 @@ func loadConfigs() (config *Config) {
 	return config
 }
 
-func rabbit(config *Config) inventory.Queue {
+func rabbit(config *Config) *bunnyq.BunnyQ {
 	osChannel := make(chan os.Signal, 1)
 	signal.Notify(osChannel, syscall.SIGTERM)
 	var bq *bunnyq.BunnyQ
@@ -138,7 +145,7 @@ func rabbit(config *Config) inventory.Queue {
 		break
 	}
 
-	return queue.New(bq, config.QInventoryExchange, config.QReservationExchange)
+	return bq
 }
 
 type logger struct {
@@ -240,8 +247,10 @@ func configureRouter(service inventory.Service, userService user.Service) chi.Ro
 	r.Use(api.Logging)
 
 	r.Handle("/metrics", promhttp.Handler())
-	r.With(api.Authenticate(userService)).Route("/inventory", inventoryApi(service))
-	r.With(api.Authenticate(userService)).Route("/user", userApi(userService))
+	r.With(api.Authenticate(userService)).Route("/api", func(r chi.Router) {
+		r.Route("/inventory", inventoryApi(service))
+		r.Route("/user", userApi(userService))
+	})
 
 	return r
 }

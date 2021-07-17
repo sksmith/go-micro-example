@@ -9,27 +9,29 @@ import (
 )
 
 type Config struct {
-	Port                 string
-	GenerateRoutes       bool
-	LogLevel             string
-	LogText              bool
-	InMemoryDb           bool
-	DbHost               string
-	DbPort               string
-	DbUser               string
-	DbPass               string
-	DbName               string
-	DbMigrate            bool
-	DbClean              bool
-	QMock                bool
-	QHost                string
-	QPort                string
-	QUser                string
-	QPass                string
-	Revision             string
-	ApplicationName      string
-	QInventoryExchange   string
-	QReservationExchange string
+	Port                   string
+	GenerateRoutes         bool
+	LogLevel               string
+	LogText                bool
+	InMemoryDb             bool
+	DbHost                 string
+	DbPort                 string
+	DbUser                 string
+	DbPass                 string
+	DbName                 string
+	DbMigrate              bool
+	DbClean                bool
+	QMock                  bool
+	QHost                  string
+	QPort                  string
+	QUser                  string
+	QPass                  string
+	Revision               string
+	ApplicationName        string
+	QInventoryExchange     string
+	QReservationExchange   string
+	QNewProduct            string
+	QNewProductDltExchange string
 }
 
 const maxRetries = 5
@@ -52,7 +54,7 @@ func LoadLocalConfigs() (*Config, error) {
 	appConfig.DbPass = "postgres"
 	appConfig.DbName = "micro-tmpl-db"
 	appConfig.DbMigrate = true
-	appConfig.DbClean   = false
+	appConfig.DbClean = false
 	appConfig.InMemoryDb = false
 
 	// Queue Configs
@@ -63,6 +65,8 @@ func LoadLocalConfigs() (*Config, error) {
 	appConfig.QPass = "guest"
 	appConfig.QInventoryExchange = "inventory.exchange"
 	appConfig.QReservationExchange = "reservation.exchange"
+	appConfig.QNewProduct = "product.queue"
+	appConfig.QNewProductDltExchange = "product.exchange"
 
 	return appConfig, nil
 }
