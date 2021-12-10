@@ -2,7 +2,7 @@
 
 This small sample project was created as a collection of the various things I've learned about best
 practices building microservices using Go. I structured the project using a hexagonal style abstracting
-away business logic from dependencies like the RESTful API, the Postgres, and RabbitMQ.
+away business logic from dependencies like the RESTful API, the Postgres database, and RabbitMQ message queue.
 
 ## Structure
 
@@ -48,20 +48,22 @@ docker-compose up
 ### RESTful API
 
 This application uses the wonderful [go-chi](https://github.com/go-chi/chi) for routing
-[beautifuly documentation](https://github.com/go-chi/chi/blob/master/_examples/rest/main.go) served as the main inspiration for
-how to structure the API. Seriously, I was so impressed.
+[beautifuly documentation](https://github.com/go-chi/chi/blob/master/_examples/rest/main.go) served as the main 
+inspiration for how to structure the API. Seriously, I was so impressed.
 
-In Java I like to generate the controller layer using Open API so that the contract and implementation always match exactly.
-I couldn't quite find an equivalent solution I liked.
+In Java I like to generate the controller layer using Open API so that the contract and implementation always match 
+exactly. I couldn't quite find an equivalent solution I liked.
 
-Truth be told, if I were doing inter-microservice communication I would strongly consider using gRPC rather than a RESTful API.
+Truth be told, if I were doing inter-microservice communication I would strongly consider using gRPC rather than a 
+RESTful API.
 
 ### Authentication
 
-Many of the endpoints in this project are protected by using a [simple authentication middleware](internal/api/util.go). If you're
-interested in hitting them you can use basic auth admin:admin. Users are stored in the database along with their hashed password.
-Users are locally cached using [golang-lru](github.com/hashicorp/golang-lru). In a production setting if I actually wanted caching
-I'd either use a remote cache like Redis, or a distributed local cache like groupcache to prevent stale or out of sync data.
+Many of the endpoints in this project are protected by using a [simple authentication middleware](api/middleware.go). If 
+you're interested in hitting them you can use basic auth admin:admin. Users are stored in the database along with their 
+hashed password. Users are locally cached using [golang-lru](https://github.com/hashicorp/golang-lru). In a production 
+setting if I actually wanted caching I'd either use a remote cache like Redis, or a distributed local cache like 
+groupcache to prevent stale or out of sync data.
 
 ### Metrics
 
@@ -71,31 +73,30 @@ gets a hit count and a latency metric added. You can find the configurations [he
 
 ### Logging
 
-I ended up going with [zerolog](https://github.com/rs/zerolog) for logging in this project. I really like its API
-and their benchmarks look really great too! You can get structured logging or nice human readable logging by
+I ended up going with [zerolog](https://github.com/rs/zerolog) for logging in this project. I really like its API and 
+their benchmarks look really great too! You can get structured logging or nice human-readable logging by
 [changing some configs](cmd/config.go)
 
 ### Configuration
 
-I'm most comfortable with using Spring Cloud Config for externalized configurations, but I couldn't find any
-libraries written for Go that can connect to Spring Cloud Config servers
+I'm most comfortable using Spring Cloud Config for externalized configurations, but I couldn't find any libraries 
+written for Go that can connect to Spring Cloud Config servers 
 [so I wrote one](https://github.com/sksmith/go-spring-config).
 
 ### Testing
 
-I chose not to go with any of the test frameworks when putting this project together. I felt like using
-interfaces and injecting dependencies would be enough to allow me to mock what I need to. There's a fair bit of
-boilerplate code required to mock, say, the inventory repository but not having to pull in and learn yet
-another dependency for testing seemed like a fair tradeoff.
+I chose not to go with any of the test frameworks when putting this project together. I felt like using interfaces and 
+injecting dependencies would be enough to allow me to mock what I need to. There's a fair bit of boilerplate code 
+required to mock, say, the inventory repository but not having to pull in and learn yet another dependency for testing 
+seemed like a fair tradeoff.
 
-The testing in this project is pretty bare-bones and mostly just proof-of-concept. If you want to see some
-tests, though, they're in [api](api). I personally prefer more integration
-tests that test an application front-to-back for features rather than tons and tons of tightly-coupled
-unit tests.
+The testing in this project is pretty bare-bones and mostly just proof-of-concept. If you want to see some tests, 
+though, they're in [api](api). I personally prefer more integration tests that test an application front-to-back for 
+features rather than tons and tons of tightly-coupled unit tests.
 
 ### Database Migrations
 
-I'm using the migrate project to manage database migrations.
+I'm using the [migrate](https://github.com/golang-migrate/migrate) project to manage database migrations.
 
 ```shell
 migrate create -ext sql -dir db/migrations -seq create_products_table
@@ -107,9 +108,8 @@ migrate -source file://db/migrations -database postgres://localhost:5432/databas
 
 ## 12 Factors
 
-One of the goals of this service was to ensure all [12 principals](https://12factor.net/) of a 12-factor 
-app are adhered to. This was a nice way to make sure the app I built offered most of what you need out of
-a Spring Boot application.
+One of the goals of this service was to ensure all [12 principals](https://12factor.net/) of a 12-factor app are adhered 
+to. This was a nice way to make sure the app I built offered most of what you need out of a Spring Boot application.
 
 ### I. Codebase
 
@@ -121,28 +121,28 @@ Go handles this for us through its dependency management system (yay!)
 
 ### III. Config
 
-The app initially starts up using environment variables that define a URL and credentials for connecting
-to a [Spring Cloud Config](https://github.com/spring-cloud/spring-cloud-config) service. This allows for
-the externalization of configurations which are managed through a typical version control system. Pretty
-nice! [I wrote a basic library](https://github.com/sksmith/go-spring-config) for connecting to and reading
-configurations from Spring Cloud Config since I'm mostly writing Spring Boot microservices these days.
+The app initially starts up using environment variables that define a URL and credentials for connecting to a 
+[Spring Cloud Config](https://github.com/spring-cloud/spring-cloud-config) service. This allows for the externalization 
+of configurations which are managed through a typical version control system. Pretty nice! 
+[I wrote a basic library](https://github.com/sksmith/go-spring-config) for connecting to and reading configurations from 
+Spring Cloud Config since I'm mostly writing Spring Boot microservices these days.
 
 ### IV. Backing Services
 
-The application connects to all external dependencies (in this case, RabbitMQ, and Postgres) via URLs which
-it gets from remote configuration.
+The application connects to all external dependencies (in this case, RabbitMQ, and Postgres) via URLs which it gets from 
+remote configuration.
 
 ### V. Build, release, run
 
-The application can easily be plugged into any CI/CD pipeline. This is mostly thanks to Go making this easy
-through great command line tools.
+The application can easily be plugged into any CI/CD pipeline. This is mostly thanks to Go making this easy through 
+great command line tools.
 
 ### VI. Processes
 
-This app is not *strictly* stateless. There is a cache in the user repository. This was a design choice I
-made in the interest of seeing what setting up a local cache in go might look like. In a more real-world
-application you would probably want an external cache (like Redis), or a distributed cache 
-(like [Group Cache](https://github.com/golang/groupcache) - which is really cool!)
+This app is not *strictly* stateless. There is a cache in the user repository. This was a design choice I made in the 
+interest of seeing what setting up a local cache in go might look like. In a more real-world application you would 
+probably want an external cache (like Redis), or a distributed cache (like 
+[Group Cache](https://github.com/golang/groupcache) - which is really cool!)
 
 This app is otherwise stateless and threadsafe.
 
@@ -152,29 +152,29 @@ The application binds to a supplied port on startup.
 
 ### VIII. Concurrency
 
-Other than maintaining an instance-based cache (see Process above), the application will scale horizontally 
-without issue. The database dependency would need to scale vertically unless you started using sharding, or
-a distributed data store like [Cosmos DB](https://docs.microsoft.com/en-us/azure/cosmos-db/distribute-data-globally).
+Other than maintaining an instance-based cache (see Process above), the application will scale horizontally without 
+issue. The database dependency would need to scale vertically unless you started using sharding, or a distributed data 
+store like [Cosmos DB](https://docs.microsoft.com/en-us/azure/cosmos-db/distribute-data-globally).
 
 ### IX. Disposability
 
-One of the wonderful things about Go is how *fast* it starts up. This application can start up and shut down
-in a fraction of the time that similar Spring Boot microservices. In addition they use a much smaller footprint.
-This is perfect for services that need to be highly elastic on demand.
+One of the wonderful things about Go is how *fast* it starts up. This application can start up and shut down in a 
+fraction of the time that similar Spring Boot microservices. In addition, they use a much smaller footprint. This is 
+perfect for services that need to be highly elastic on demand.
 
 ### X. Dev/Prod Parity
 
 Docker makes standing up a prod-like environment on your local environment a breeze. This application has
-[a docker-compose file](scripts/docker-compose.yml) that starts up a local instance of rabbit and postgres.
-This obviously doesn't account for ensuring your dev and stage environments are up to snuff but at least
-that's a good start for local development.
+[a docker-compose file](scripts/docker-compose.yml) that starts up a local instance of rabbit and postgres. This 
+obviously doesn't account for ensuring your dev and stage environments are up to snuff but at least that's a good start 
+for local development.
 
 ### XI. Logs
 
 Logs in the application are written to the stdout allowing for logscrapers like 
-[logstash](https://www.elastic.co/logstash) to consume and parse the logs. Through configuration the logs
-can output as plain text for ease of reading during local development and then switched after deployment
-into json structured logs for automatic parsing.
+[logstash](https://www.elastic.co/logstash) to consume and parse the logs. Through configuration the logs can output as 
+plain text for ease of reading during local development and then switched after deployment into json structured logs for 
+automatic parsing.
 
 ### XII. Admin Processes
 
