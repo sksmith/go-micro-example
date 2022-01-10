@@ -36,6 +36,8 @@ func main() {
 
 	configLogging(cfg)
 	printLogHeader(cfg)
+	cfg.Print()
+
 	dbPool := configDatabase(ctx, cfg)
 	bq := rabbit(cfg)
 	q := configInventoryQueue(bq, cfg)
@@ -52,7 +54,7 @@ func main() {
 	api.ConfigureMetrics()
 
 	log.Info().Msg("configuring router...")
-	r := configureRouter(inventoryService, userService)
+	r := configureRouter(cfg, inventoryService, userService)
 
 	log.Info().Msg("consuming products...")
 	prodQueue := configProductQueue(bq, cfg)
@@ -136,8 +138,8 @@ func printLogHeader(cfg *config.Config) {
 			Str("sha1ver", cfg.Sha1Version).
 			Str("build-time", cfg.BuildTime).
 			Str("profile", cfg.Profile).
-			Str("config-source", cfg.Source).
-			Str("config-branch", cfg.Branch).
+			Str("config-source", cfg.Config.Source).
+			Str("config-branch", cfg.Config.Spring.Branch).
 			Send()
 	} else {
 		f := figure.NewFigure(cfg.AppName, "", true)
@@ -146,7 +148,7 @@ func printLogHeader(cfg *config.Config) {
 		log.Info().Msg("=============================================")
 		log.Info().Msg(fmt.Sprintf("       Revision: %s", cfg.Revision))
 		log.Info().Msg(fmt.Sprintf("        Profile: %s", cfg.Profile))
-		log.Info().Msg(fmt.Sprintf("  Config Server: %s - %s", cfg.Source, cfg.Branch))
+		log.Info().Msg(fmt.Sprintf("  Config Server: %s - %s", cfg.Config.Source, cfg.Config.Spring.Branch))
 		log.Info().Msg(fmt.Sprintf("    Tag Version: %s", cfg.AppVersion))
 		log.Info().Msg(fmt.Sprintf("   Sha1 Version: %s", cfg.Sha1Version))
 		log.Info().Msg(fmt.Sprintf("     Build Time: %s", cfg.BuildTime))
@@ -190,7 +192,7 @@ func configDatabase(ctx context.Context, cfg *config.Config) (dbPool *pgxpool.Po
 	return dbPool
 }
 
-func configureRouter(service inventory.Service, userService user.Service) chi.Router {
+func configureRouter(cfg *config.Config, service inventory.Service, userService user.Service) chi.Router {
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)
@@ -200,6 +202,7 @@ func configureRouter(service inventory.Service, userService user.Service) chi.Ro
 	r.Use(api.Logging)
 
 	r.Handle("/metrics", promhttp.Handler())
+	r.Route("/env", envApi(cfg))
 	r.With(api.Authenticate(userService)).Route("/api", func(r chi.Router) {
 		r.Route("/inventory", inventoryApi(service))
 		r.Route("/user", userApi(userService))
@@ -216,6 +219,11 @@ func userApi(s user.Service) func(r chi.Router) {
 func inventoryApi(s inventory.Service) func(r chi.Router) {
 	invApi := api.NewInventoryApi(s)
 	return invApi.ConfigureRouter
+}
+
+func envApi(cfg *config.Config) func(r chi.Router) {
+	envApi := api.NewEnvApi(cfg)
+	return envApi.ConfigureRouter
 }
 
 func configLogging(cfg *config.Config) {
