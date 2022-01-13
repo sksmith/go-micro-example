@@ -78,7 +78,7 @@ func (s *service) Login(ctx context.Context, username, password string) (User, e
 }
 
 type Repository interface {
-	Create(ctx context.Context, user *User, tx ...core.Transaction) error
-	Get(ctx context.Context, username string, tx ...core.Transaction) (User, error)
-	Delete(ctx context.Context, username string, tx ...core.Transaction) error
+	Create(ctx context.Context, user *User, tx ...core.UpdateOptions) error
+	Get(ctx context.Context, username string, tx ...core.QueryOptions) (User, error)
+	Delete(ctx context.Context, username string, tx ...core.UpdateOptions) error
 }

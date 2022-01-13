@@ -22,7 +22,7 @@ func NewPostgresRepo(conn core.Conn) inventory.Repository {
 
 func (d *dbRepo) SaveProduct(ctx context.Context, product inventory.Product, options ...core.UpdateOptions) error {
 	m := db.StartMetric("SaveProduct")
-	tx := d.updateOptions(options...)
+	tx := db.GetUpdateOptions(d.conn, options...)
 
 	ct, err := tx.Exec(ctx, `
 		UPDATE products
@@ -49,7 +49,7 @@ func (d *dbRepo) SaveProduct(ctx context.Context, product inventory.Product, opt
 
 func (d *dbRepo) SaveProductInventory(ctx context.Context, productInventory inventory.ProductInventory, options ...core.UpdateOptions) error {
 	m := db.StartMetric("SaveProductInventory")
-	tx := d.updateOptions(options...)
+	tx := db.GetUpdateOptions(d.conn, options...)
 
 	ct, err := tx.Exec(ctx, `
 		UPDATE product_inventory
@@ -75,7 +75,7 @@ func (d *dbRepo) SaveProductInventory(ctx context.Context, productInventory inve
 
 func (d *dbRepo) GetProduct(ctx context.Context, sku string, options ...core.QueryOptions) (inventory.Product, error) {
 	m := db.StartMetric("GetProduct")
-	tx, forUpdate := d.queryOptions(options...)
+	tx, forUpdate := db.GetQueryOptions(d.conn, options...)
 
 	product := inventory.Product{}
 	err := tx.QueryRow(ctx, `SELECT sku, upc, name FROM products WHERE sku = $1 `+forUpdate, sku).
@@ -95,7 +95,7 @@ func (d *dbRepo) GetProduct(ctx context.Context, sku string, options ...core.Que
 
 func (d *dbRepo) GetProductInventory(ctx context.Context, sku string, options ...core.QueryOptions) (inventory.ProductInventory, error) {
 	m := db.StartMetric("GetProductInventory")
-	tx, forUpdate := d.queryOptions(options...)
+	tx, forUpdate := db.GetQueryOptions(d.conn, options...)
 
 	productInventory := inventory.ProductInventory{}
 	err := tx.QueryRow(ctx, `SELECT p.sku, p.upc, p.name, pi.available FROM products p, product_inventory pi WHERE p.sku = $1 AND p.sku = pi.sku `+forUpdate, sku).
@@ -115,7 +115,7 @@ func (d *dbRepo) GetProductInventory(ctx context.Context, sku string, options ..
 
 func (d *dbRepo) GetAllProductInventory(ctx context.Context, limit int, offset int, options ...core.QueryOptions) ([]inventory.ProductInventory, error) {
 	m := db.StartMetric("GetAllProducts")
-	tx, forUpdate := d.queryOptions(options...)
+	tx, forUpdate := db.GetQueryOptions(d.conn, options...)
 
 	products := make([]inventory.ProductInventory, 0)
 	rows, err := tx.Query(ctx,
@@ -149,7 +149,7 @@ func (d *dbRepo) GetAllProductInventory(ctx context.Context, limit int, offset i
 
 func (d *dbRepo) GetProductionEventByRequestID(ctx context.Context, requestID string, options ...core.QueryOptions) (pe inventory.ProductionEvent, err error) {
 	m := db.StartMetric("GetProductionEventByRequestID")
-	tx, forUpdate := d.queryOptions(options...)
+	tx, forUpdate := db.GetQueryOptions(d.conn, options...)
 
 	pe = inventory.ProductionEvent{}
 	err = tx.QueryRow(ctx, `SELECT id, request_id, sku, quantity, created FROM production_events `+forUpdate+` WHERE request_id = $1 `+forUpdate, requestID).
@@ -169,7 +169,8 @@ func (d *dbRepo) GetProductionEventByRequestID(ctx context.Context, requestID st
 
 func (d *dbRepo) SaveProductionEvent(ctx context.Context, event *inventory.ProductionEvent, options ...core.UpdateOptions) error {
 	m := db.StartMetric("SaveProductionEvent")
-	tx := d.updateOptions(options...)
+	tx := db.GetUpdateOptions(d.conn, options...)
+
 	insert := `INSERT INTO production_events (request_id, sku, quantity, created)
 			       VALUES ($1, $2, $3, $4) RETURNING id;`
 
@@ -187,7 +188,8 @@ func (d *dbRepo) SaveProductionEvent(ctx context.Context, event *inventory.Produ
 
 func (d *dbRepo) SaveReservation(ctx context.Context, r *inventory.Reservation, options ...core.UpdateOptions) error {
 	m := db.StartMetric("SaveReservation")
-	tx := d.updateOptions(options...)
+	tx := db.GetUpdateOptions(d.conn, options...)
+
 	insert := `INSERT INTO reservations (request_id, requester, sku, state, reserved_quantity, requested_quantity, created)
                       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id;`
 	err := tx.QueryRow(ctx, insert, r.RequestID, r.Requester, r.Sku, r.State, r.ReservedQuantity, r.RequestedQuantity, r.Created).Scan(&r.ID)
@@ -204,7 +206,8 @@ func (d *dbRepo) SaveReservation(ctx context.Context, r *inventory.Reservation, 
 
 func (d *dbRepo) UpdateReservation(ctx context.Context, ID uint64, state inventory.ReserveState, qty int64, options ...core.UpdateOptions) error {
 	m := db.StartMetric("UpdateReservation")
-	tx := d.updateOptions(options...)
+	tx := db.GetUpdateOptions(d.conn, options...)
+
 	update := `UPDATE reservations SET state = $2, reserved_quantity = $3 WHERE id=$1;`
 	_, err := tx.Exec(ctx, update, ID, state, qty)
 	m.Complete(err)
@@ -217,7 +220,7 @@ func (d *dbRepo) UpdateReservation(ctx context.Context, ID uint64, state invento
 
 func (d *dbRepo) GetSkuReservationsByState(ctx context.Context, sku string, state inventory.ReserveState, limit, offset int, options ...core.QueryOptions) ([]inventory.Reservation, error) {
 	m := db.StartMetric("GetSkuOpenReserves")
-	tx, forUpdate := d.queryOptions(options...)
+	tx, forUpdate := db.GetQueryOptions(d.conn, options...)
 
 	params := make([]interface{}, 0)
 	params = append(params, sku)
@@ -260,7 +263,7 @@ func (d *dbRepo) GetSkuReservationsByState(ctx context.Context, sku string, stat
 
 func (d *dbRepo) GetReservationByRequestID(ctx context.Context, requestId string, options ...core.QueryOptions) (inventory.Reservation, error) {
 	m := db.StartMetric("GetReservationByRequestID")
-	tx, forUpdate := d.queryOptions(options...)
+	tx, forUpdate := db.GetQueryOptions(d.conn, options...)
 
 	r := inventory.Reservation{}
 	err := tx.QueryRow(ctx,
@@ -284,27 +287,4 @@ func (d *dbRepo) BeginTransaction(ctx context.Context) (core.Transaction, error)
 		return nil, err
 	}
 	return tx, nil
-}
-
-func (d *dbRepo) queryOptions(options ...core.QueryOptions) (core.Conn, string) {
-	tx := d.conn
-	forUpdate := ""
-	if len(options) > 0 {
-		tx = options[0].Tx
-
-		if options[0].ForUpdate {
-			forUpdate = "FOR UPDATE"
-		}
-	}
-
-	return tx, forUpdate
-}
-
-func (d *dbRepo) updateOptions(options ...core.UpdateOptions) core.Conn {
-	tx := d.conn
-	if len(options) > 0 {
-		tx = options[0].Tx
-	}
-
-	return tx
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"github.com/sksmith/go-micro-example/core"
 )
 
 type config struct {
@@ -142,4 +143,27 @@ func RunMigrations(host, database, port, user, password string, clean bool) erro
 	}
 
 	return nil
+}
+
+func GetQueryOptions(cn core.Conn, options ...core.QueryOptions) (conn core.Conn, forUpdate string) {
+	conn = cn
+	forUpdate = ""
+	if len(options) > 0 {
+		conn = options[0].Tx
+
+		if options[0].ForUpdate {
+			forUpdate = "FOR UPDATE"
+		}
+	}
+
+	return conn, forUpdate
+}
+
+func GetUpdateOptions(cn core.Conn, options ...core.UpdateOptions) (conn core.Conn) {
+	conn = cn
+	if len(options) > 0 {
+		conn = options[0].Tx
+	}
+
+	return conn
 }

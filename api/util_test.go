@@ -22,8 +22,8 @@ func TestScrub(t *testing.T) {
 		want  TestObj
 	}{
 		{
-			input: TestObj{PlainText: "plaintext", SensText: "abc", PlainInt: 123, SensInt: 123, PlainFloat: 1.23, SensFloat: 1.23, SensBool: true},
-			want:  TestObj{PlainText: "plaintext", SensText: "******", PlainInt: 123, SensInt: 0, PlainFloat: 1.23, SensFloat: 0.00, SensBool: false},
+			input: TestObj{PlainText: "plaintext", SensText: "abc", PlainInt: 123, SensInt: 123, PlainFloat: 1.23, SensFloat: 1.23},
+			want:  TestObj{PlainText: "plaintext", SensText: "******", PlainInt: 123, SensInt: 0, PlainFloat: 1.23, SensFloat: 0.00},
 		},
 	}
 
