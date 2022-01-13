@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"errors"
+
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
 )
@@ -23,4 +24,13 @@ type Conn interface {
 	QueryRow(ctx context.Context, sql string, args ...interface{}) pgx.Row
 	Exec(ctx context.Context, sql string, args ...interface{}) (pgconn.CommandTag, error)
 	Begin(ctx context.Context) (pgx.Tx, error)
+}
+
+type UpdateOptions struct {
+	Tx Transaction
+}
+
+type QueryOptions struct {
+	ForUpdate bool
+	Tx        Transaction
 }

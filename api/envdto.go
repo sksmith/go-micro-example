@@ -15,10 +15,7 @@ func NewEnvResponse(c config.Config) *EnvResponse {
 	return resp
 }
 
-// TODO We need to make all fields marked as sensitive ******
 func (er *EnvResponse) Render(_ http.ResponseWriter, _ *http.Request) error {
-
 	Scrub(er)
-
 	return nil
 }

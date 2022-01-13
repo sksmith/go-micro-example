@@ -18,7 +18,6 @@ func Scrub(o interface{}) {
 		sf := t.Field(i)
 		if f.Kind() == reflect.Struct {
 			Scrub(v.Field(i).Addr().Interface())
-			return
 		}
 		if sf.Tag.Get("sensitive") != "" {
 			switch f.Kind() {

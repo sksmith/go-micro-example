@@ -57,7 +57,7 @@ func (s *service) CreateProduct(ctx context.Context, product Product) error {
 		Str("upc", product.Upc).
 		Msg("creating product")
 
-	if err = s.repo.SaveProduct(ctx, product, tx); err != nil {
+	if err = s.repo.SaveProduct(ctx, product, core.UpdateOptions{Tx: tx}); err != nil {
 		rollback(ctx, tx, err)
 		return errors.WithStack(err)
 	}
@@ -72,7 +72,7 @@ func (s *service) CreateProduct(ctx context.Context, product Product) error {
 		Available: 0,
 	}
 
-	if err = s.repo.SaveProductInventory(ctx, pi, tx); err != nil {
+	if err = s.repo.SaveProductInventory(ctx, pi, core.UpdateOptions{Tx: tx}); err != nil {
 		rollback(ctx, tx, err)
 		return errors.WithStack(err)
 	}
@@ -126,19 +126,19 @@ func (s *service) Produce(ctx context.Context, product Product, pr ProductionReq
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	if err = s.repo.SaveProductionEvent(ctx, &event, tx); err != nil {
+	if err = s.repo.SaveProductionEvent(ctx, &event, core.UpdateOptions{Tx: tx}); err != nil {
 		rollback(ctx, tx, err)
 		return errors.WithMessage(err, "failed to save production event")
 	}
 
-	productInventory, err := s.repo.GetProductInventory(ctx, product.Sku, tx)
+	productInventory, err := s.repo.GetProductInventory(ctx, product.Sku, core.QueryOptions{Tx: tx, ForUpdate: true})
 	if err != nil {
 		rollback(ctx, tx, err)
 		return errors.WithMessage(err, "failed to get product inventory")
 	}
 
 	productInventory.Available += event.Quantity
-	if err = s.repo.SaveProductInventory(ctx, productInventory, tx); err != nil {
+	if err = s.repo.SaveProductInventory(ctx, productInventory, core.UpdateOptions{Tx: tx}); err != nil {
 		rollback(ctx, tx, err)
 		return errors.WithMessage(err, "failed to add production to product")
 	}
@@ -195,7 +195,7 @@ func (s *service) Reserve(ctx context.Context, pr Product, rr ReservationRequest
 		return Reservation{}, errors.WithStack(err)
 	}
 
-	if err = s.repo.SaveReservation(ctx, &res, tx); err != nil {
+	if err = s.repo.SaveReservation(ctx, &res, core.UpdateOptions{Tx: tx}); err != nil {
 		rollback(ctx, tx, err)
 		return Reservation{}, errors.WithStack(err)
 	}
@@ -220,12 +220,12 @@ func (s *service) fillReserves(ctx context.Context, product Product) error {
 		return errors.WithStack(err)
 	}
 
-	openReservations, err := s.repo.GetSkuReservationsByState(ctx, product.Sku, Open, 100, 0, tx)
+	openReservations, err := s.repo.GetSkuReservationsByState(ctx, product.Sku, Open, 100, 0, core.QueryOptions{Tx: tx, ForUpdate: true})
 	if err != nil {
 		return errors.WithStack(err)
 	}
 
-	productInventory, err := s.repo.GetProductInventory(ctx, product.Sku, tx)
+	productInventory, err := s.repo.GetProductInventory(ctx, product.Sku, core.QueryOptions{Tx: tx, ForUpdate: true})
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -252,7 +252,7 @@ func (s *service) fillReserves(ctx context.Context, product Product) error {
 			Str("reservation.RequestID", reservation.RequestID).
 			Msg("saving product inventory")
 
-		err = s.repo.SaveProductInventory(ctx, productInventory, tx)
+		err = s.repo.SaveProductInventory(ctx, productInventory, core.UpdateOptions{Tx: tx})
 		if err != nil {
 			rollback(ctx, tx, err)
 			return errors.WithStack(err)
@@ -265,7 +265,7 @@ func (s *service) fillReserves(ctx context.Context, product Product) error {
 			Str("state", string(reservation.State)).
 			Msg("updating reservation")
 
-		err = s.repo.UpdateReservation(ctx, reservation.ID, reservation.State, reservation.ReservedQuantity, tx)
+		err = s.repo.UpdateReservation(ctx, reservation.ID, reservation.State, reservation.ReservedQuantity, core.UpdateOptions{Tx: tx})
 		if err != nil {
 			rollback(ctx, tx, err)
 			return errors.WithStack(err)
@@ -362,19 +362,46 @@ func rollback(ctx context.Context, tx core.Transaction, err error) {
 	}
 }
 
-type Repository interface {
-	SaveProductionEvent(ctx context.Context, event *ProductionEvent, tx ...core.Transaction) error
-	GetProductionEventByRequestID(ctx context.Context, requestID string, tx ...core.Transaction) (pe ProductionEvent, err error)
-	GetProductInventory(ctx context.Context, sku string, tx ...core.Transaction) (pi ProductInventory, err error)
-	SaveReservation(ctx context.Context, reservation *Reservation, tx ...core.Transaction) error
-	UpdateReservation(ctx context.Context, ID uint64, state ReserveState, qty int64, txs ...core.Transaction) error
-	GetSkuReservationsByState(ctx context.Context, sku string, state ReserveState, limit, offset int, tx ...core.Transaction) ([]Reservation, error)
-	GetReservationByRequestID(ctx context.Context, requestId string, tx ...core.Transaction) (Reservation, error)
-	SaveProduct(ctx context.Context, product Product, tx ...core.Transaction) error
-	SaveProductInventory(ctx context.Context, productInventory ProductInventory, tx ...core.Transaction) error
-	GetProduct(ctx context.Context, sku string, tx ...core.Transaction) (Product, error)
-	GetAllProductInventory(ctx context.Context, limit int, offset int, tx ...core.Transaction) ([]ProductInventory, error)
+type Transactional interface {
 	BeginTransaction(ctx context.Context) (core.Transaction, error)
+}
+
+type Repository interface {
+	ProductionEventRepository
+	ReservationRepository
+	InventoryRepository
+	ProductRepository
+}
+
+type ProductionEventRepository interface {
+	Transactional
+	GetProductionEventByRequestID(ctx context.Context, requestID string, options ...core.QueryOptions) (pe ProductionEvent, err error)
+
+	SaveProductionEvent(ctx context.Context, event *ProductionEvent, options ...core.UpdateOptions) error
+}
+
+type ReservationRepository interface {
+	Transactional
+	GetSkuReservationsByState(ctx context.Context, sku string, state ReserveState, limit, offset int, options ...core.QueryOptions) ([]Reservation, error)
+	GetReservationByRequestID(ctx context.Context, requestId string, options ...core.QueryOptions) (Reservation, error)
+
+	SaveReservation(ctx context.Context, reservation *Reservation, options ...core.UpdateOptions) error
+	UpdateReservation(ctx context.Context, ID uint64, state ReserveState, qty int64, options ...core.UpdateOptions) error
+}
+
+type InventoryRepository interface {
+	Transactional
+	GetProductInventory(ctx context.Context, sku string, options ...core.QueryOptions) (pi ProductInventory, err error)
+	GetAllProductInventory(ctx context.Context, limit int, offset int, options ...core.QueryOptions) ([]ProductInventory, error)
+
+	SaveProductInventory(ctx context.Context, productInventory ProductInventory, options ...core.UpdateOptions) error
+}
+
+type ProductRepository interface {
+	Transactional
+	GetProduct(ctx context.Context, sku string, options ...core.QueryOptions) (Product, error)
+
+	SaveProduct(ctx context.Context, product Product, options ...core.UpdateOptions) error
 }
 
 type Queue interface {

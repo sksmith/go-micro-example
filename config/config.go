@@ -27,58 +27,116 @@ var (
 	configPass   *string
 )
 
-// https://github.com/spf13/viper#unmarshaling
 type Config struct {
-	AppName     string `json:"appName"       yaml:"appName"      description:"Name of the application in a human readable format. Example: Go Micro Example"`
-	AppVersion  string `json:"appVersion"    yaml:"appVersion"   description:"Semantic version of the application. Example: v1.2.3"`
-	Sha1Version string `json:"sha1Version"   yaml:"sha1Version"  description:"Git sha1 hash of the application version."`
-	BuildTime   string `json:"buildTime"     yaml:"buildTime"    description:"How long the application took to compile."`
-	Profile     string `json:"profile"       yaml:"profile"      description:"Running profile of the application, can assist with sensible defaults or change behavior. Examples: local, dev, prod"`
-	Revision    string `json:"revision"      yaml:"revision"     description:"A hard coded revision handy for quickly determining if local changes are running. Examples: 1, Two, 9999"`
-	Port        string `json:"port"          yaml:"port"         description:"Port that the application will bind to on startup. Examples: 8080, 3000"`
-	Config      struct {
-		Print  bool   `json:"print"  yaml:"print"  description:"Print configurations on startup."`
-		Source string `json:"source" yaml:"source" description:"Where the application should go for configurations. Examples: local, etcd"`
-		Spring struct {
-			Url    string `json:"url,omitempty"    yaml:"url,omitempty"                     description:"The url of the Spring Cloud Config server."`
-			Branch string `json:"branch,omitempty" yaml:"branch,omitempty"                  description:"The git branch to use to pull configurations from. Examples: main, master, development"`
-			User   string `json:"user,omitempty"   yaml:"user,omitempty"   sensitive:"true" description:"User to use when connecting to the Spring Cloud Config server."`
-			Pass   string `json:"pass,omitempty"   yaml:"pass,omitempty"   sensitive:"true" description:"Password to use when connecting to the Spring Cloud Config server."`
-		} `json:"spring,omitempty" yaml:"spring,omitempty" description:"Configuration settings for Spring Cloud Config. These are only used if config.source is spring."`
-	} `json:"config" yaml:"config" description:"Settings for where and how the application should get its configurations."`
-	Log struct {
-		Level      string `json:"level"      yaml:"level"      description:"The lowest level that the application should log at. Examples: info, warn, error."`
-		Structured bool   `json:"structured" yaml:"structured" description:"Whether the application should output structured (json) logging, or human friendly plain text."`
-	} `json:"log" yaml:"log" description:"Settings for applicaton logging."`
-	Db struct {
-		Name     string `json:"name"     yaml:"name"                      description:"The name of the database to connect to."`
-		Host     string `json:"host"     yaml:"host"                      description:"Host of the database."`
-		Port     string `json:"port"     yaml:"port"                      description:"Port of the database."`
-		Migrate  bool   `json:"migrate"  yaml:"migrate"                   description:"Whether or not database migrations should be executed on startup."`
-		Clean    bool   `json:"clean"    yaml:"clean"                     description:"WARNING: THIS WILL DELETE ALL DATA FROM THE DB. Used only during migration. If clean is true, all 'down' migrations are executed."`
-		InMemory bool   `json:"inMemory" yaml:"inMemory"                  description:"Whether or not the application should use an in memory database."`
-		User     string `json:"user"     yaml:"user"     sensitive:"true" description:"User the application will use to connect to the database."`
-		Pass     string `json:"pass"     yaml:"pass"     sensitive:"true" description:"Password the application will use for connecting to the database."`
-	} `json:"db" yaml:"db" description:"Database configurations."`
-	RabbitMQ struct {
-		Host      string `json:"host" yaml:"host"                  description:"RabbitMQ's broker host."`
-		Port      string `json:"port" yaml:"port"                  description:"RabbitMQ's broker host port."`
-		User      string `json:"user" yaml:"user" sensitive:"true" description:"User the application will use to connect to RabbitMQ."`
-		Pass      string `json:"pass" yaml:"pass" sensitive:"true" description:"Password the application will use to connect to RabbitMQ."`
-		Mock      bool   `json:"mock" yaml:"mock"                  description:"Whether or not the application should mock sending messages to RabbitMQ."`
-		Inventory struct {
-			Exchange string `json:"exchange" yaml:"exchange" description:"RabbitMQ exchange to use for posting inventory updates."`
-		} `json:"inventory" yaml:"inventory" description:"RabbitMQ settings for inventory related updates."`
-		Reservation struct {
-			Exchange string `json:"exchange" yaml:"exchange" description:"RabbitMQ exchange to use for posting reservation updates."`
-		} `json:"reservation" yaml:"reservation" description:"RabbitMQ settings for reservation related updates."`
-		Product struct {
-			Queue string `json:"queue" yaml:"queue" description:"Queue used for listening to product updates coming from a theoretical product management system."`
-			Dlt   struct {
-				Exchange string `json:"exchange" yaml:"exchange" description:"Exchange used for posting messages to the dead letter topic."`
-			} `json:"dlt" yaml:"dlt" description:"Configurations for the product dead letter topic, where messages that fail to be read from the queue are written."`
-		} `json:"product" yaml:"product" description:"RabbitMQ settings for product related updates."`
-	} `json:"rabbitmq" yaml:"rabbitmq" description:"Rabbit MQ congfigurations."`
+	AppName         string       `json:"appName"         yaml:"appName"`
+	AppNameDesc     string       `json:"appNameDesc"     yaml:"appNameDesc"`
+	AppVersion      string       `json:"appVersion"      yaml:"appVersion"`
+	AppVersionDesc  string       `json:"appVersionDesc"  yaml:"appVersionDesc"`
+	Sha1Version     string       `json:"sha1Version"     yaml:"sha1Version"`
+	Sha1VersionDesc string       `json:"sha1VersionDesc" yaml:"sha1VersionDesc"`
+	BuildTime       string       `json:"buildTime"       yaml:"buildTime"`
+	BuildTimeDesc   string       `json:"buildTimeDesc"   yaml:"buildTimeDesc"`
+	Profile         string       `json:"profile"         yaml:"profile"`
+	ProfileDesc     string       `json:"profileDesc"     yaml:"profileDesc"`
+	Revision        string       `json:"revision"        yaml:"revision"`
+	RevisionDesc    string       `json:"revisionDesc"    yaml:"revisionDesc"`
+	Port            string       `json:"port"            yaml:"port"`
+	PortDesc        string       `json:"portDesc"        yaml:"portDesc"`
+	Config          ConfigSource `json:"config"          yaml:"config"`
+	ConfigDesc      string       `json:"configDesc"      yaml:"configDesc"`
+	Log             LogConfig    `json:"log"             yaml:"log"`
+	LogDesc         string       `json:"logDesc"         yaml:"logDesc"`
+	Db              DbConfig     `json:"db"              yaml:"db"`
+	DbDesc          string       `json:"dbDesc"          yaml:"dbDesc"`
+	RabbitMQ        QueueConfig  `json:"rabbitmq"        yaml:"rabbitmq"`
+	RabbitMQDesc    string       `json:"rabbitmqDesc"    yaml:"rabbitmqDesc"`
+}
+
+type ConfigSource struct {
+	Print      bool         `json:"print"      yaml:"print"`
+	PrintDesc  string       `json:"printDesc"  yaml:"printDesc"`
+	Source     string       `json:"source"     yaml:"source"`
+	SourceDesc string       `json:"sourceDesc" yaml:"source"`
+	Spring     SpringConfig `json:"spring"     yaml:"spring"`
+	SpringDesc string       `json:"springDesc" yaml:"springDesc"`
+}
+
+type SpringConfig struct {
+	Url        string `json:"url"        yaml:"url"`
+	UrlDesc    string `json:"urlDesc"    yaml:"urlDesc"`
+	Branch     string `json:"branch"     yaml:"branch"`
+	BranchDesc string `json:"branchDesc" yaml:"branchDesc"`
+	User       string `json:"user"       yaml:"user"`
+	UserDesc   string `json:"userDesc"   yaml:"userDesc"`
+	Pass       string `json:"pass"       yaml:"pass"`
+	PassDesc   string `json:"passDesc"   yaml:"passDesc"`
+}
+
+type LogConfig struct {
+	Level          string `json:"level"      yaml:"level"`
+	LevelDesc      string `json:"levelDesc"      yaml:"levelDesc"`
+	Structured     bool   `json:"structured" yaml:"structured"`
+	StructuredDesc string `json:"structuredDesc" yaml:"structuredDesc"`
+}
+
+type DbConfig struct {
+	Name         string `json:"name"         yaml:"name"`
+	NameDesc     string `json:"nameDesc"     yaml:"nameDesc"`
+	Host         string `json:"host"         yaml:"host"`
+	HostDesc     string `json:"hostDesc"     yaml:"hostDesc"`
+	Port         string `json:"port"         yaml:"port"`
+	PortDesc     string `json:"portDesc"     yaml:"portDesc"`
+	Migrate      bool   `json:"migrate"      yaml:"migrate"`
+	MigrateDesc  string `json:"migrateDesc"  yaml:"migrateDesc"`
+	Clean        bool   `json:"clean"        yaml:"clean"`
+	CleanDesc    string `json:"cleanDesc"    yaml:"cleanDesc"`
+	InMemory     bool   `json:"inMemory"     yaml:"inMemory"`
+	InMemoryDesc string `json:"inMemoryDesc" yaml:"inMemoryDesc"`
+	User         string `json:"user"         yaml:"user"`
+	UserDesc     string `json:"userDesc"     yaml:"userDesc"`
+	Pass         string `json:"pass"         yaml:"pass"`
+	PassDesc     string `json:"passDesc"     yaml:"passDesc"`
+}
+
+type QueueConfig struct {
+	Host            string                 `json:"host"            yaml:"host"`
+	HostDesc        string                 `json:"hostDesc"        yaml:"hostDesc"`
+	Port            string                 `json:"port"            yaml:"port"`
+	PortDesc        string                 `json:"portDesc"        yaml:"portDesc"`
+	User            string                 `json:"user"            yaml:"user"`
+	UserDesc        string                 `json:"userDesc"        yaml:"userDesc"`
+	Pass            string                 `json:"pass"            yaml:"pass"`
+	PassDesc        string                 `json:"passDesc"        yaml:"passDesc"`
+	Mock            bool                   `json:"mock"            yaml:"mock"`
+	MockDesc        string                 `json:"mockDesc"        yaml:"mockDesc"`
+	Inventory       InventoryQueueConfig   `json:"inventory"       yaml:"inventory"`
+	InventoryDesc   string                 `json:"inventoryDesc"   yaml:"inventoryDesc"`
+	Reservation     ReservationQueueConfig `json:"reservation"     yaml:"reservation"`
+	ReservationDesc string                 `json:"reservationDesc" yaml:"reservationDesc"`
+	Product         ProductQueueConfig     `json:"product"         yaml:"product"`
+	ProductDesc     string                 `json:"productDesc"     yaml:"productDesc"`
+}
+
+type InventoryQueueConfig struct {
+	Exchange     string `json:"exchange" yaml:"exchange"`
+	ExchangeDesc string `json:"exchangeDesc" yaml:"exchangeDesc"`
+}
+
+type ReservationQueueConfig struct {
+	Exchange     string `json:"exchange" yaml:"exchange"`
+	ExchangeDesc string `json:"exchangeDesc" yaml:"exchangeDesc"`
+}
+
+type ProductQueueConfig struct {
+	Queue     string                `json:"queue" yaml:"queue"`
+	QueueDesc string                `json:"queueDesc" yaml:"queueDesc"`
+	Dlt       ProductQueueDltConfig `json:"dlt" yaml:"dlt"`
+	DltDesc   string                `json:"dltDesc" yaml:"dltDesc"`
+}
+
+type ProductQueueDltConfig struct {
+	Exchange     string `json:"exchange" yaml:"exchange"`
+	ExchangeDesc string `json:"exchangeDesc" yaml:"exchangeDesc"`
 }
 
 func (c *Config) Print() {
@@ -95,7 +153,8 @@ func init() {
 	configUser = flag.String("cfgUser", "", "username to use when connecting to the application server")
 	configPass = flag.String("cfgPass", "", "password to use when connecting to the application server")
 
-	flag.Parse()
+	// TODO Gotta do this somewhere else
+	// flag.Parse()
 
 	viper.SetDefault("port", "8080")
 	viper.SetDefault("profile", "local")
@@ -152,6 +211,7 @@ func Load() *Config {
 
 func createConfig() (config *Config, err error) {
 	config = &Config{}
+	setDescriptions(config)
 
 	config.Config.Source = *configSource
 
@@ -189,4 +249,53 @@ func loadLocalConfigs(config *Config) error {
 func loadRemoteConfigs(config *Config) error {
 
 	return nil
+}
+
+func setDescriptions(config *Config) {
+	config.AppNameDesc = "Name of the application in a human readable format. Example: Go Micro Example"
+	config.AppVersionDesc = "Semantic version of the application. Example: v1.2.3"
+	config.Sha1VersionDesc = "Git sha1 hash of the application version."
+	config.BuildTimeDesc = "How long the application took to compile."
+	config.ProfileDesc = "Running profile of the application, can assist with sensible defaults or change behavior. Examples: local, dev, prod"
+	config.RevisionDesc = "A hard coded revision handy for quickly determining if local changes are running. Examples: 1, Two, 9999"
+	config.PortDesc = "Port that the application will bind to on startup. Examples: 8080, 3000"
+	config.ConfigDesc = "Settings for where and how the application should get its configurations."
+	config.LogDesc = "Settings for applicaton logging."
+	config.DbDesc = "Database configurations."
+	config.RabbitMQDesc = "Rabbit MQ congfigurations."
+
+	config.Config.PrintDesc = "Print configurations on startup."
+	config.Config.SourceDesc = "Where the application should go for configurations. Examples: local, etcd"
+	config.Config.SpringDesc = "Configuration settings for Spring Cloud Config. These are only used if config.source is spring."
+
+	config.Config.Spring.UrlDesc = "The url of the Spring Cloud Config server."
+	config.Config.Spring.BranchDesc = "The git branch to use to pull configurations from. Examples: main, master, development"
+	config.Config.Spring.UserDesc = "User to use when connecting to the Spring Cloud Config server."
+	config.Config.Spring.PassDesc = "Password to use when connecting to the Spring Cloud Config server."
+
+	config.Log.LevelDesc = "The lowest level that the application should log at. Examples: info, warn, error."
+	config.Log.StructuredDesc = "Whether the application should output structured (json) logging, or human friendly plain text."
+
+	config.Db.NameDesc = "The name of the database to connect to."
+	config.Db.HostDesc = "Host of the database."
+	config.Db.PortDesc = "Port of the database."
+	config.Db.MigrateDesc = "Whether or not database migrations should be executed on startup."
+	config.Db.CleanDesc = "WARNING: THIS WILL DELETE ALL DATA FROM THE DB. Used only during migration. If clean is true, all 'down' migrations are executed."
+	config.Db.InMemoryDesc = "Whether or not the application should use an in memory database."
+	config.Db.UserDesc = "User the application will use to connect to the database."
+	config.Db.PassDesc = "Password the application will use for connecting to the database."
+
+	config.RabbitMQ.HostDesc = "RabbitMQ's broker host."
+	config.RabbitMQ.PortDesc = "RabbitMQ's broker host port."
+	config.RabbitMQ.UserDesc = "User the application will use to connect to RabbitMQ."
+	config.RabbitMQ.PassDesc = "Password the application will use to connect to RabbitMQ."
+	config.RabbitMQ.MockDesc = "Whether or not the application should mock sending messages to RabbitMQ."
+	config.RabbitMQ.InventoryDesc = "RabbitMQ settings for inventory related updates."
+	config.RabbitMQ.ReservationDesc = "RabbitMQ settings for reservation related updates."
+	config.RabbitMQ.ProductDesc = "RabbitMQ settings for product related updates."
+	config.RabbitMQ.Inventory.ExchangeDesc = "RabbitMQ exchange to use for posting inventory updates."
+	config.RabbitMQ.Reservation.ExchangeDesc = "RabbitMQ exchange to use for posting reservation updates."
+	config.RabbitMQ.Product.QueueDesc = "Queue used for listening to product updates coming from a theoretical product management system."
+	config.RabbitMQ.Product.DltDesc = "Configurations for the product dead letter topic, where messages that fail to be read from the queue are written."
+	config.RabbitMQ.Product.Dlt.ExchangeDesc = "Exchange used for posting messages to the dead letter topic."
 }
