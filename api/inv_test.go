@@ -41,7 +41,7 @@ func TestList(t *testing.T) {
 		return products, nil
 	}
 
-	s := inventory.NewService(mockRepo, mockQueue, "inventory.fanout", "reservation.filled.fanout")
+	s := inventory.NewService(mockRepo, mockQueue)
 	ts := configureServer(s)
 	defer ts.Close()
 
@@ -67,7 +67,7 @@ func TestListError(t *testing.T) {
 		return nil, errors.New("some terrible error has occurred in the db")
 	}
 
-	service := inventory.NewService(mockRepo, mockQueue, "inventory.fanout", "reservation.filled.fanout")
+	service := inventory.NewService(mockRepo, mockQueue)
 	ts := configureServer(service)
 	defer ts.Close()
 
@@ -99,7 +99,7 @@ func TestPagination(t *testing.T) {
 		return nil, nil
 	}
 
-	service := inventory.NewService(mockRepo, mockQueue, "inventory.fanout", "reservation.filled.fanout")
+	service := inventory.NewService(mockRepo, mockQueue)
 	ts := configureServer(service)
 	defer ts.Close()
 
@@ -128,7 +128,7 @@ func TestCreate(t *testing.T) {
 		return nil
 	}
 
-	service := inventory.NewService(mockRepo, mockQueue, "inventory.fanout", "reservation.filled.fanout")
+	service := inventory.NewService(mockRepo, mockQueue)
 	ts := configureServer(service)
 	defer ts.Close()
 
@@ -180,7 +180,7 @@ func TestCreateProductionEvent(t *testing.T) {
 		return nil
 	}
 
-	service := inventory.NewService(mockRepo, mockQueue, "inventory.fanout", "reservation.filled.fanout")
+	service := inventory.NewService(mockRepo, mockQueue)
 	ts := configureServer(service)
 	defer ts.Close()
 
@@ -233,7 +233,7 @@ func TestCreateProductNotFound(t *testing.T) {
 		return inventory.Product{}, core.ErrNotFound
 	}
 
-	service := inventory.NewService(mockRepo, mockQueue, "inventory.fanout", "reservation.filled.fanout")
+	service := inventory.NewService(mockRepo, mockQueue)
 	ts := configureServer(service)
 	defer ts.Close()
 
@@ -327,7 +327,7 @@ func TestCreateReservation(t *testing.T) {
 		return nil
 	}
 
-	service := inventory.NewService(mockRepo, mockQueue, "inventory.fanout", "reservation.filled.fanout")
+	service := inventory.NewService(mockRepo, mockQueue)
 	ts := configureServer(service)
 	defer ts.Close()
 

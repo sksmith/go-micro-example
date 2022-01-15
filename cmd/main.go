@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"os/signal"
-	"syscall"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
@@ -14,7 +12,6 @@ import (
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"github.com/sksmith/bunnyq"
 	"github.com/sksmith/go-micro-example/api"
 	"github.com/sksmith/go-micro-example/config"
 	"github.com/sksmith/go-micro-example/core/inventory"
@@ -38,12 +35,11 @@ func main() {
 	cfg.Print()
 
 	dbPool := configDatabase(ctx, cfg)
-	bq := rabbit(cfg)
-	q := configInventoryQueue(bq, cfg)
+	iq := queue.NewInventoryQueue(ctx, cfg)
 
 	log.Info().Msg("creating inventory service...")
 	ir := invrepo.NewPostgresRepo(dbPool)
-	inventoryService := inventory.NewService(ir, q, cfg.RabbitMQ.Inventory.Exchange.Value, cfg.RabbitMQ.Reservation.Exchange.Value)
+	inventoryService := inventory.NewService(ir, iq)
 
 	log.Info().Msg("creating user service...")
 	ur := usrrepo.NewPostgresRepo(dbPool)
@@ -56,77 +52,10 @@ func main() {
 	r := configureRouter(cfg, inventoryService, userService)
 
 	log.Info().Msg("consuming products...")
-	prodQueue := configProductQueue(bq, cfg)
-	go prodQueue.ConsumeProducts(context.Background(), inventoryService)
+	_ = queue.NewProductQueue(ctx, cfg, inventoryService)
 
 	log.Info().Str("port", cfg.Port.Value).Msg("listening")
 	log.Fatal().Err(http.ListenAndServe(":"+cfg.Port.Value, r))
-}
-
-func configInventoryQueue(bq *bunnyq.BunnyQ, cfg *config.Config) (q inventory.Queue) {
-	if cfg.RabbitMQ.Mock.Value {
-		log.Info().Msg("creating mock queue...")
-		return queue.NewMockQueue()
-	} else {
-		log.Info().Msg("connecting to rabbitmq...")
-		return queue.New(bq, cfg.RabbitMQ.Inventory.Exchange.Value, cfg.RabbitMQ.Reservation.Exchange.Value)
-	}
-}
-
-func configProductQueue(bq *bunnyq.BunnyQ, cfg *config.Config) (q *queue.ProductQueue) {
-	return queue.NewProductQueue(bq, cfg.RabbitMQ.Product.Queue.Value, cfg.RabbitMQ.Product.Dlt.Exchange.Value)
-}
-
-func rabbit(cfg *config.Config) *bunnyq.BunnyQ {
-	osChannel := make(chan os.Signal, 1)
-	signal.Notify(osChannel, syscall.SIGTERM)
-	var bq *bunnyq.BunnyQ
-
-	for {
-		bq = bunnyq.New(context.Background(),
-			bunnyq.Address{
-				User: cfg.RabbitMQ.User.Value,
-				Pass: cfg.RabbitMQ.Pass.Value,
-				Host: cfg.RabbitMQ.Host.Value,
-				Port: cfg.RabbitMQ.Port.Value,
-			},
-			osChannel,
-			bunnyq.LogHandler(logger{}),
-		)
-
-		break
-	}
-
-	return bq
-}
-
-type logger struct {
-}
-
-func (l logger) Log(_ context.Context, level bunnyq.LogLevel, msg string, data map[string]interface{}) {
-	var evt *zerolog.Event
-	switch level {
-	case bunnyq.LogLevelTrace:
-		evt = log.Trace()
-	case bunnyq.LogLevelDebug:
-		evt = log.Debug()
-	case bunnyq.LogLevelInfo:
-		evt = log.Info()
-	case bunnyq.LogLevelWarn:
-		evt = log.Warn()
-	case bunnyq.LogLevelError:
-		evt = log.Error()
-	case bunnyq.LogLevelNone:
-		evt = log.Info()
-	default:
-		evt = log.Info()
-	}
-
-	for k, v := range data {
-		evt.Interface(k, v)
-	}
-
-	evt.Msg(msg)
 }
 
 func printLogHeader(cfg *config.Config) {

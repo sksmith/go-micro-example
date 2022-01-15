@@ -54,11 +54,13 @@ func (r *dbRepo) Get(ctx context.Context, username string, txs ...core.QueryOpti
 	if ok {
 		return u, nil
 	}
-	err := tx.QueryRow(ctx, `
-		SELECT username, password, is_admin, created_at 
-			FROM users WHERE username = $1 `+forUpdate, username).
-		Scan(&u.Username, &u.HashedPassword, &u.IsAdmin, &u.Created)
 
+	query := `SELECT username, password, is_admin, created_at FROM users WHERE username = $1 ` + forUpdate
+
+	log.Debug().Str("query", query).Str("username", username).Msg("getting user")
+
+	err := tx.QueryRow(ctx, query, username).
+		Scan(&u.Username, &u.HashedPassword, &u.IsAdmin, &u.Created)
 	if err != nil {
 		m.Complete(err)
 		if err == pgx.ErrNoRows {

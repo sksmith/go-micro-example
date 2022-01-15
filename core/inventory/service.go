@@ -9,8 +9,8 @@ import (
 	"github.com/sksmith/go-micro-example/core"
 )
 
-func NewService(repo Repository, q Queue, invExchange, resExchange string) *service {
-	return &service{repo: repo, queue: q, invExchange: invExchange, resExchange: resExchange}
+func NewService(repo Repository, q Queue) *service {
+	return &service{repo: repo, queue: q}
 }
 
 type Service interface {
@@ -24,10 +24,8 @@ type Service interface {
 }
 
 type service struct {
-	repo        Repository
-	queue       Queue
-	invExchange string
-	resExchange string
+	repo  Repository
+	queue Queue
 }
 
 func (s *service) CreateProduct(ctx context.Context, product Product) error {
