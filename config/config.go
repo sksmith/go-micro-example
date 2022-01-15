@@ -1,8 +1,10 @@
 package config
 
 import (
-	"flag"
+	"reflect"
+	"time"
 
+	"github.com/mitchellh/mapstructure"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
 )
@@ -27,177 +29,178 @@ var (
 	configPass   *string
 )
 
+type StringConfig struct {
+	Value       string `json:"value"   yaml:"value"`
+	Default     string `json:"default" yaml:"default"`
+	Description string `json:"description" yaml:"description"`
+}
+
+type BoolConfig struct {
+	Value       bool   `json:"value"   yaml:"value"`
+	Default     bool   `json:"default" yaml:"default"`
+	Description string `json:"description" yaml:"description"`
+}
+
+type IntConfig struct {
+	Value       int64  `json:"value"   yaml:"value"`
+	Default     int64  `json:"default" yaml:"default"`
+	Description string `json:"description" yaml:"description"`
+}
+
 type Config struct {
-	AppName         string       `json:"appName"         yaml:"appName"`
-	AppNameDesc     string       `json:"appNameDesc"     yaml:"appNameDesc"`
-	AppVersion      string       `json:"appVersion"      yaml:"appVersion"`
-	AppVersionDesc  string       `json:"appVersionDesc"  yaml:"appVersionDesc"`
-	Sha1Version     string       `json:"sha1Version"     yaml:"sha1Version"`
-	Sha1VersionDesc string       `json:"sha1VersionDesc" yaml:"sha1VersionDesc"`
-	BuildTime       string       `json:"buildTime"       yaml:"buildTime"`
-	BuildTimeDesc   string       `json:"buildTimeDesc"   yaml:"buildTimeDesc"`
-	Profile         string       `json:"profile"         yaml:"profile"`
-	ProfileDesc     string       `json:"profileDesc"     yaml:"profileDesc"`
-	Revision        string       `json:"revision"        yaml:"revision"`
-	RevisionDesc    string       `json:"revisionDesc"    yaml:"revisionDesc"`
-	Port            string       `json:"port"            yaml:"port"`
-	PortDesc        string       `json:"portDesc"        yaml:"portDesc"`
-	Config          ConfigSource `json:"config"          yaml:"config"`
-	ConfigDesc      string       `json:"configDesc"      yaml:"configDesc"`
-	Log             LogConfig    `json:"log"             yaml:"log"`
-	LogDesc         string       `json:"logDesc"         yaml:"logDesc"`
-	Db              DbConfig     `json:"db"              yaml:"db"`
-	DbDesc          string       `json:"dbDesc"          yaml:"dbDesc"`
-	RabbitMQ        QueueConfig  `json:"rabbitmq"        yaml:"rabbitmq"`
-	RabbitMQDesc    string       `json:"rabbitmqDesc"    yaml:"rabbitmqDesc"`
+	AppName     StringConfig `json:"appName"     yaml:"appName"`
+	AppVersion  StringConfig `json:"appVersion"  yaml:"appVersion"`
+	Sha1Version StringConfig `json:"sha1Version" yaml:"sha1Version"`
+	BuildTime   StringConfig `json:"buildTime"   yaml:"buildTime"`
+	Profile     StringConfig `json:"profile"     yaml:"profile"`
+	Revision    StringConfig `json:"revision"    yaml:"revision"`
+	Port        StringConfig `json:"port"        yaml:"port"`
+	Config      ConfigSource `json:"config"      yaml:"config"`
+	Log         LogConfig    `json:"log"         yaml:"log"`
+	Db          DbConfig     `json:"db"          yaml:"db"`
+	RabbitMQ    QueueConfig  `json:"rabbitmq"    yaml:"rabbitmq"`
 }
 
 type ConfigSource struct {
-	Print      bool         `json:"print"      yaml:"print"`
-	PrintDesc  string       `json:"printDesc"  yaml:"printDesc"`
-	Source     string       `json:"source"     yaml:"source"`
-	SourceDesc string       `json:"sourceDesc" yaml:"source"`
-	Spring     SpringConfig `json:"spring"     yaml:"spring"`
-	SpringDesc string       `json:"springDesc" yaml:"springDesc"`
+	Print       BoolConfig   `json:"print"  yaml:"print"`
+	Source      StringConfig `json:"source" yaml:"source"`
+	Spring      SpringConfig `json:"spring" yaml:"spring"`
+	Description string       `json:"description" yaml:"description"`
 }
 
 type SpringConfig struct {
-	Url        string `json:"url"        yaml:"url"`
-	UrlDesc    string `json:"urlDesc"    yaml:"urlDesc"`
-	Branch     string `json:"branch"     yaml:"branch"`
-	BranchDesc string `json:"branchDesc" yaml:"branchDesc"`
-	User       string `json:"user"       yaml:"user"`
-	UserDesc   string `json:"userDesc"   yaml:"userDesc"`
-	Pass       string `json:"pass"       yaml:"pass"`
-	PassDesc   string `json:"passDesc"   yaml:"passDesc"`
+	Url         StringConfig `json:"url"    yaml:"url"`
+	Branch      StringConfig `json:"branch" yaml:"branch"`
+	User        StringConfig `json:"user"   yaml:"user"`
+	Pass        StringConfig `json:"pass"   yaml:"pass"`
+	Description string       `json:"description" yaml:"description"`
 }
 
 type LogConfig struct {
-	Level          string `json:"level"      yaml:"level"`
-	LevelDesc      string `json:"levelDesc"      yaml:"levelDesc"`
-	Structured     bool   `json:"structured" yaml:"structured"`
-	StructuredDesc string `json:"structuredDesc" yaml:"structuredDesc"`
+	Level       StringConfig `json:"level"      yaml:"level"`
+	Structured  BoolConfig   `json:"structured" yaml:"structured"`
+	Description string       `json:"description" yaml:"description"`
 }
 
 type DbConfig struct {
-	Name         string `json:"name"         yaml:"name"`
-	NameDesc     string `json:"nameDesc"     yaml:"nameDesc"`
-	Host         string `json:"host"         yaml:"host"`
-	HostDesc     string `json:"hostDesc"     yaml:"hostDesc"`
-	Port         string `json:"port"         yaml:"port"`
-	PortDesc     string `json:"portDesc"     yaml:"portDesc"`
-	Migrate      bool   `json:"migrate"      yaml:"migrate"`
-	MigrateDesc  string `json:"migrateDesc"  yaml:"migrateDesc"`
-	Clean        bool   `json:"clean"        yaml:"clean"`
-	CleanDesc    string `json:"cleanDesc"    yaml:"cleanDesc"`
-	InMemory     bool   `json:"inMemory"     yaml:"inMemory"`
-	InMemoryDesc string `json:"inMemoryDesc" yaml:"inMemoryDesc"`
-	User         string `json:"user"         yaml:"user"`
-	UserDesc     string `json:"userDesc"     yaml:"userDesc"`
-	Pass         string `json:"pass"         yaml:"pass"`
-	PassDesc     string `json:"passDesc"     yaml:"passDesc"`
+	Name        StringConfig `json:"name"     yaml:"name"`
+	Host        StringConfig `json:"host"     yaml:"host"`
+	Port        StringConfig `json:"port"     yaml:"port"`
+	Migrate     BoolConfig   `json:"migrate"  yaml:"migrate"`
+	Clean       BoolConfig   `json:"clean"    yaml:"clean"`
+	InMemory    BoolConfig   `json:"inMemory" yaml:"inMemory"`
+	User        StringConfig `json:"user"     yaml:"user"`
+	Pass        StringConfig `json:"pass"     yaml:"pass"`
+	Pool        DbPoolConfig `json:"pool"     yaml:"pool"`
+	Description string       `json:"description" yaml:"description"`
+}
+
+type DbPoolConfig struct {
+	MinSize           IntConfig `json:"minPoolSize"       yaml:"minPoolSize"`
+	MaxSize           IntConfig `json:"maxPoolSize"       yaml:"maxPoolSize"`
+	MaxConnLife       IntConfig `json:"maxConnLife"       yaml:"maxConnLife"`
+	MaxConnIdle       IntConfig `json:"maxConnIdle"       yaml:"maxConnIdle"`
+	HealthCheckPeriod IntConfig `json:"healthCheckPeriod" yaml:"healthCheckPeriod"`
+	Description       string    `json:"description" yaml:"description"`
 }
 
 type QueueConfig struct {
-	Host            string                 `json:"host"            yaml:"host"`
-	HostDesc        string                 `json:"hostDesc"        yaml:"hostDesc"`
-	Port            string                 `json:"port"            yaml:"port"`
-	PortDesc        string                 `json:"portDesc"        yaml:"portDesc"`
-	User            string                 `json:"user"            yaml:"user"`
-	UserDesc        string                 `json:"userDesc"        yaml:"userDesc"`
-	Pass            string                 `json:"pass"            yaml:"pass"`
-	PassDesc        string                 `json:"passDesc"        yaml:"passDesc"`
-	Mock            bool                   `json:"mock"            yaml:"mock"`
-	MockDesc        string                 `json:"mockDesc"        yaml:"mockDesc"`
-	Inventory       InventoryQueueConfig   `json:"inventory"       yaml:"inventory"`
-	InventoryDesc   string                 `json:"inventoryDesc"   yaml:"inventoryDesc"`
-	Reservation     ReservationQueueConfig `json:"reservation"     yaml:"reservation"`
-	ReservationDesc string                 `json:"reservationDesc" yaml:"reservationDesc"`
-	Product         ProductQueueConfig     `json:"product"         yaml:"product"`
-	ProductDesc     string                 `json:"productDesc"     yaml:"productDesc"`
+	Host        StringConfig           `json:"host"        yaml:"host"`
+	Port        StringConfig           `json:"port"        yaml:"port"`
+	User        StringConfig           `json:"user"        yaml:"user"`
+	Pass        StringConfig           `json:"pass"        yaml:"pass"`
+	Mock        BoolConfig             `json:"mock"        yaml:"mock"`
+	Inventory   InventoryQueueConfig   `json:"inventory"   yaml:"inventory"`
+	Reservation ReservationQueueConfig `json:"reservation" yaml:"reservation"`
+	Product     ProductQueueConfig     `json:"product"     yaml:"product"`
+	Description string                 `json:"description" yaml:"description"`
 }
 
 type InventoryQueueConfig struct {
-	Exchange     string `json:"exchange" yaml:"exchange"`
-	ExchangeDesc string `json:"exchangeDesc" yaml:"exchangeDesc"`
+	Exchange    StringConfig `json:"exchange" yaml:"exchange"`
+	Description string       `json:"description" yaml:"description"`
 }
 
 type ReservationQueueConfig struct {
-	Exchange     string `json:"exchange" yaml:"exchange"`
-	ExchangeDesc string `json:"exchangeDesc" yaml:"exchangeDesc"`
+	Exchange    StringConfig `json:"exchange" yaml:"exchange"`
+	Description string       `json:"description" yaml:"description"`
 }
 
 type ProductQueueConfig struct {
-	Queue     string                `json:"queue" yaml:"queue"`
-	QueueDesc string                `json:"queueDesc" yaml:"queueDesc"`
-	Dlt       ProductQueueDltConfig `json:"dlt" yaml:"dlt"`
-	DltDesc   string                `json:"dltDesc" yaml:"dltDesc"`
+	Queue       StringConfig          `json:"queue" yaml:"queue"`
+	Dlt         ProductQueueDltConfig `json:"dlt"   yaml:"dlt"`
+	Description string                `json:"description" yaml:"description"`
 }
 
 type ProductQueueDltConfig struct {
-	Exchange     string `json:"exchange" yaml:"exchange"`
-	ExchangeDesc string `json:"exchangeDesc" yaml:"exchangeDesc"`
+	Exchange    StringConfig `json:"exchange" yaml:"exchange"`
+	Description string       `json:"description" yaml:"description"`
 }
 
 func (c *Config) Print() {
-	if c.Config.Print {
+	if c.Config.Print.Value {
 		log.Info().Interface("config", c).Msg("the following configurations have successfully loaded")
 	}
 }
 
 func init() {
-	profile = flag.String("p", "local", "profile for the application config")
-	configSource = flag.String("s", "local", "where to get configurations from")
-	configUrl = flag.String("cfgUrl", "", "url for application config server")
-	configBranch = flag.String("cfgBranch", "", "branch to request from the configuration server (used for spring cloud config)")
-	configUser = flag.String("cfgUser", "", "username to use when connecting to the application server")
-	configPass = flag.String("cfgPass", "", "password to use when connecting to the application server")
+	def := &Config{}
+	setupDefaults(def)
 
 	// TODO Gotta do this somewhere else
+
+	// profile = flag.String("p", def.Profile.Default, def.Profile.Description)
+	// configSource = flag.String("s", def.Config.Source.Default, def.Config.Source.Description)
+	// configUrl = flag.String("cfgUrl", def.Config.Spring.Url.Default, def.Config.Spring.Url.Description)
+	// configBranch = flag.String("cfgBranch", def.Config.Spring.Branch.Default, def.Config.Spring.Branch.Description)
+	// configUser = flag.String("cfgUser", def.Config.Spring.User.Default, def.Config.Spring.User.Description)
+	// configPass = flag.String("cfgPass", def.Config.Spring.Pass.Default, def.Config.Spring.Pass.Description)
+
 	// flag.Parse()
 
-	viper.SetDefault("port", "8080")
-	viper.SetDefault("profile", "local")
+	viper.SetDefault("port", def.Port.Default)
+	viper.SetDefault("profile", def.Profile.Default)
 
-	viper.SetDefault("config.print", false)
+	viper.SetDefault("config.print", def.Config.Print.Default)
+	viper.SetDefault("config.source", def.Config.Source.Default)
 
-	viper.SetDefault("log.level", "trace")
-	viper.SetDefault("log.structured", false)
-	viper.SetDefault("log.configs", false)
+	viper.SetDefault("log.level", def.Log.Level.Default)
+	viper.SetDefault("log.structured", def.Log.Structured.Default)
 
-	viper.SetDefault("db.name", "micro-tmpl-db")
-	viper.SetDefault("db.host", "localhost")
-	viper.SetDefault("db.port", "5432")
-	viper.SetDefault("db.user", "postgres")
-	viper.SetDefault("db.pass", "postgres")
-	viper.SetDefault("db.clean", false)
-	viper.SetDefault("db.inMemory", false)
+	viper.SetDefault("db.name", def.Db.Name.Default)
+	viper.SetDefault("db.host", def.Db.Host.Default)
+	viper.SetDefault("db.port", def.Db.Port.Default)
+	viper.SetDefault("db.user", def.Db.User.Default)
+	viper.SetDefault("db.pass", def.Db.Pass.Default)
+	viper.SetDefault("db.clean", def.Db.Clean.Default)
+	viper.SetDefault("db.inMemory", def.Db.InMemory.Default)
+	viper.SetDefault("db.pool.minSize", def.Db.Pool.MinSize.Default)
+	viper.SetDefault("db.pool.maxSize", def.Db.Pool.MaxSize.Default)
 
-	viper.SetDefault("rabbitmq.host", "localhost")
-	viper.SetDefault("rabbitmq.port", "5672")
-	viper.SetDefault("rabbitmq.user", "guest")
-	viper.SetDefault("rabbitmq.pass", "guest")
-	viper.SetDefault("rabbitmq.mock", false)
-	viper.SetDefault("rabbitmq.inventory.exchange", "inventory.exchange")
-	viper.SetDefault("rabbitmq.reservation.exchange", "reservation.exchange")
-	viper.SetDefault("rabbitmq.product.queue", "product.queue")
-	viper.SetDefault("rabbitmq.product.dlt.exchange", "product.dlt.exchange")
+	viper.SetDefault("rabbitmq.host", def.RabbitMQ.Host.Default)
+	viper.SetDefault("rabbitmq.port", def.RabbitMQ.Port.Default)
+	viper.SetDefault("rabbitmq.user", def.RabbitMQ.User.Default)
+	viper.SetDefault("rabbitmq.pass", def.RabbitMQ.Pass.Default)
+	viper.SetDefault("rabbitmq.mock", def.RabbitMQ.Mock.Default)
+	viper.SetDefault("rabbitmq.inventory.exchange", def.RabbitMQ.Inventory.Exchange.Default)
+	viper.SetDefault("rabbitmq.reservation.exchange", def.RabbitMQ.Reservation.Exchange.Default)
+	viper.SetDefault("rabbitmq.product.queue", def.RabbitMQ.Product.Queue.Default)
+	viper.SetDefault("rabbitmq.product.dlt.exchange", def.RabbitMQ.Product.Dlt.Exchange.Default)
 }
 
 func Load() *Config {
-	config, err := createConfig()
-	if err != nil {
-		log.Fatal().Err(err).Msg("failed to load configurations")
-	}
+	config := &Config{}
+	setupDefaults(config)
 
-	switch *configSource {
+	var err error
+	switch config.Config.Source.Value {
 	case "local":
 		err = loadLocalConfigs(config)
 	case "etcd":
 		err = loadRemoteConfigs(config)
 	default:
 		log.Warn().
-			Str("configSource", *configSource).
+			Str("configSource", config.Config.Source.Value).
 			Msg("unrecognized configuration source, using local")
 
 		err = loadLocalConfigs(config)
@@ -207,23 +210,6 @@ func Load() *Config {
 	}
 
 	return config
-}
-
-func createConfig() (config *Config, err error) {
-	config = &Config{}
-	setDescriptions(config)
-
-	config.Config.Source = *configSource
-
-	config.Config.Spring.Url = *configUrl
-	config.Config.Spring.Branch = *configBranch
-	config.Config.Spring.User = *configUser
-	config.Config.Spring.Pass = *configPass
-
-	config.AppName = AppName
-	config.Revision = Revision
-
-	return config, nil
 }
 
 func loadLocalConfigs(config *Config) error {
@@ -238,7 +224,11 @@ func loadLocalConfigs(config *Config) error {
 		return err
 	}
 
-	err = viper.Unmarshal(config)
+	err = viper.Unmarshal(config, viper.DecodeHook(mapstructure.ComposeDecodeHookFunc(
+		ValueToConfigValue(),
+		mapstructure.StringToTimeDurationHookFunc(),
+		mapstructure.StringToSliceHookFunc(","),
+	)))
 	if err != nil {
 		return err
 	}
@@ -246,56 +236,91 @@ func loadLocalConfigs(config *Config) error {
 	return nil
 }
 
+func ValueToConfigValue() mapstructure.DecodeHookFunc {
+	return func(f reflect.Kind, t reflect.Kind, data interface{}) (interface{}, error) {
+
+		if t != reflect.Struct {
+			return data, nil
+		}
+
+		switch f {
+		case reflect.Int:
+			raw := int64(data.(int))
+			return IntConfig{Value: raw}, nil
+		case reflect.Int64:
+			raw := data.(int64)
+			return IntConfig{Value: raw}, nil
+		case reflect.String:
+			raw := data.(string)
+			return StringConfig{Value: raw}, nil
+		case reflect.Bool:
+			raw := data.(bool)
+			return BoolConfig{Value: raw}, nil
+		}
+
+		return data, nil
+	}
+}
+
 func loadRemoteConfigs(config *Config) error {
 
 	return nil
 }
 
-func setDescriptions(config *Config) {
-	config.AppNameDesc = "Name of the application in a human readable format. Example: Go Micro Example"
-	config.AppVersionDesc = "Semantic version of the application. Example: v1.2.3"
-	config.Sha1VersionDesc = "Git sha1 hash of the application version."
-	config.BuildTimeDesc = "How long the application took to compile."
-	config.ProfileDesc = "Running profile of the application, can assist with sensible defaults or change behavior. Examples: local, dev, prod"
-	config.RevisionDesc = "A hard coded revision handy for quickly determining if local changes are running. Examples: 1, Two, 9999"
-	config.PortDesc = "Port that the application will bind to on startup. Examples: 8080, 3000"
-	config.ConfigDesc = "Settings for where and how the application should get its configurations."
-	config.LogDesc = "Settings for applicaton logging."
-	config.DbDesc = "Database configurations."
-	config.RabbitMQDesc = "Rabbit MQ congfigurations."
+func setupDefaults(config *Config) {
+	config.AppName = StringConfig{Value: AppName, Default: AppName, Description: "Name of the application in a human readable format. Example: Go Micro Example"}
 
-	config.Config.PrintDesc = "Print configurations on startup."
-	config.Config.SourceDesc = "Where the application should go for configurations. Examples: local, etcd"
-	config.Config.SpringDesc = "Configuration settings for Spring Cloud Config. These are only used if config.source is spring."
+	config.AppVersion = StringConfig{Value: "", Default: "", Description: "Semantic version of the application. Example: v1.2.3"}
+	config.Sha1Version = StringConfig{Value: "", Default: "", Description: "Git sha1 hash of the application version."}
+	config.BuildTime = StringConfig{Value: "", Default: "", Description: "When this version of the application was compiled."}
+	config.Profile = StringConfig{Value: "local", Default: "local", Description: "Running profile of the application, can assist with sensible defaults or change behavior. Examples: local, dev, prod"}
+	config.Revision = StringConfig{Value: Revision, Default: Revision, Description: "A hard coded revision handy for quickly determining if local changes are running. Examples: 1, Two, 9999"}
+	config.Port = StringConfig{Value: "8080", Default: "8080", Description: "Port that the application will bind to on startup. Examples: 8080, 3000"}
 
-	config.Config.Spring.UrlDesc = "The url of the Spring Cloud Config server."
-	config.Config.Spring.BranchDesc = "The git branch to use to pull configurations from. Examples: main, master, development"
-	config.Config.Spring.UserDesc = "User to use when connecting to the Spring Cloud Config server."
-	config.Config.Spring.PassDesc = "Password to use when connecting to the Spring Cloud Config server."
+	config.Config.Description = "Settings for where and how the application should get its configurations."
+	config.Config.Print = BoolConfig{Value: false, Default: false, Description: "Print configurations on startup."}
+	config.Config.Source = StringConfig{Value: "", Default: "", Description: "Where the application should go for configurations. Examples: local, etcd"}
 
-	config.Log.LevelDesc = "The lowest level that the application should log at. Examples: info, warn, error."
-	config.Log.StructuredDesc = "Whether the application should output structured (json) logging, or human friendly plain text."
+	config.Config.Spring.Description = "Configuration settings for Spring Cloud Config. These are only used if config.source is spring."
+	config.Config.Spring.Url = StringConfig{Value: "", Default: "", Description: "The url of the Spring Cloud Config server."}
+	config.Config.Spring.Branch = StringConfig{Value: "", Default: "", Description: "The git branch to use to pull configurations from. Examples: main, master, development"}
+	config.Config.Spring.User = StringConfig{Value: "", Default: "", Description: "User to use when connecting to the Spring Cloud Config server."}
+	config.Config.Spring.Pass = StringConfig{Value: "", Default: "", Description: "Password to use when connecting to the Spring Cloud Config server."}
 
-	config.Db.NameDesc = "The name of the database to connect to."
-	config.Db.HostDesc = "Host of the database."
-	config.Db.PortDesc = "Port of the database."
-	config.Db.MigrateDesc = "Whether or not database migrations should be executed on startup."
-	config.Db.CleanDesc = "WARNING: THIS WILL DELETE ALL DATA FROM THE DB. Used only during migration. If clean is true, all 'down' migrations are executed."
-	config.Db.InMemoryDesc = "Whether or not the application should use an in memory database."
-	config.Db.UserDesc = "User the application will use to connect to the database."
-	config.Db.PassDesc = "Password the application will use for connecting to the database."
+	config.Log.Description = "Settings for applicaton logging."
+	config.Log.Level = StringConfig{Value: "trace", Default: "trace", Description: "The lowest level that the application should log at. Examples: info, warn, error."}
+	config.Log.Structured = BoolConfig{Value: false, Default: false, Description: "Whether the application should output structured (json) logging, or human friendly plain text."}
 
-	config.RabbitMQ.HostDesc = "RabbitMQ's broker host."
-	config.RabbitMQ.PortDesc = "RabbitMQ's broker host port."
-	config.RabbitMQ.UserDesc = "User the application will use to connect to RabbitMQ."
-	config.RabbitMQ.PassDesc = "Password the application will use to connect to RabbitMQ."
-	config.RabbitMQ.MockDesc = "Whether or not the application should mock sending messages to RabbitMQ."
-	config.RabbitMQ.InventoryDesc = "RabbitMQ settings for inventory related updates."
-	config.RabbitMQ.ReservationDesc = "RabbitMQ settings for reservation related updates."
-	config.RabbitMQ.ProductDesc = "RabbitMQ settings for product related updates."
-	config.RabbitMQ.Inventory.ExchangeDesc = "RabbitMQ exchange to use for posting inventory updates."
-	config.RabbitMQ.Reservation.ExchangeDesc = "RabbitMQ exchange to use for posting reservation updates."
-	config.RabbitMQ.Product.QueueDesc = "Queue used for listening to product updates coming from a theoretical product management system."
-	config.RabbitMQ.Product.DltDesc = "Configurations for the product dead letter topic, where messages that fail to be read from the queue are written."
-	config.RabbitMQ.Product.Dlt.ExchangeDesc = "Exchange used for posting messages to the dead letter topic."
+	config.Db.Description = "Database configurations."
+	config.Db.Name = StringConfig{Value: "micro-ex-db", Default: "micro-ex-db", Description: "The name of the database to connect to."}
+	config.Db.Host = StringConfig{Value: "localhost", Default: "localhost", Description: "Host of the database."}
+	config.Db.Port = StringConfig{Value: "5432", Default: "5432", Description: "Port of the database."}
+	config.Db.Migrate = BoolConfig{Value: true, Default: true, Description: "Whether or not database migrations should be executed on startup."}
+	config.Db.Clean = BoolConfig{Value: false, Default: false, Description: "WARNING: THIS WILL DELETE ALL DATA FROM THE DB. Used only during migration. If clean is true, all 'down' migrations are executed."}
+	config.Db.InMemory = BoolConfig{Value: false, Default: false, Description: "Whether or not the application should use an in memory database."}
+	config.Db.User = StringConfig{Value: "postgres", Default: "postgres", Description: "User the application will use to connect to the database."}
+	config.Db.Pass = StringConfig{Value: "postgres", Default: "postgres", Description: "Password the application will use for connecting to the database."}
+	config.Db.Pool.MinSize = IntConfig{Value: 1, Default: 1, Description: "The minimum size of the pool."}
+	config.Db.Pool.MaxSize = IntConfig{Value: 3, Default: 3, Description: "The maximum size of the pool."}
+	config.Db.Pool.MaxConnLife = IntConfig{Value: time.Hour.Milliseconds(), Default: time.Hour.Milliseconds(), Description: "The maximum time a connection can live in the pool in milliseconds."}
+	config.Db.Pool.MaxConnIdle = IntConfig{Value: time.Minute.Milliseconds() * 30, Default: time.Minute.Milliseconds() * 30, Description: "The maximum time a connection can idle in the pool in milliseconds."}
+
+	config.RabbitMQ.Description = "Rabbit MQ congfigurations."
+	config.RabbitMQ.Host = StringConfig{Value: "localhost", Default: "localhost", Description: "RabbitMQ's broker host."}
+	config.RabbitMQ.Port = StringConfig{Value: "5432", Default: "5432", Description: "RabbitMQ's broker host port."}
+	config.RabbitMQ.User = StringConfig{Value: "guest", Default: "guest", Description: "User the application will use to connect to RabbitMQ."}
+	config.RabbitMQ.Pass = StringConfig{Value: "guest", Default: "guest", Description: "Password the application will use to connect to RabbitMQ."}
+	config.RabbitMQ.Mock = BoolConfig{Value: false, Default: false, Description: "Whether or not the application should mock sending messages to RabbitMQ."}
+
+	config.RabbitMQ.Inventory.Description = "RabbitMQ settings for inventory related updates."
+	config.RabbitMQ.Inventory.Exchange = StringConfig{Value: "inventory.exchange", Default: "inventory.exchange", Description: "RabbitMQ exchang}}e to use for posting inventory updates."}
+
+	config.RabbitMQ.Reservation.Description = "RabbitMQ settings for reservation related updates."
+	config.RabbitMQ.Reservation.Exchange = StringConfig{Value: "reservation.exchange", Default: "reservation.exchange", Description: "RabbitMQ exchange to use for posting reservation updates."}
+
+	config.RabbitMQ.Product.Description = "RabbitMQ settings for product related updates."
+	config.RabbitMQ.Product.Queue = StringConfig{Value: "product.queue", Default: "product.queue", Description: "Queue used for listening to product updates coming from a theoretical product management system."}
+
+	config.RabbitMQ.Product.Dlt.Description = "Configurations for the product dead letter topic, where messages that fail to be read from the queue are written."
+	config.RabbitMQ.Product.Dlt.Exchange = StringConfig{Value: "product.dlt.exchange", Default: "product.dlt.exchange", Description: "Exchange used for posting messages to the dead letter topic."}
 }

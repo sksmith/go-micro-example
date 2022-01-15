@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
@@ -44,7 +43,7 @@ func main() {
 
 	log.Info().Msg("creating inventory service...")
 	ir := invrepo.NewPostgresRepo(dbPool)
-	inventoryService := inventory.NewService(ir, q, cfg.RabbitMQ.Inventory.Exchange, cfg.RabbitMQ.Reservation.Exchange)
+	inventoryService := inventory.NewService(ir, q, cfg.RabbitMQ.Inventory.Exchange.Value, cfg.RabbitMQ.Reservation.Exchange.Value)
 
 	log.Info().Msg("creating user service...")
 	ur := usrrepo.NewPostgresRepo(dbPool)
@@ -60,22 +59,22 @@ func main() {
 	prodQueue := configProductQueue(bq, cfg)
 	go prodQueue.ConsumeProducts(context.Background(), inventoryService)
 
-	log.Info().Str("port", cfg.Port).Msg("listening")
-	log.Fatal().Err(http.ListenAndServe(":"+cfg.Port, r))
+	log.Info().Str("port", cfg.Port.Value).Msg("listening")
+	log.Fatal().Err(http.ListenAndServe(":"+cfg.Port.Value, r))
 }
 
 func configInventoryQueue(bq *bunnyq.BunnyQ, cfg *config.Config) (q inventory.Queue) {
-	if cfg.RabbitMQ.Mock {
+	if cfg.RabbitMQ.Mock.Value {
 		log.Info().Msg("creating mock queue...")
 		return queue.NewMockQueue()
 	} else {
 		log.Info().Msg("connecting to rabbitmq...")
-		return queue.New(bq, cfg.RabbitMQ.Inventory.Exchange, cfg.RabbitMQ.Reservation.Exchange)
+		return queue.New(bq, cfg.RabbitMQ.Inventory.Exchange.Value, cfg.RabbitMQ.Reservation.Exchange.Value)
 	}
 }
 
 func configProductQueue(bq *bunnyq.BunnyQ, cfg *config.Config) (q *queue.ProductQueue) {
-	return queue.NewProductQueue(bq, cfg.RabbitMQ.Product.Queue, cfg.RabbitMQ.Product.Dlt.Exchange)
+	return queue.NewProductQueue(bq, cfg.RabbitMQ.Product.Queue.Value, cfg.RabbitMQ.Product.Dlt.Exchange.Value)
 }
 
 func rabbit(cfg *config.Config) *bunnyq.BunnyQ {
@@ -86,10 +85,10 @@ func rabbit(cfg *config.Config) *bunnyq.BunnyQ {
 	for {
 		bq = bunnyq.New(context.Background(),
 			bunnyq.Address{
-				User: cfg.RabbitMQ.User,
-				Pass: cfg.RabbitMQ.Pass,
-				Host: cfg.RabbitMQ.Host,
-				Port: cfg.RabbitMQ.Port,
+				User: cfg.RabbitMQ.User.Value,
+				Pass: cfg.RabbitMQ.Pass.Value,
+				Host: cfg.RabbitMQ.Host.Value,
+				Port: cfg.RabbitMQ.Port.Value,
 			},
 			osChannel,
 			bunnyq.LogHandler(logger{}),
@@ -131,62 +130,34 @@ func (l logger) Log(_ context.Context, level bunnyq.LogLevel, msg string, data m
 }
 
 func printLogHeader(cfg *config.Config) {
-	if cfg.Log.Structured {
-		log.Info().Str("application", cfg.AppName).
-			Str("revision", cfg.Revision).
-			Str("version", cfg.AppVersion).
-			Str("sha1ver", cfg.Sha1Version).
-			Str("build-time", cfg.BuildTime).
-			Str("profile", cfg.Profile).
-			Str("config-source", cfg.Config.Source).
-			Str("config-branch", cfg.Config.Spring.Branch).
+	if cfg.Log.Structured.Value {
+		log.Info().Str("application", cfg.AppName.Value).
+			Str("revision", cfg.Revision.Value).
+			Str("version", cfg.AppVersion.Value).
+			Str("sha1ver", cfg.Sha1Version.Value).
+			Str("build-time", cfg.BuildTime.Value).
+			Str("profile", cfg.Profile.Value).
+			Str("config-source", cfg.Config.Source.Value).
+			Str("config-branch", cfg.Config.Spring.Branch.Value).
 			Send()
 	} else {
-		f := figure.NewFigure(cfg.AppName, "", true)
+		f := figure.NewFigure(cfg.AppName.Value, "", true)
 		f.Print()
 
 		log.Info().Msg("=============================================")
-		log.Info().Msg(fmt.Sprintf("       Revision: %s", cfg.Revision))
-		log.Info().Msg(fmt.Sprintf("        Profile: %s", cfg.Profile))
-		log.Info().Msg(fmt.Sprintf("  Config Server: %s - %s", cfg.Config.Source, cfg.Config.Spring.Branch))
-		log.Info().Msg(fmt.Sprintf("    Tag Version: %s", cfg.AppVersion))
-		log.Info().Msg(fmt.Sprintf("   Sha1 Version: %s", cfg.Sha1Version))
-		log.Info().Msg(fmt.Sprintf("     Build Time: %s", cfg.BuildTime))
+		log.Info().Msg(fmt.Sprintf("       Revision: %s", cfg.Revision.Value))
+		log.Info().Msg(fmt.Sprintf("        Profile: %s", cfg.Profile.Value))
+		log.Info().Msg(fmt.Sprintf("  Config Server: %s - %s", cfg.Config.Source.Value, cfg.Config.Spring.Branch.Value))
+		log.Info().Msg(fmt.Sprintf("    Tag Version: %s", cfg.AppVersion.Value))
+		log.Info().Msg(fmt.Sprintf("   Sha1 Version: %s", cfg.Sha1Version.Value))
+		log.Info().Msg(fmt.Sprintf("     Build Time: %s", cfg.BuildTime.Value))
 		log.Info().Msg("=============================================")
 	}
 }
 
 func configDatabase(ctx context.Context, cfg *config.Config) (dbPool *pgxpool.Pool) {
-	if !cfg.Db.InMemory {
-		log.Info().Str("host", cfg.Db.Host).Str("name", cfg.Db.Name).Msg("connecting to the database...")
-		var err error
-
-		if cfg.Db.Migrate {
-			log.Info().Msg("executing migrations")
-
-			if err = db.RunMigrations(
-				cfg.Db.Host,
-				cfg.Db.Name,
-				cfg.Db.Port,
-				cfg.Db.User,
-				cfg.Db.Pass,
-				cfg.Db.Clean); err != nil {
-				log.Warn().Err(err).Msg("error executing migrations")
-			}
-		}
-
-		connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s",
-			cfg.Db.Host, cfg.Db.Port, cfg.Db.User, cfg.Db.Pass, cfg.Db.Name)
-
-		for {
-			dbPool, err = db.ConnectDb(ctx, connStr, db.MinPoolConns(10), db.MaxPoolConns(50))
-			if err != nil {
-				log.Error().Err(err).Msg("failed to create connection pool... retrying")
-				time.Sleep(1 * time.Second)
-				continue
-			}
-			break
-		}
+	if !cfg.Db.InMemory.Value {
+		db.ConnectDb(ctx, cfg)
 	}
 
 	return dbPool
@@ -229,13 +200,13 @@ func envApi(cfg *config.Config) func(r chi.Router) {
 func configLogging(cfg *config.Config) {
 	log.Info().Msg("configuring logging...")
 
-	if !cfg.Log.Structured {
+	if !cfg.Log.Structured.Value {
 		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 	}
 
-	level, err := zerolog.ParseLevel(cfg.Log.Level)
+	level, err := zerolog.ParseLevel(cfg.Log.Level.Value)
 	if err != nil {
-		log.Warn().Str("loglevel", cfg.Log.Level).Err(err).Msg("defaulting to info")
+		log.Warn().Str("loglevel", cfg.Log.Level.Value).Err(err).Msg("defaulting to info")
 		level = zerolog.InfoLevel
 	}
 	log.Info().Str("loglevel", level.String()).Msg("setting log level")

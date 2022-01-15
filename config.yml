@@ -17,6 +17,9 @@ db:
   pass: postgres
   clean: false
   inMemory: false
+  pool:
+    minSize: 1
+    maxSize: 3
 
 rabbitmq:
   host: localhost
@@ -24,8 +27,11 @@ rabbitmq:
   user: guest
   pass: guest
   mock: false
-  inventory.exchange: inventory.exchange
-  reservation.exchange: reservation.exchange
+  inventory:
+    exchange: inventory.exchange
+  reservation:
+    exchange: reservation.exchange
   product:
     queue: product.queue
-    dlt.exchange: product.dlt.exchange
+    dlt:
+      exchange: product.dlt.exchange
