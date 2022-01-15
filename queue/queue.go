@@ -122,6 +122,7 @@ func (p *ProductQueue) sendToDlt(ctx context.Context, body []byte) {
 	p.productDlt <- message(body)
 }
 
+// TODO We should be using one exchange per domain object here.
 // exchange binds the publishers to the subscribers
 const exchange = "pubsub"
 

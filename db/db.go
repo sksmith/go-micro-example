@@ -97,20 +97,16 @@ func ConnectDb(ctx context.Context, cfg *config.Config) (*pgxpool.Pool, error) {
 
 	var pool *pgxpool.Pool
 
+	url := addOptionsToConnStr(connStr, MinPoolConns(int32(cfg.Db.Pool.MinSize.Value)), MaxPoolConns(int32(cfg.Db.Pool.MaxSize.Value)))
+	poolConfig, err := pgxpool.ParseConfig(url)
+	if err != nil {
+		return nil, err
+	}
+
+	poolConfig.ConnConfig.Logger = logger{}
+
 	for {
-		url := addOptionsToConnStr(connStr, MinPoolConns(10), MaxPoolConns(50))
-		poolConfig, err := pgxpool.ParseConfig(url)
-		if err != nil {
-			return nil, err
-		}
-
-		poolConfig.ConnConfig.Logger = logger{}
-
 		pool, err = pgxpool.ConnectConfig(ctx, poolConfig)
-		if err != nil {
-			return nil, err
-		}
-
 		if err != nil {
 			log.Error().Err(err).Msg("failed to create connection pool... retrying")
 			time.Sleep(1 * time.Second)

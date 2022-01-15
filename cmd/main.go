@@ -35,6 +35,7 @@ func main() {
 	cfg.Print()
 
 	dbPool := configDatabase(ctx, cfg)
+	dbPool.Exec(ctx, "select * from users")
 	iq := queue.NewInventoryQueue(ctx, cfg)
 
 	log.Info().Msg("creating inventory service...")
@@ -86,7 +87,11 @@ func printLogHeader(cfg *config.Config) {
 
 func configDatabase(ctx context.Context, cfg *config.Config) (dbPool *pgxpool.Pool) {
 	if !cfg.Db.InMemory.Value {
-		db.ConnectDb(ctx, cfg)
+		var err error
+		dbPool, err = db.ConnectDb(ctx, cfg)
+		if err != nil {
+			log.Fatal().Err(err).Msg("failed to connect to db")
+		}
 	}
 
 	return dbPool
