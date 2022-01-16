@@ -49,6 +49,12 @@ func (s *service) CreateProduct(ctx context.Context, product Product) error {
 		return errors.WithStack(err)
 	}
 
+	defer func() {
+		if err != nil {
+			rollback(ctx, tx, err)
+		}
+	}()
+
 	log.Info().
 		Str("func", funcName).
 		Str("sku", product.Sku).
@@ -56,7 +62,6 @@ func (s *service) CreateProduct(ctx context.Context, product Product) error {
 		Msg("creating product")
 
 	if err = s.repo.SaveProduct(ctx, product, core.UpdateOptions{Tx: tx}); err != nil {
-		rollback(ctx, tx, err)
 		return errors.WithStack(err)
 	}
 
@@ -71,12 +76,10 @@ func (s *service) CreateProduct(ctx context.Context, product Product) error {
 	}
 
 	if err = s.repo.SaveProductInventory(ctx, pi, core.UpdateOptions{Tx: tx}); err != nil {
-		rollback(ctx, tx, err)
 		return errors.WithStack(err)
 	}
 
 	if err = tx.Commit(ctx); err != nil {
-		rollback(ctx, tx, err)
 		return errors.WithStack(err)
 	}
 
@@ -124,25 +127,28 @@ func (s *service) Produce(ctx context.Context, product Product, pr ProductionReq
 	if err != nil {
 		return errors.WithStack(err)
 	}
+
+	defer func() {
+		if err != nil {
+			rollback(ctx, tx, err)
+		}
+	}()
+
 	if err = s.repo.SaveProductionEvent(ctx, &event, core.UpdateOptions{Tx: tx}); err != nil {
-		rollback(ctx, tx, err)
 		return errors.WithMessage(err, "failed to save production event")
 	}
 
 	productInventory, err := s.repo.GetProductInventory(ctx, product.Sku, core.QueryOptions{Tx: tx, ForUpdate: true})
 	if err != nil {
-		rollback(ctx, tx, err)
 		return errors.WithMessage(err, "failed to get product inventory")
 	}
 
 	productInventory.Available += event.Quantity
 	if err = s.repo.SaveProductInventory(ctx, productInventory, core.UpdateOptions{Tx: tx}); err != nil {
-		rollback(ctx, tx, err)
 		return errors.WithMessage(err, "failed to add production to product")
 	}
 
 	if err = tx.Commit(ctx); err != nil {
-		rollback(ctx, tx, err)
 		return errors.WithMessage(err, "failed to commit production transaction")
 	}
 
@@ -169,7 +175,19 @@ func (s *service) Reserve(ctx context.Context, pr Product, rr ReservationRequest
 		Int64("quantity", rr.Quantity).
 		Msg("reserving inventory")
 
-	res, err := s.repo.GetReservationByRequestID(ctx, rr.RequestID)
+	tx, err := s.repo.BeginTransaction(ctx)
+
+	defer func() {
+		if err != nil {
+			rollback(ctx, tx, err)
+		}
+	}()
+
+	if err != nil {
+		return Reservation{}, err
+	}
+
+	res, err := s.repo.GetReservationByRequestID(ctx, rr.RequestID, core.QueryOptions{Tx: tx, ForUpdate: true})
 	if err != nil && !errors.Is(err, core.ErrNotFound) {
 		return Reservation{}, err
 	}
@@ -187,19 +205,15 @@ func (s *service) Reserve(ctx context.Context, pr Product, rr ReservationRequest
 		RequestedQuantity: rr.Quantity,
 		Created:           time.Now(),
 	}
-
-	tx, err := s.repo.BeginTransaction(ctx)
 	if err != nil {
 		return Reservation{}, errors.WithStack(err)
 	}
 
 	if err = s.repo.SaveReservation(ctx, &res, core.UpdateOptions{Tx: tx}); err != nil {
-		rollback(ctx, tx, err)
 		return Reservation{}, errors.WithStack(err)
 	}
 
 	if err = tx.Commit(ctx); err != nil {
-		rollback(ctx, tx, err)
 		return Reservation{}, errors.WithStack(err)
 	}
 
@@ -217,6 +231,12 @@ func (s *service) fillReserves(ctx context.Context, product Product) error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
+
+	defer func() {
+		if err != nil {
+			rollback(ctx, tx, err)
+		}
+	}()
 
 	openReservations, err := s.repo.GetSkuReservationsByState(ctx, product.Sku, Open, 100, 0, core.QueryOptions{Tx: tx, ForUpdate: true})
 	if err != nil {
@@ -252,7 +272,6 @@ func (s *service) fillReserves(ctx context.Context, product Product) error {
 
 		err = s.repo.SaveProductInventory(ctx, productInventory, core.UpdateOptions{Tx: tx})
 		if err != nil {
-			rollback(ctx, tx, err)
 			return errors.WithStack(err)
 		}
 
@@ -265,20 +284,17 @@ func (s *service) fillReserves(ctx context.Context, product Product) error {
 
 		err = s.repo.UpdateReservation(ctx, reservation.ID, reservation.State, reservation.ReservedQuantity, core.UpdateOptions{Tx: tx})
 		if err != nil {
-			rollback(ctx, tx, err)
 			return errors.WithStack(err)
 		}
 
 		err = s.queue.PublishInventory(ctx, productInventory)
 		if err != nil {
-			rollback(ctx, tx, err)
 			return errors.WithMessage(err, "failed to publish inventory")
 		}
 
 		if reservation.State == Closed {
 			err := s.queue.PublishReservation(ctx, reservation)
 			if err != nil {
-				rollback(ctx, tx, err)
 				return err
 			}
 		}

@@ -1,5 +1,9 @@
 # Go Micro Example
 
+![Linter](https://github.com/sksmith/note-server/actions/workflows/lint.yml/badge.svg)
+![Security](https://github.com/sksmith/note-server/actions/workflows/sec.yml/badge.svg)
+![Test](https://github.com/sksmith/note-server/actions/workflows/test.yml/badge.svg)
+
 This small sample project was created as a collection of the various things I've learned about best
 practices building microservices using Go. I structured the project using a hexagonal style abstracting
 away business logic from dependencies like the RESTful API, the Postgres database, and RabbitMQ message queue.
@@ -182,12 +186,6 @@ Database migration is automated in the project using [migrate](https://github.co
 
 ## TODO
 
-- [x] Fix existing unit tests
-- [x] Get linter running locally
-- [ ] Fix linting issues
-- [ ] Get security to run locally
-- [ ] Fix security issues
-- [ ] Add additional unit tests
 - [ ] Change github actions to match note server
 - [ ] Verify/Fix links in README
 - [ ] Recreate architecture diagram
