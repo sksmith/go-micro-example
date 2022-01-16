@@ -26,7 +26,7 @@ const (
 )
 
 func (a *InventoryApi) ConfigureRouter(r chi.Router) {
-	r.Route("/v1", func(r chi.Router) {
+	r.Route("/", func(r chi.Router) {
 		r.With(Paginate).Get("/", a.List)
 		r.Put("/", a.Create)
 

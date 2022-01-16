@@ -1,13 +1,9 @@
 package queue
 
 import (
-	"bufio"
 	"context"
-	"crypto/sha1"
 	"encoding/json"
 	"fmt"
-	"io"
-	"os"
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
@@ -35,12 +31,14 @@ func NewInventoryQueue(ctx context.Context, cfg *config.Config) *InventoryQueue 
 	url := getUrl(cfg)
 
 	go func() {
-		publish(redial(ctx, url), invChan)
+		invExch := cfg.RabbitMQ.Inventory.Exchange.Value
+		publish(redial(ctx, url), invExch, invChan)
 		ctx.Done()
 	}()
 
 	go func() {
-		publish(redial(ctx, url), resChan)
+		resExch := cfg.RabbitMQ.Reservation.Exchange.Value
+		publish(redial(ctx, url), resExch, resChan)
 		ctx.Done()
 	}()
 
@@ -97,17 +95,23 @@ func NewProductQueue(ctx context.Context, cfg *config.Config, handler ProductHan
 				pq.sendToDlt(ctx, message)
 			}
 
-			handler.CreateProduct(ctx, product)
+			err = handler.CreateProduct(ctx, product)
+			if err != nil {
+				log.Error().Err(err).Msg("failed to create product, sending to dlt")
+				pq.productDlt <- message
+			}
 		}
 	}()
 
 	go func() {
-		subscribe(redial(ctx, url), prodChan)
+		prodQueue := cfg.RabbitMQ.Product.Queue.Value
+		subscribe(redial(ctx, url), prodQueue, prodChan)
 		ctx.Done()
 	}()
 
 	go func() {
-		publish(redial(ctx, url), prodDltChan)
+		dltExch := cfg.RabbitMQ.Product.Dlt.Exchange.Value
+		publish(redial(ctx, url), dltExch, prodDltChan)
 		ctx.Done()
 	}()
 
@@ -124,7 +128,7 @@ func (p *ProductQueue) sendToDlt(ctx context.Context, body []byte) {
 
 // TODO We should be using one exchange per domain object here.
 // exchange binds the publishers to the subscribers
-const exchange = "pubsub"
+// const exchange = "pubsub"
 
 // message is the application type for a message.  This can contain identity,
 // or a reference to the recevier chan for further demuxing.
@@ -170,10 +174,6 @@ func redial(ctx context.Context, url string) chan chan session {
 				log.Fatal().Err(err).Msg("cannot create channel")
 			}
 
-			if err := ch.ExchangeDeclare(exchange, "fanout", false, true, false, false, nil); err != nil {
-				log.Fatal().Err(err).Msg("cannot declare fanout exchange")
-			}
-
 			select {
 			case sess <- session{conn, ch}:
 			case <-ctx.Done():
@@ -188,7 +188,7 @@ func redial(ctx context.Context, url string) chan chan session {
 
 // publish publishes messages to a reconnecting session to a fanout exchange.
 // It receives from the application specific source of messages.
-func publish(sessions chan chan session, messages <-chan message) {
+func publish(sessions chan chan session, exchange string, messages <-chan message) {
 	for session := range sessions {
 		var (
 			running bool
@@ -207,7 +207,7 @@ func publish(sessions chan chan session, messages <-chan message) {
 			pub.NotifyPublish(confirm)
 		}
 
-		log.Info().Msg("publishing...")
+		log.Info().Str("exchange", exchange).Msg("ready to publish messages")
 
 	Publish:
 		for {
@@ -230,7 +230,7 @@ func publish(sessions chan chan session, messages <-chan message) {
 				// Retry failed delivery on the next session
 				if err != nil {
 					pending <- body
-					pub.Close()
+					_ = pub.Close()
 					break Publish
 				}
 
@@ -247,72 +247,25 @@ func publish(sessions chan chan session, messages <-chan message) {
 	}
 }
 
-// identity returns the same host/process unique string for the lifetime of
-// this process so that subscriber reconnections reuse the same queue name.
-func identity() string {
-	hostname, err := os.Hostname()
-	h := sha1.New()
-	fmt.Fprint(h, hostname)
-	fmt.Fprint(h, err)
-	fmt.Fprint(h, os.Getpid())
-	return fmt.Sprintf("%x", h.Sum(nil))
-}
-
 // subscribe consumes deliveries from an exclusive queue from a fanout exchange and sends to the application specific messages chan.
-func subscribe(sessions chan chan session, messages chan<- message) {
-	queue := identity()
-
+func subscribe(sessions chan chan session, queue string, messages chan<- message) {
 	for session := range sessions {
 		sub := <-session
 
-		if _, err := sub.QueueDeclare(queue, false, true, true, false, nil); err != nil {
-			log.Error().Str("queue", queue).Err(err).Msg("cannot consume from exclusive queue")
-			return
-		}
-
-		routingKey := "application specific routing key for fancy toplogies"
-		if err := sub.QueueBind(queue, routingKey, exchange, false, nil); err != nil {
-			log.Error().Str("exchange", exchange).Err(err).Msg("cannot consume without a binding to exchange")
-			return
-		}
-
-		deliveries, err := sub.Consume(queue, "", false, true, false, false, nil)
+		deliveries, err := sub.Consume(queue, "", false, false, false, false, nil)
 		if err != nil {
 			log.Error().Str("queue", queue).Err(err).Msg("cannot consume from")
 			return
 		}
 
-		log.Info().Msg("subscribed...")
+		log.Info().Str("queue", queue).Msg("listening for messages")
 
 		for msg := range deliveries {
 			messages <- message(msg.Body)
-			sub.Ack(msg.DeliveryTag, false)
+			err = sub.Ack(msg.DeliveryTag, false)
+			if err != nil {
+				log.Error().Err(err).Str("queue", queue).Msg("failed to acknowledge to queue")
+			}
 		}
 	}
-}
-
-// read is this application's translation to the message format, scanning from
-// stdin.
-func read(r io.Reader) <-chan message {
-	lines := make(chan message)
-	go func() {
-		defer close(lines)
-		scan := bufio.NewScanner(r)
-		for scan.Scan() {
-			lines <- message(scan.Bytes())
-		}
-	}()
-	return lines
-}
-
-// write is this application's subscriber of application messages, printing to
-// stdout.
-func write(w io.Writer) chan<- message {
-	lines := make(chan message)
-	go func() {
-		for line := range lines {
-			fmt.Fprintln(w, string(line))
-		}
-	}()
-	return lines
 }

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"flag"
 	"reflect"
 	"time"
 
@@ -22,6 +23,7 @@ var (
 
 	// Runtime flags
 	profile      *string
+	port         *string
 	configSource *string
 	configUrl    *string
 	configBranch *string
@@ -147,16 +149,13 @@ func init() {
 	def := &Config{}
 	setupDefaults(def)
 
-	// TODO Gotta do this somewhere else
-
-	// profile = flag.String("p", def.Profile.Default, def.Profile.Description)
-	// configSource = flag.String("s", def.Config.Source.Default, def.Config.Source.Description)
-	// configUrl = flag.String("cfgUrl", def.Config.Spring.Url.Default, def.Config.Spring.Url.Description)
-	// configBranch = flag.String("cfgBranch", def.Config.Spring.Branch.Default, def.Config.Spring.Branch.Description)
-	// configUser = flag.String("cfgUser", def.Config.Spring.User.Default, def.Config.Spring.User.Description)
-	// configPass = flag.String("cfgPass", def.Config.Spring.Pass.Default, def.Config.Spring.Pass.Description)
-
-	// flag.Parse()
+	profile = flag.String("p", def.Profile.Default, def.Profile.Description)
+	port = flag.String("port", def.Port.Default, def.Port.Description)
+	configSource = flag.String("s", def.Config.Source.Default, def.Config.Source.Description)
+	configUrl = flag.String("cfgUrl", def.Config.Spring.Url.Default, def.Config.Spring.Url.Description)
+	configBranch = flag.String("cfgBranch", def.Config.Spring.Branch.Default, def.Config.Spring.Branch.Description)
+	configUser = flag.String("cfgUser", def.Config.Spring.User.Default, def.Config.Spring.User.Description)
+	configPass = flag.String("cfgPass", def.Config.Spring.Pass.Default, def.Config.Spring.Pass.Description)
 
 	viper.SetDefault("port", def.Port.Default)
 	viper.SetDefault("profile", def.Profile.Default)
@@ -205,6 +204,11 @@ func Load() *Config {
 
 		err = loadLocalConfigs(config)
 	}
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to load configurations")
+	}
+
+	err = loadCommandLineOverrides(config)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to load configurations")
 	}
@@ -267,6 +271,32 @@ func loadRemoteConfigs(config *Config) error {
 	return nil
 }
 
+func loadCommandLineOverrides(config *Config) error {
+	flag.Parse()
+	if *profile != config.Profile.Default {
+		config.Profile.Value = *profile
+	}
+	if *port != config.Port.Default {
+		config.Port.Value = *port
+	}
+	if *configSource != config.Config.Source.Default {
+		config.Config.Source.Value = *configSource
+	}
+	if *configUrl != config.Config.Spring.Url.Default {
+		config.Config.Spring.Url.Value = *configUrl
+	}
+	if *configBranch != config.Config.Spring.Branch.Default {
+		config.Config.Spring.Branch.Value = *configBranch
+	}
+	if *configUser != config.Config.Spring.User.Default {
+		config.Config.Spring.User.Value = *configUser
+	}
+	if *configPass != config.Config.Spring.Pass.Default {
+		config.Config.Spring.Pass.Value = *configPass
+	}
+	return nil
+}
+
 func setupDefaults(config *Config) {
 	config.AppName = StringConfig{Value: AppName, Default: AppName, Description: "Name of the application in a human readable format. Example: Go Micro Example"}
 
@@ -293,8 +323,7 @@ func setupDefaults(config *Config) {
 
 	config.Db.Description = "Database configurations."
 	config.Db.Name = StringConfig{Value: "micro-ex-db", Default: "micro-ex-db", Description: "The name of the database to connect to."}
-	config.Db.Host = StringConfig{Value: "localhost", Default: "localhost", Description: "Host of the database."}
-	config.Db.Port = StringConfig{Value: "5432", Default: "5432", Description: "Port of the database."}
+	config.Db.Host = StringConfig{Value: "5432", Default: "5432", Description: "Port of the database."}
 	config.Db.Migrate = BoolConfig{Value: true, Default: true, Description: "Whether or not database migrations should be executed on startup."}
 	config.Db.Clean = BoolConfig{Value: false, Default: false, Description: "WARNING: THIS WILL DELETE ALL DATA FROM THE DB. Used only during migration. If clean is true, all 'down' migrations are executed."}
 	config.Db.InMemory = BoolConfig{Value: false, Default: false, Description: "Whether or not the application should use an in memory database."}

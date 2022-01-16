@@ -45,7 +45,7 @@ func TestList(t *testing.T) {
 	ts := configureServer(s)
 	defer ts.Close()
 
-	res, err := http.Get(ts.URL + "/v1")
+	res, err := http.Get(ts.URL + "/")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +71,7 @@ func TestListError(t *testing.T) {
 	ts := configureServer(service)
 	defer ts.Close()
 
-	res, err := http.Get(ts.URL + "/v1")
+	res, err := http.Get(ts.URL + "/")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,7 +103,7 @@ func TestPagination(t *testing.T) {
 	ts := configureServer(service)
 	defer ts.Close()
 
-	_, err := http.Get(ts.URL + fmt.Sprintf("/v1?limit=%d&offset=%d", wantLimit, wantOffset))
+	_, err := http.Get(ts.URL + fmt.Sprintf("?limit=%d&offset=%d", wantLimit, wantOffset))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +136,7 @@ func TestCreate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	res, err := http.Post(ts.URL+"/v1", "application/json", bytes.NewReader(data))
+	res, err := http.Post(ts.URL+"/", "application/json", bytes.NewReader(data))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -189,7 +189,7 @@ func TestCreateProductionEvent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	req, err := http.NewRequest("PUT", ts.URL+fmt.Sprintf("/v1/%s/productionEvent", tpe.Sku),
+	req, err := http.NewRequest("PUT", ts.URL+fmt.Sprintf("/%s/productionEvent", tpe.Sku),
 		bytes.NewReader(data))
 	if err != nil {
 		t.Fatal(err)
@@ -241,7 +241,7 @@ func TestCreateProductNotFound(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	res, err := http.Post(ts.URL+fmt.Sprintf("/v1/%s/productionEvent", tpe.Sku),
+	res, err := http.Post(ts.URL+fmt.Sprintf("/%s/productionEvent", tpe.Sku),
 		"application/json", bytes.NewReader(data))
 	if err != nil {
 		t.Fatal(err)
@@ -335,7 +335,7 @@ func TestCreateReservation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	req, err := http.NewRequest("PUT", ts.URL+fmt.Sprintf("/v1/%s/reservation", tr.Sku),
+	req, err := http.NewRequest("PUT", ts.URL+fmt.Sprintf("/%s/reservation", tr.Sku),
 		bytes.NewReader(data))
 	if err != nil {
 		t.Fatal(err)

@@ -18,7 +18,7 @@ func NewUserApi(service user.Service) *UserApi {
 }
 
 func (a *UserApi) ConfigureRouter(r chi.Router) {
-	r.Route("/v1", func(r chi.Router) {
+	r.Route("/", func(r chi.Router) {
 		r.With(AdminOnly).Post("/", a.Create)
 	})
 }
