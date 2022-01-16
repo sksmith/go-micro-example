@@ -179,3 +179,18 @@ automatic parsing.
 ### XII. Admin Processes
 
 Database migration is automated in the project using [migrate](https://github.com/golang-migrate/migrate).
+
+## TODO
+
+- [x] Fix existing unit tests
+- [x] Get linter running locally
+- [ ] Fix linting issues
+- [ ] Get security to run locally
+- [ ] Fix security issues
+- [ ] Add additional unit tests
+- [ ] Change github actions to match note server
+- [ ] Verify/Fix links in README
+- [ ] Recreate architecture diagram
+- [ ] Add godoc
+- [ ] Return 204 no content if data already exists
+- [ ] Cleanup TODOs

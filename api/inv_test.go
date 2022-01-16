@@ -5,13 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/sksmith/go-micro-example/api"
-	"github.com/sksmith/go-micro-example/queue"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/sksmith/go-micro-example/api"
+	"github.com/sksmith/go-micro-example/queue"
 
 	"github.com/go-chi/chi"
 	"github.com/pkg/errors"
@@ -33,18 +34,18 @@ func TestList(t *testing.T) {
 	mockRepo := invrepo.NewMockRepo()
 	mockQueue := queue.NewMockQueue()
 
-	mockRepo.GetAllProductInventoryFunc = func(ctx context.Context, limit int, offset int, tx ...core.Transaction) ([]inventory.ProductInventory, error) {
+	mockRepo.GetAllProductInventoryFunc = func(ctx context.Context, limit int, offset int, options ...core.QueryOptions) ([]inventory.ProductInventory, error) {
 		products := make([]inventory.ProductInventory, 2)
 		products[0] = testProductInventory[0]
 		products[1] = testProductInventory[2]
 		return products, nil
 	}
 
-	s := inventory.NewService(mockRepo, mockQueue, "inventory.fanout", "reservation.filled.fanout")
+	s := inventory.NewService(mockRepo, mockQueue)
 	ts := configureServer(s)
 	defer ts.Close()
 
-	res, err := http.Get(ts.URL + "/v1")
+	res, err := http.Get(ts.URL + "/")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,15 +63,15 @@ func TestListError(t *testing.T) {
 	mockRepo := invrepo.NewMockRepo()
 	mockQueue := queue.NewMockQueue()
 
-	mockRepo.GetAllProductInventoryFunc = func(ctx context.Context, limit int, offset int, tx ...core.Transaction) ([]inventory.ProductInventory, error) {
+	mockRepo.GetAllProductInventoryFunc = func(ctx context.Context, limit int, offset int, options ...core.QueryOptions) ([]inventory.ProductInventory, error) {
 		return nil, errors.New("some terrible error has occurred in the db")
 	}
 
-	service := inventory.NewService(mockRepo, mockQueue, "inventory.fanout", "reservation.filled.fanout")
+	service := inventory.NewService(mockRepo, mockQueue)
 	ts := configureServer(service)
 	defer ts.Close()
 
-	res, err := http.Get(ts.URL + "/v1")
+	res, err := http.Get(ts.URL + "/")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +88,7 @@ func TestPagination(t *testing.T) {
 	wantLimit := 10
 	wantOffset := 50
 
-	mockRepo.GetAllProductInventoryFunc = func(ctx context.Context, limit int, offset int, tx ...core.Transaction) ([]inventory.ProductInventory, error) {
+	mockRepo.GetAllProductInventoryFunc = func(ctx context.Context, limit int, offset int, options ...core.QueryOptions) ([]inventory.ProductInventory, error) {
 		if limit != wantLimit {
 			t.Errorf("limit got=%d want=%d", limit, wantLimit)
 		}
@@ -98,11 +99,11 @@ func TestPagination(t *testing.T) {
 		return nil, nil
 	}
 
-	service := inventory.NewService(mockRepo, mockQueue, "inventory.fanout", "reservation.filled.fanout")
+	service := inventory.NewService(mockRepo, mockQueue)
 	ts := configureServer(service)
 	defer ts.Close()
 
-	_, err := http.Get(ts.URL + fmt.Sprintf("/v1?limit=%d&offset=%d", wantLimit, wantOffset))
+	_, err := http.Get(ts.URL + fmt.Sprintf("?limit=%d&offset=%d", wantLimit, wantOffset))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +115,7 @@ func TestCreate(t *testing.T) {
 
 	tp := testProducts[0]
 
-	mockRepo.SaveProductFunc = func(ctx context.Context, product inventory.Product, tx ...core.Transaction) error {
+	mockRepo.SaveProductFunc = func(ctx context.Context, product inventory.Product, options ...core.UpdateOptions) error {
 		if product.Name != tp.Name {
 			t.Errorf("name got=%s want=%s", product.Name, tp.Name)
 		}
@@ -127,7 +128,7 @@ func TestCreate(t *testing.T) {
 		return nil
 	}
 
-	service := inventory.NewService(mockRepo, mockQueue, "inventory.fanout", "reservation.filled.fanout")
+	service := inventory.NewService(mockRepo, mockQueue)
 	ts := configureServer(service)
 	defer ts.Close()
 
@@ -135,7 +136,7 @@ func TestCreate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	res, err := http.Post(ts.URL+"/v1", "application/json", bytes.NewReader(data))
+	res, err := http.Post(ts.URL+"/", "application/json", bytes.NewReader(data))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,15 +156,15 @@ func TestCreateProductionEvent(t *testing.T) {
 
 	tpe := testProductionEvents[0]
 
-	mockRepo.GetProductFunc = func(ctx context.Context, sku string, tx ...core.Transaction) (inventory.Product, error) {
+	mockRepo.GetProductFunc = func(ctx context.Context, sku string, options ...core.QueryOptions) (inventory.Product, error) {
 		return testProducts[0], nil
 	}
 
-	mockRepo.GetProductionEventByRequestIDFunc = func(ctx context.Context, requestID string, tx ...core.Transaction) (pe inventory.ProductionEvent, err error) {
+	mockRepo.GetProductionEventByRequestIDFunc = func(ctx context.Context, requestID string, options ...core.QueryOptions) (pe inventory.ProductionEvent, err error) {
 		return pe, core.ErrNotFound
 	}
 
-	mockRepo.SaveProductionEventFunc = func(ctx context.Context, event *inventory.ProductionEvent, tx ...core.Transaction) error {
+	mockRepo.SaveProductionEventFunc = func(ctx context.Context, event *inventory.ProductionEvent, options ...core.UpdateOptions) error {
 		if event.ID != 0 {
 			t.Errorf("id should be ignored on creation got=%d want=%d", event.ID, 0)
 		}
@@ -179,7 +180,7 @@ func TestCreateProductionEvent(t *testing.T) {
 		return nil
 	}
 
-	service := inventory.NewService(mockRepo, mockQueue, "inventory.fanout", "reservation.filled.fanout")
+	service := inventory.NewService(mockRepo, mockQueue)
 	ts := configureServer(service)
 	defer ts.Close()
 
@@ -188,7 +189,7 @@ func TestCreateProductionEvent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	req, err := http.NewRequest("PUT", ts.URL+fmt.Sprintf("/v1/%s/productionEvent", tpe.Sku),
+	req, err := http.NewRequest("PUT", ts.URL+fmt.Sprintf("/%s/productionEvent", tpe.Sku),
 		bytes.NewReader(data))
 	if err != nil {
 		t.Fatal(err)
@@ -225,14 +226,14 @@ func TestCreateProductNotFound(t *testing.T) {
 
 	tpe := testProductionEvents[0]
 
-	mockRepo.GetProductFunc = func(ctx context.Context, sku string, tx ...core.Transaction) (inventory.Product, error) {
+	mockRepo.GetProductFunc = func(ctx context.Context, sku string, options ...core.QueryOptions) (inventory.Product, error) {
 		if sku != tpe.Sku {
 			t.Errorf("sku got=%s want=%s", sku, tpe.Sku)
 		}
 		return inventory.Product{}, core.ErrNotFound
 	}
 
-	service := inventory.NewService(mockRepo, mockQueue, "inventory.fanout", "reservation.filled.fanout")
+	service := inventory.NewService(mockRepo, mockQueue)
 	ts := configureServer(service)
 	defer ts.Close()
 
@@ -240,7 +241,7 @@ func TestCreateProductNotFound(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	res, err := http.Post(ts.URL+fmt.Sprintf("/v1/%s/productionEvent", tpe.Sku),
+	res, err := http.Post(ts.URL+fmt.Sprintf("/%s/productionEvent", tpe.Sku),
 		"application/json", bytes.NewReader(data))
 	if err != nil {
 		t.Fatal(err)
@@ -259,11 +260,11 @@ func TestCreateReservation(t *testing.T) {
 	tr := testReservations[0]
 	tp := testProducts[0]
 
-	mockRepo.GetProductFunc = func(ctx context.Context, sku string, tx ...core.Transaction) (inventory.Product, error) {
+	mockRepo.GetProductFunc = func(ctx context.Context, sku string, options ...core.QueryOptions) (inventory.Product, error) {
 		return tp, nil
 	}
 
-	mockRepo.SaveReservationFunc = func(ctx context.Context, r *inventory.Reservation, tx ...core.Transaction) error {
+	mockRepo.SaveReservationFunc = func(ctx context.Context, r *inventory.Reservation, options ...core.UpdateOptions) error {
 		if r.ID != 0 {
 			t.Errorf("id should be ignored on creation got=%d want=%d", r.ID, 0)
 		}
@@ -287,13 +288,13 @@ func TestCreateReservation(t *testing.T) {
 
 	mockRepo.GetSkuReservesByStateFunc =
 		func(ctx context.Context, sku string, state inventory.ReserveState, limit, offset int,
-			tx ...core.Transaction) ([]inventory.Reservation, error) {
+			options ...core.QueryOptions) ([]inventory.Reservation, error) {
 
 			return []inventory.Reservation{tr}, nil
 		}
 
 	mockRepo.UpdateReservationFunc =
-		func(ctx context.Context, ID uint64, state inventory.ReserveState, qty int64, txs ...core.Transaction) error {
+		func(ctx context.Context, ID uint64, state inventory.ReserveState, qty int64, options ...core.UpdateOptions) error {
 			if ID != tr.ID {
 				t.Errorf("id got=%d want=%d", ID, tr.ID)
 			}
@@ -307,7 +308,7 @@ func TestCreateReservation(t *testing.T) {
 		}
 
 	mockRepo.GetProductInventoryFunc =
-		func(ctx context.Context, sku string, tx ...core.Transaction) (inventory.ProductInventory, error) {
+		func(ctx context.Context, sku string, options ...core.QueryOptions) (inventory.ProductInventory, error) {
 			if sku != "sku1" {
 				t.Errorf("sku got=%s want=%s", sku, "sku1")
 			}
@@ -326,7 +327,7 @@ func TestCreateReservation(t *testing.T) {
 		return nil
 	}
 
-	service := inventory.NewService(mockRepo, mockQueue, "inventory.fanout", "reservation.filled.fanout")
+	service := inventory.NewService(mockRepo, mockQueue)
 	ts := configureServer(service)
 	defer ts.Close()
 
@@ -334,7 +335,7 @@ func TestCreateReservation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	req, err := http.NewRequest("PUT", ts.URL+fmt.Sprintf("/v1/%s/reservation", tr.Sku),
+	req, err := http.NewRequest("PUT", ts.URL+fmt.Sprintf("/%s/reservation", tr.Sku),
 		bytes.NewReader(data))
 	if err != nil {
 		t.Fatal(err)

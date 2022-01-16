@@ -2,12 +2,14 @@ package api
 
 import (
 	"context"
-	"github.com/go-chi/chi"
-	"github.com/go-chi/chi/middleware"
-	"github.com/prometheus/client_golang/prometheus"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/middleware"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/core/user"
@@ -18,14 +20,14 @@ const DefaultPageLimit = 50
 type CtxKey string
 
 const (
-	CtxKeyLimit CtxKey = "limit"
+	CtxKeyLimit  CtxKey = "limit"
 	CtxKeyOffset CtxKey = "offset"
-	CtxKeyUser CtxKey = "user"
+	CtxKeyUser   CtxKey = "user"
 )
 
 var (
 	urlHitCount *prometheus.CounterVec
-	urlLatency *prometheus.SummaryVec
+	urlLatency  *prometheus.SummaryVec
 )
 
 func Paginate(next http.Handler) http.Handler {
@@ -108,6 +110,8 @@ func Logging(next http.Handler) http.Handler {
 		ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
 
 		defer func() {
+			dur := fmt.Sprintf("%dms", time.Duration(time.Since(start).Milliseconds()))
+
 			log.Trace().
 				Str("method", r.Method).
 				Str("host", r.Host).
@@ -115,7 +119,7 @@ func Logging(next http.Handler) http.Handler {
 				Str("proto", r.Proto).
 				Int("status", ww.Status()).
 				Int("bytes", ww.BytesWritten()).
-				Dur("duration", time.Since(start)).Send()
+				Str("duration", dur).Send()
 		}()
 		next.ServeHTTP(ww, r)
 	}

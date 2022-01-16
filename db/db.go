@@ -12,9 +12,11 @@ import (
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"github.com/sksmith/go-micro-example/config"
+	"github.com/sksmith/go-micro-example/core"
 )
 
-type config struct {
+type dbconfig struct {
 	timeZone              string
 	sslMode               string
 	poolMaxConns          int32
@@ -24,22 +26,22 @@ type config struct {
 	poolHealthCheckPeriod time.Duration
 }
 
-type configOption func(cn *config)
+type configOption func(cn *dbconfig)
 
-func MinPoolConns(minConns int32) func(cn *config) {
-	return func(c *config) {
+func MinPoolConns(minConns int32) func(cn *dbconfig) {
+	return func(c *dbconfig) {
 		c.poolMinConns = minConns
 	}
 }
 
-func MaxPoolConns(maxConns int32) func(cn *config) {
-	return func(c *config) {
+func MaxPoolConns(maxConns int32) func(cn *dbconfig) {
+	return func(c *dbconfig) {
 		c.poolMaxConns = maxConns
 	}
 }
 
-func newConfig() config {
-	return config{
+func newDbConfig() dbconfig {
+	return dbconfig{
 		sslMode:               "disable",
 		timeZone:              "UTC",
 		poolMaxConns:          4,
@@ -54,25 +56,48 @@ func formatOption(url, option string, value interface{}) string {
 	return url + " " + option + "=" + fmt.Sprintf("%v", value)
 }
 
-func addOptionsToUrl(url string, options ...configOption) string {
-	config := newConfig()
+func addOptionsToConnStr(connStr string, options ...configOption) string {
+	config := newDbConfig()
 	for _, option := range options {
 		option(&config)
 	}
 
-	url = formatOption(url, "sslmode", config.sslMode)
-	url = formatOption(url, "TimeZone", config.timeZone)
-	url = formatOption(url, "pool_max_conns", config.poolMaxConns)
-	url = formatOption(url, "pool_min_conns", config.poolMinConns)
-	url = formatOption(url, "pool_max_conn_lifetime", config.poolMaxConnLifetime)
-	url = formatOption(url, "pool_max_conn_idle_time", config.poolMaxConnIdleTime)
-	url = formatOption(url, "pool_health_check_period", config.poolHealthCheckPeriod)
+	connStr = formatOption(connStr, "sslmode", config.sslMode)
+	connStr = formatOption(connStr, "TimeZone", config.timeZone)
+	connStr = formatOption(connStr, "pool_max_conns", config.poolMaxConns)
+	connStr = formatOption(connStr, "pool_min_conns", config.poolMinConns)
+	connStr = formatOption(connStr, "pool_max_conn_lifetime", config.poolMaxConnLifetime)
+	connStr = formatOption(connStr, "pool_max_conn_idle_time", config.poolMaxConnIdleTime)
+	connStr = formatOption(connStr, "pool_health_check_period", config.poolHealthCheckPeriod)
 
-	return url
+	return connStr
 }
 
-func ConnectDb(ctx context.Context, url string, options ...configOption) (*pgxpool.Pool, error) {
-	url = addOptionsToUrl(url, options...)
+func ConnectDb(ctx context.Context, cfg *config.Config) (*pgxpool.Pool, error) {
+
+	log.Info().Str("host", cfg.Db.Host.Value).Str("name", cfg.Db.Name.Value).Msg("connecting to the database...")
+	var err error
+
+	if cfg.Db.Migrate.Value {
+		log.Info().Msg("executing migrations")
+
+		if err = RunMigrations(
+			cfg.Db.Host.Value,
+			cfg.Db.Name.Value,
+			cfg.Db.Port.Value,
+			cfg.Db.User.Value,
+			cfg.Db.Pass.Value,
+			cfg.Db.Clean.Value); err != nil {
+			log.Warn().Err(err).Msg("error executing migrations")
+		}
+	}
+
+	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s",
+		cfg.Db.Host.Value, cfg.Db.Port.Value, cfg.Db.User.Value, cfg.Db.Pass.Value, cfg.Db.Name.Value)
+
+	var pool *pgxpool.Pool
+
+	url := addOptionsToConnStr(connStr, MinPoolConns(int32(cfg.Db.Pool.MinSize.Value)), MaxPoolConns(int32(cfg.Db.Pool.MaxSize.Value)))
 	poolConfig, err := pgxpool.ParseConfig(url)
 	if err != nil {
 		return nil, err
@@ -80,9 +105,14 @@ func ConnectDb(ctx context.Context, url string, options ...configOption) (*pgxpo
 
 	poolConfig.ConnConfig.Logger = logger{}
 
-	pool, err := pgxpool.ConnectConfig(ctx, poolConfig)
-	if err != nil {
-		return nil, err
+	for {
+		pool, err = pgxpool.ConnectConfig(ctx, poolConfig)
+		if err != nil {
+			log.Error().Err(err).Msg("failed to create connection pool... retrying")
+			time.Sleep(1 * time.Second)
+			continue
+		}
+		break
 	}
 
 	return pool, nil
@@ -142,4 +172,27 @@ func RunMigrations(host, database, port, user, password string, clean bool) erro
 	}
 
 	return nil
+}
+
+func GetQueryOptions(cn core.Conn, options ...core.QueryOptions) (conn core.Conn, forUpdate string) {
+	conn = cn
+	forUpdate = ""
+	if len(options) > 0 {
+		conn = options[0].Tx
+
+		if options[0].ForUpdate {
+			forUpdate = "FOR UPDATE"
+		}
+	}
+
+	return conn, forUpdate
+}
+
+func GetUpdateOptions(cn core.Conn, options ...core.UpdateOptions) (conn core.Conn) {
+	conn = cn
+	if len(options) > 0 {
+		conn = options[0].Tx
+	}
+
+	return conn
 }

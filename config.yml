@@ -1,0 +1,37 @@
+port: 8080
+profile: local
+
+config:
+  source: local
+  print: false
+
+log:
+  level: trace
+  structured: false
+
+db:
+  name: micro-tmpl-db
+  host: localhost
+  port: 5432
+  user: postgres
+  pass: postgres
+  clean: false
+  inMemory: false
+  pool:
+    minSize: 1
+    maxSize: 3
+
+rabbitmq:
+  host: localhost
+  port: 5672
+  user: guest
+  pass: guest
+  mock: false
+  inventory:
+    exchange: inventory.exchange
+  reservation:
+    exchange: reservation.exchange
+  product:
+    queue: product.queue
+    dlt:
+      exchange: product.dlt.exchange

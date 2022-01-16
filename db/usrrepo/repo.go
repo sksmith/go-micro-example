@@ -29,12 +29,10 @@ func NewPostgresRepo(conn core.Conn) user.Repository {
 	}
 }
 
-func (r *dbRepo) Create(ctx context.Context, user *user.User, txs ...core.Transaction) error {
+func (r *dbRepo) Create(ctx context.Context, user *user.User, txs ...core.UpdateOptions) error {
 	m := db.StartMetric("Create")
-	tx := r.conn
-	if len(txs) > 0 {
-		tx = txs[0]
-	}
+	tx := db.GetUpdateOptions(r.conn, txs...)
+
 	_, err := tx.Exec(ctx, `
 		INSERT INTO users (username, password, is_admin, created_at)
                       VALUES ($1, $2, $3, $4);`,
@@ -48,22 +46,21 @@ func (r *dbRepo) Create(ctx context.Context, user *user.User, txs ...core.Transa
 	return nil
 }
 
-func (r *dbRepo) Get(ctx context.Context, username string, txs ...core.Transaction) (user.User, error) {
+func (r *dbRepo) Get(ctx context.Context, username string, txs ...core.QueryOptions) (user.User, error) {
 	m := db.StartMetric("GetUser")
-	tx := r.conn
-	if len(txs) > 0 {
-		tx = txs[0]
-	}
+	tx, forUpdate := db.GetQueryOptions(r.conn, txs...)
 
 	u, ok := r.getcache(username)
 	if ok {
 		return u, nil
 	}
-	err := tx.QueryRow(ctx, `
-		SELECT username, password, is_admin, created_at 
-			FROM users WHERE username = $1`, username).
-		Scan(&u.Username, &u.HashedPassword, &u.IsAdmin, &u.Created)
 
+	query := `SELECT username, password, is_admin, created_at FROM users WHERE username = $1 ` + forUpdate
+
+	log.Debug().Str("query", query).Str("username", username).Msg("getting user")
+
+	err := tx.QueryRow(ctx, query, username).
+		Scan(&u.Username, &u.HashedPassword, &u.IsAdmin, &u.Created)
 	if err != nil {
 		m.Complete(err)
 		if err == pgx.ErrNoRows {
@@ -77,12 +74,9 @@ func (r *dbRepo) Get(ctx context.Context, username string, txs ...core.Transacti
 	return u, nil
 }
 
-func (r *dbRepo) Delete(ctx context.Context, username string, txs ...core.Transaction) error {
+func (r *dbRepo) Delete(ctx context.Context, username string, txs ...core.UpdateOptions) error {
 	m := db.StartMetric("DeleteUser")
-	tx := r.conn
-	if len(txs) > 0 {
-		tx = txs[0]
-	}
+	tx := db.GetUpdateOptions(r.conn, txs...)
 
 	_, err := tx.Exec(ctx, `DELETE FROM users WHERE username = $1`, username)
 
