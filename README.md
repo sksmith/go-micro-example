@@ -4,7 +4,7 @@
 ![Security](https://github.com/sksmith/note-server/actions/workflows/sec.yml/badge.svg)
 ![Test](https://github.com/sksmith/note-server/actions/workflows/test.yml/badge.svg)
 
-This small sample project was created as a collection of the various things I've learned about best
+This sample project was created as a collection of the various things I've learned about best
 practices building microservices using Go. I structured the project using a hexagonal style abstracting
 away business logic from dependencies like the RESTful API, the Postgres database, and RabbitMQ message queue.
 
@@ -180,8 +180,6 @@ Database migration is automated in the project using [migrate](https://github.co
 
 ## TODO
 
-- [ ] Change github actions to match note server
-- [ ] Verify/Fix links in README
 - [ ] Recreate architecture diagram
 - [ ] Add godoc
 - [ ] Return 204 no content if data already exists
