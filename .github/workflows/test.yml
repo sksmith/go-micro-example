@@ -1,11 +1,9 @@
 name: Test
 on:
-  push:
-    branches:
-      - master
-  pull_request:
-    branches:
-      - master
+  workflow_call:
+    secrets:
+      webhook:
+        required: true
 jobs:
   test:
     strategy:

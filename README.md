@@ -79,13 +79,11 @@ gets a hit count and a latency metric added. You can find the configurations [he
 
 I ended up going with [zerolog](https://github.com/rs/zerolog) for logging in this project. I really like its API and 
 their benchmarks look really great too! You can get structured logging or nice human-readable logging by
-[changing some configs](cmd/config.go)
+[changing some configs](config.yml#L10)
 
 ### Configuration
 
-I'm most comfortable using Spring Cloud Config for externalized configurations, but I couldn't find any libraries 
-written for Go that can connect to Spring Cloud Config servers 
-[so I wrote one](https://github.com/sksmith/go-spring-config).
+This project uses [viper](https://github.com/spf13/viper) for handling externalized configurations. At the moment it only reads from the local config.yml but the plan is to make it compatible with [Spring Cloud Config](https://cloud.spring.io/spring-cloud-config), and [etcd](https://etcd.io).
 
 ### Testing
 
@@ -125,11 +123,7 @@ Go handles this for us through its dependency management system (yay!)
 
 ### III. Config
 
-The app initially starts up using environment variables that define a URL and credentials for connecting to a 
-[Spring Cloud Config](https://github.com/spring-cloud/spring-cloud-config) service. This allows for the externalization 
-of configurations which are managed through a typical version control system. Pretty nice! 
-[I wrote a basic library](https://github.com/sksmith/go-spring-config) for connecting to and reading configurations from 
-Spring Cloud Config since I'm mostly writing Spring Boot microservices these days.
+See the [configuration section](#Configuration) section above.
 
 ### IV. Backing Services
 

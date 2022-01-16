@@ -1,0 +1,23 @@
+name: Validate
+on:
+  pull_request:
+    branches:
+      - master
+jobs:
+  lint:
+    uses: sksmith/note-server/.github/workflows/lint.yml@master
+  security:
+    uses: sksmith/note-server/.github/workflows/sec.yml@master
+  test:
+    uses: sksmith/note-server/.github/workflows/test.yml@master
+  notify:
+    name: Notification
+    needs: [lint, security, test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: sarisia/actions-status-discord@v1
+        if: always()
+        with:
+          username: Dev Deployment
+          description: A deployment to the development environment has been attempted
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
