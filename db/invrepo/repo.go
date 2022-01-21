@@ -2,6 +2,7 @@ package invrepo
 
 import (
 	"context"
+	"strconv"
 
 	"github.com/jackc/pgx/v4"
 	"github.com/pkg/errors"
@@ -14,7 +15,7 @@ type dbRepo struct {
 	conn core.Conn
 }
 
-func NewPostgresRepo(conn core.Conn) inventory.Repository {
+func NewPostgresRepo(conn core.Conn) *dbRepo {
 	return &dbRepo{
 		conn: conn,
 	}
@@ -218,25 +219,44 @@ func (d *dbRepo) UpdateReservation(ctx context.Context, ID uint64, state invento
 	return nil
 }
 
-func (d *dbRepo) GetSkuReservationsByState(ctx context.Context, sku string, state inventory.ReserveState, limit, offset int, options ...core.QueryOptions) ([]inventory.Reservation, error) {
+const reservationFields = "id, request_id, requester, sku, state, reserved_quantity, requested_quantity, created"
+
+func (d *dbRepo) GetReservations(ctx context.Context, resOptions inventory.GetReservationsOptions, limit, offset int, options ...core.QueryOptions) ([]inventory.Reservation, error) {
 	m := db.StartMetric("GetSkuOpenReserves")
 	tx, forUpdate := db.GetQueryOptions(d.conn, options...)
 
 	params := make([]interface{}, 0)
-	params = append(params, sku)
 	params = append(params, limit)
 	params = append(params, offset)
 
-	whereClause := " WHERE sku = $1"
+	whereClause := ""
+	paramIdx := 2
 
-	if state != inventory.None {
-		whereClause += " AND state = $4"
-		params = append(params, state)
+	if resOptions.Sku != "" || resOptions.State != inventory.None {
+		whereClause = " WHERE "
+	}
+
+	if resOptions.Sku != "" {
+		if paramIdx > 2 {
+			whereClause += " AND"
+		}
+		paramIdx++
+		whereClause += " sku = $" + strconv.Itoa(paramIdx)
+		params = append(params, resOptions.Sku)
+	}
+
+	if resOptions.State != inventory.None {
+		if paramIdx > 2 {
+			whereClause += " AND"
+		}
+		paramIdx++
+		whereClause += " state = $" + strconv.Itoa(paramIdx)
+		params = append(params, resOptions.State)
 	}
 
 	reservations := make([]inventory.Reservation, 0)
 	rows, err := tx.Query(ctx,
-		`SELECT id, request_id, requester, sku, state, reserved_quantity, requested_quantity, created FROM reservations `+whereClause+` ORDER BY created ASC LIMIT $2 OFFSET $3 `+forUpdate,
+		`SELECT `+reservationFields+` FROM reservations `+whereClause+` ORDER BY created ASC LIMIT $1 OFFSET $2 `+forUpdate,
 		params...)
 	if err != nil {
 		m.Complete(err)
@@ -267,8 +287,28 @@ func (d *dbRepo) GetReservationByRequestID(ctx context.Context, requestId string
 
 	r := inventory.Reservation{}
 	err := tx.QueryRow(ctx,
-		`SELECT id, request_id, requester, sku, state, reserved_quantity, requested_quantity, created FROM reservations WHERE request_id = $1 `+forUpdate,
+		`SELECT `+reservationFields+` FROM reservations WHERE request_id = $1 `+forUpdate,
 		requestId).Scan(&r.ID, &r.RequestID, &r.Requester, &r.Sku, &r.State, &r.ReservedQuantity, &r.RequestedQuantity, &r.Created)
+	if err != nil {
+		m.Complete(err)
+		if err == pgx.ErrNoRows {
+			return r, errors.WithStack(core.ErrNotFound)
+		}
+		return r, errors.WithStack(err)
+	}
+
+	m.Complete(nil)
+	return r, nil
+}
+
+func (d *dbRepo) GetReservation(ctx context.Context, ID uint64, options ...core.QueryOptions) (inventory.Reservation, error) {
+	m := db.StartMetric("GetReservation")
+	tx, forUpdate := db.GetQueryOptions(d.conn, options...)
+
+	r := inventory.Reservation{}
+	err := tx.QueryRow(ctx,
+		`SELECT `+reservationFields+` FROM reservations WHERE id = $1 `+forUpdate, ID).
+		Scan(&r.ID, &r.RequestID, &r.Requester, &r.Sku, &r.State, &r.ReservedQuantity, &r.RequestedQuantity, &r.Created)
 	if err != nil {
 		m.Complete(err)
 		if err == pgx.ErrNoRows {

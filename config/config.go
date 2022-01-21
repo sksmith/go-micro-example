@@ -94,6 +94,7 @@ type DbConfig struct {
 	User        StringConfig `json:"user"     yaml:"user"`
 	Pass        StringConfig `json:"pass"     yaml:"pass"`
 	Pool        DbPoolConfig `json:"pool"     yaml:"pool"`
+	LogLevel    StringConfig `json:"logLevel" yaml:"logLevel"`
 	Description string       `json:"description" yaml:"description"`
 }
 
@@ -333,6 +334,7 @@ func setupDefaults(config *Config) {
 	config.Db.Pool.MaxSize = IntConfig{Value: 3, Default: 3, Description: "The maximum size of the pool."}
 	config.Db.Pool.MaxConnLife = IntConfig{Value: time.Hour.Milliseconds(), Default: time.Hour.Milliseconds(), Description: "The maximum time a connection can live in the pool in milliseconds."}
 	config.Db.Pool.MaxConnIdle = IntConfig{Value: time.Minute.Milliseconds() * 30, Default: time.Minute.Milliseconds() * 30, Description: "The maximum time a connection can idle in the pool in milliseconds."}
+	config.Db.LogLevel = StringConfig{Value: "trace", Default: "trace", Description: "The logging level for database interactions. See: log.level"}
 
 	config.RabbitMQ.Description = "Rabbit MQ congfigurations."
 	config.RabbitMQ.Host = StringConfig{Value: "localhost", Default: "localhost", Description: "RabbitMQ's broker host."}

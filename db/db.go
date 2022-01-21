@@ -103,7 +103,11 @@ func ConnectDb(ctx context.Context, cfg *config.Config) (*pgxpool.Pool, error) {
 		return nil, err
 	}
 
-	poolConfig.ConnConfig.Logger = logger{}
+	level, err := pgx.LogLevelFromString(cfg.Db.LogLevel.Value)
+	if err != nil {
+		return nil, err
+	}
+	poolConfig.ConnConfig.Logger = logger{level: level}
 
 	for {
 		pool, err = pgxpool.ConnectConfig(ctx, poolConfig)
@@ -119,9 +123,13 @@ func ConnectDb(ctx context.Context, cfg *config.Config) (*pgxpool.Pool, error) {
 }
 
 type logger struct {
+	level pgx.LogLevel
 }
 
 func (l logger) Log(ctx context.Context, level pgx.LogLevel, msg string, data map[string]interface{}) {
+	if l.level < level {
+		return
+	}
 	var evt *zerolog.Event
 	switch level {
 	case pgx.LogLevelTrace:

@@ -13,7 +13,8 @@ type MockRepo struct {
 	GetProductionEventByRequestIDFunc func(ctx context.Context, requestID string, options ...core.QueryOptions) (pe inventory.ProductionEvent, err error)
 	SaveProductionEventFunc           func(ctx context.Context, event *inventory.ProductionEvent, options ...core.UpdateOptions) error
 
-	GetSkuReservesByStateFunc     func(ctx context.Context, sku string, state inventory.ReserveState, limit, offset int, options ...core.QueryOptions) ([]inventory.Reservation, error)
+	GetReservationFunc            func(ctx context.Context, ID uint64, options ...core.QueryOptions) (inventory.Reservation, error)
+	GetReservationsFunc           func(ctx context.Context, resOptions inventory.GetReservationsOptions, limit, offset int, options ...core.QueryOptions) ([]inventory.Reservation, error)
 	GetReservationByRequestIDFunc func(ctx context.Context, requestId string, options ...core.QueryOptions) (inventory.Reservation, error)
 	UpdateReservationFunc         func(ctx context.Context, ID uint64, state inventory.ReserveState, qty int64, options ...core.UpdateOptions) error
 	SaveReservationFunc           func(ctx context.Context, reservation *inventory.Reservation, options ...core.UpdateOptions) error
@@ -44,8 +45,12 @@ func (r MockRepo) SaveReservation(ctx context.Context, reservation *inventory.Re
 	return r.SaveReservationFunc(ctx, reservation, options...)
 }
 
-func (r MockRepo) GetSkuReservationsByState(ctx context.Context, sku string, state inventory.ReserveState, limit, offset int, options ...core.QueryOptions) ([]inventory.Reservation, error) {
-	return r.GetSkuReservesByStateFunc(ctx, sku, state, limit, offset, options...)
+func (r MockRepo) GetReservation(ctx context.Context, ID uint64, options ...core.QueryOptions) (inventory.Reservation, error) {
+	return r.GetReservationFunc(ctx, ID, options...)
+}
+
+func (r MockRepo) GetReservations(ctx context.Context, resOptions inventory.GetReservationsOptions, limit, offset int, options ...core.QueryOptions) ([]inventory.Reservation, error) {
+	return r.GetReservationsFunc(ctx, resOptions, limit, offset, options...)
 }
 
 func (r MockRepo) SaveProduct(ctx context.Context, product inventory.Product, options ...core.UpdateOptions) error {
@@ -87,7 +92,10 @@ func NewMockRepo() MockRepo {
 		SaveReservationFunc: func(ctx context.Context, reservation *inventory.Reservation, options ...core.UpdateOptions) error {
 			return nil
 		},
-		GetSkuReservesByStateFunc: func(ctx context.Context, sku string, state inventory.ReserveState, limit, offset int, options ...core.QueryOptions) ([]inventory.Reservation, error) {
+		GetReservationFunc: func(ctx context.Context, ID uint64, options ...core.QueryOptions) (inventory.Reservation, error) {
+			return inventory.Reservation{}, nil
+		},
+		GetReservationsFunc: func(ctx context.Context, resOptions inventory.GetReservationsOptions, limit, offset int, options ...core.QueryOptions) ([]inventory.Reservation, error) {
 			return nil, nil
 		},
 		SaveProductFunc: func(ctx context.Context, product inventory.Product, options ...core.UpdateOptions) error { return nil },

@@ -6,7 +6,7 @@ config:
   print: false
 
 log:
-  level: trace
+  level: info
   structured: false
 
 db:
@@ -17,6 +17,7 @@ db:
   pass: postgres
   clean: false
   inMemory: false
+  logLevel: warn
   pool:
     minSize: 1
     maxSize: 3

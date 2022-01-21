@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"github.com/rs/zerolog/pkgerrors"
 	"github.com/sksmith/go-micro-example/api"
 	"github.com/sksmith/go-micro-example/config"
 	"github.com/sksmith/go-micro-example/core/inventory"
@@ -109,4 +110,5 @@ func configLogging(cfg *config.Config) {
 	}
 	log.Info().Str("loglevel", level.String()).Msg("setting log level")
 	zerolog.SetGlobalLevel(level)
+	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
 }

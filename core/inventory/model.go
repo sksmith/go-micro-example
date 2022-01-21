@@ -3,14 +3,15 @@
 package inventory
 
 import (
-	"github.com/pkg/errors"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 // ProductionRequest is a value object. A request to produce inventory.
 type ProductionRequest struct {
 	RequestID string `json:"requestID"`
-	Quantity  int64 `json:"quantity"`
+	Quantity  int64  `json:"quantity"`
 }
 
 // ProductionEvent is an entity. An addition to inventory through production of a Product.
@@ -24,15 +25,15 @@ type ProductionEvent struct {
 
 // Product is a value object. A SKU able to be produced by the factory.
 type Product struct {
-	Sku       string `json:"sku"`
-	Upc       string `json:"upc"`
-	Name      string `json:"name"`
+	Sku  string `json:"sku"`
+	Upc  string `json:"upc"`
+	Name string `json:"name"`
 }
 
 // ProductInventory is an entity. It represents current inventory levels for the associated product.
 type ProductInventory struct {
 	Product
-	Available int64  `json:"available"`
+	Available int64 `json:"available"`
 }
 
 type ReserveState string
@@ -57,9 +58,10 @@ func ParseReserveState(v string) (ReserveState, error) {
 }
 
 type ReservationRequest struct {
+	Sku       string `json:"sku"`
 	RequestID string `json:"requestId"`
 	Requester string `json:"requester"`
-	Quantity int64 `json:"quantity"`
+	Quantity  int64  `json:"quantity"`
 }
 
 // Reservation is an entity. An amount of inventory set aside for a given Customer.

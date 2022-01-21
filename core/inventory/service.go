@@ -15,12 +15,18 @@ func NewService(repo Repository, q Queue) *service {
 
 type Service interface {
 	Produce(ctx context.Context, product Product, event ProductionRequest) error
-	Reserve(ctx context.Context, product Product, rr ReservationRequest) (Reservation, error)
+	Reserve(ctx context.Context, rr ReservationRequest) (Reservation, error)
 	GetAllProductInventory(ctx context.Context, limit, offset int) ([]ProductInventory, error)
 	GetProduct(ctx context.Context, sku string) (Product, error)
 	CreateProduct(ctx context.Context, product Product) error
 	GetProductInventory(ctx context.Context, sku string) (ProductInventory, error)
-	GetReservations(ctx context.Context, sku string, state ReserveState, limit, offset int) ([]Reservation, error)
+	GetReservations(ctx context.Context, options GetReservationsOptions, limit, offset int) ([]Reservation, error)
+	GetReservation(ctx context.Context, ID uint64) (Reservation, error)
+}
+
+type GetReservationsOptions struct {
+	Sku   string
+	State ReserveState
 }
 
 type service struct {
@@ -164,13 +170,13 @@ func (s *service) Produce(ctx context.Context, product Product, pr ProductionReq
 	return nil
 }
 
-func (s *service) Reserve(ctx context.Context, pr Product, rr ReservationRequest) (Reservation, error) {
+func (s *service) Reserve(ctx context.Context, rr ReservationRequest) (Reservation, error) {
 	const funcName = "Reserve"
 
 	log.Info().
 		Str("func", funcName).
 		Str("requestId", rr.RequestID).
-		Str("sku", pr.Sku).
+		Str("sku", rr.Sku).
 		Str("requester", rr.Requester).
 		Int64("quantity", rr.Quantity).
 		Msg("reserving inventory")
@@ -187,9 +193,16 @@ func (s *service) Reserve(ctx context.Context, pr Product, rr ReservationRequest
 		return Reservation{}, err
 	}
 
+	pr, err := s.repo.GetProduct(ctx, rr.Sku, core.QueryOptions{Tx: tx, ForUpdate: true})
+	if err != nil {
+		log.Error().Err(err).Str("requestId", rr.RequestID).Msg("failed to get product")
+		return Reservation{}, errors.WithStack(err)
+	}
+
 	res, err := s.repo.GetReservationByRequestID(ctx, rr.RequestID, core.QueryOptions{Tx: tx, ForUpdate: true})
 	if err != nil && !errors.Is(err, core.ErrNotFound) {
-		return Reservation{}, err
+		log.Error().Err(err).Str("requestId", rr.RequestID).Msg("failed to get reservation request")
+		return Reservation{}, errors.WithStack(err)
 	}
 	if res.RequestID != "" {
 		log.Debug().Str("func", funcName).Str("requestId", rr.RequestID).Msg("reservation already exists, returning it")
@@ -199,14 +212,11 @@ func (s *service) Reserve(ctx context.Context, pr Product, rr ReservationRequest
 	res = Reservation{
 		RequestID:         rr.RequestID,
 		Requester:         rr.Requester,
-		Sku:               pr.Sku,
+		Sku:               rr.Sku,
 		State:             Open,
 		ReservedQuantity:  0,
 		RequestedQuantity: rr.Quantity,
 		Created:           time.Now(),
-	}
-	if err != nil {
-		return Reservation{}, errors.WithStack(err)
 	}
 
 	if err = s.repo.SaveReservation(ctx, &res, core.UpdateOptions{Tx: tx}); err != nil {
@@ -238,7 +248,7 @@ func (s *service) fillReserves(ctx context.Context, product Product) error {
 		}
 	}()
 
-	openReservations, err := s.repo.GetSkuReservationsByState(ctx, product.Sku, Open, 100, 0, core.QueryOptions{Tx: tx, ForUpdate: true})
+	openReservations, err := s.repo.GetReservations(ctx, GetReservationsOptions{Sku: product.Sku, State: Open}, 100, 0, core.QueryOptions{Tx: tx, ForUpdate: true})
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -354,15 +364,31 @@ func (s *service) GetProductInventory(ctx context.Context, sku string) (ProductI
 	return product, nil
 }
 
-func (s *service) GetReservations(ctx context.Context, sku string, state ReserveState, limit, offset int) ([]Reservation, error) {
+func (s *service) GetReservation(ctx context.Context, ID uint64) (Reservation, error) {
+	const funcName = "GetReservation"
+
+	log.Info().
+		Str("func", funcName).
+		Uint64("id", ID).
+		Msg("getting reservation")
+
+	rsv, err := s.repo.GetReservation(ctx, ID)
+	if err != nil {
+		return rsv, errors.WithStack(err)
+	}
+	return rsv, nil
+}
+
+func (s *service) GetReservations(ctx context.Context, options GetReservationsOptions, limit, offset int) ([]Reservation, error) {
 	const funcName = "GetProductInventory"
 
 	log.Info().
 		Str("func", funcName).
-		Str("sku", sku).
+		Str("sku", options.Sku).
+		Str("state", string(options.State)).
 		Msg("getting reservations")
 
-	rsv, err := s.repo.GetSkuReservationsByState(ctx, sku, state, limit, offset)
+	rsv, err := s.repo.GetReservations(ctx, options, limit, offset)
 	if err != nil {
 		return rsv, errors.WithStack(err)
 	}
@@ -396,8 +422,9 @@ type ProductionEventRepository interface {
 
 type ReservationRepository interface {
 	Transactional
-	GetSkuReservationsByState(ctx context.Context, sku string, state ReserveState, limit, offset int, options ...core.QueryOptions) ([]Reservation, error)
+	GetReservations(ctx context.Context, resOptions GetReservationsOptions, limit, offset int, options ...core.QueryOptions) ([]Reservation, error)
 	GetReservationByRequestID(ctx context.Context, requestId string, options ...core.QueryOptions) (Reservation, error)
+	GetReservation(ctx context.Context, ID uint64, options ...core.QueryOptions) (Reservation, error)
 
 	SaveReservation(ctx context.Context, reservation *Reservation, options ...core.UpdateOptions) error
 	UpdateReservation(ctx context.Context, ID uint64, state ReserveState, qty int64, options ...core.UpdateOptions) error

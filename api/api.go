@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/cors"
 	"github.com/go-chi/render"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/config"
 	"github.com/sksmith/go-micro-example/core/inventory"
 	"github.com/sksmith/go-micro-example/core/user"
@@ -40,8 +41,21 @@ func ConfigureRouter(cfg *config.Config, service inventory.Service, userService 
 	r.Route("/env", NewEnvApi(cfg).ConfigureRouter)
 	r.With(Authenticate(userService)).Route("/api/v1", func(r chi.Router) {
 		r.Route("/inventory", NewInventoryApi(service).ConfigureRouter)
+		r.Route("/reservation", NewReservationApi(service).ConfigureRouter)
 		r.Route("/user", NewUserApi(userService).ConfigureRouter)
 	})
 
 	return r
+}
+
+func Render(w http.ResponseWriter, r *http.Request, rnd render.Renderer) {
+	if err := render.Render(w, r, rnd); err != nil {
+		log.Warn().Err(err).Msg("failed to render")
+	}
+}
+
+func RenderList(w http.ResponseWriter, r *http.Request, l []render.Renderer) {
+	if err := render.RenderList(w, r, l); err != nil {
+		log.Warn().Err(err).Msg("failed to render")
+	}
 }

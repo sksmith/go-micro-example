@@ -21,8 +21,7 @@ func NewInventoryApi(service inventory.Service) *InventoryApi {
 }
 
 const (
-	CtxKeyProduct     CtxKey = "product"
-	CtxKeyReservation CtxKey = "reservation"
+	CtxKeyProduct CtxKey = "product"
 )
 
 func (a *InventoryApi) ConfigureRouter(r chi.Router) {
@@ -34,16 +33,6 @@ func (a *InventoryApi) ConfigureRouter(r chi.Router) {
 			r.Use(a.ProductCtx)
 			r.Put("/productionEvent", a.CreateProductionEvent)
 			r.Get("/", a.GetProductInventory)
-
-			r.Route("/reservation", func(r chi.Router) {
-				r.Put("/", a.CreateReservation)
-				r.With(Paginate).Get("/", a.GetReservations)
-
-				r.Route("/{reservationID}", func(r chi.Router) {
-					r.Use(a.ReservationCtx)
-					r.Delete("/", a.CancelReservation)
-				})
-			})
 		})
 	})
 }
@@ -126,39 +115,6 @@ func (a *InventoryApi) CreateProductionEvent(w http.ResponseWriter, r *http.Requ
 	Render(w, r, &ProductionEventResponse{})
 }
 
-func (a *InventoryApi) CancelReservation(_ http.ResponseWriter, _ *http.Request) {
-	// Not implemented
-}
-
-func (a *InventoryApi) ReservationCtx(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Not implemented
-		ctx := context.WithValue(r.Context(), CtxKeyReservation, nil)
-		next.ServeHTTP(w, r.WithContext(ctx))
-	})
-}
-
-func (a *InventoryApi) CreateReservation(w http.ResponseWriter, r *http.Request) {
-	product := r.Context().Value(CtxKeyProduct).(inventory.Product)
-
-	data := &ReservationRequest{}
-	if err := render.Bind(r, data); err != nil {
-		Render(w, r, ErrInvalidRequest(err))
-		return
-	}
-
-	res, err := a.service.Reserve(r.Context(), product, *data.ReservationRequest)
-	if err != nil {
-		log.Err(err).Send()
-		Render(w, r, ErrInternalServer)
-		return
-	}
-
-	resp := &ReservationResponse{Reservation: res}
-	render.Status(r, http.StatusCreated)
-	Render(w, r, resp)
-}
-
 func (a *InventoryApi) GetProductInventory(w http.ResponseWriter, r *http.Request) {
 	product := r.Context().Value(CtxKeyProduct).(inventory.Product)
 
@@ -177,44 +133,4 @@ func (a *InventoryApi) GetProductInventory(w http.ResponseWriter, r *http.Reques
 	resp := &ProductResponse{ProductInventory: res}
 	render.Status(r, http.StatusOK)
 	Render(w, r, resp)
-}
-
-func (a *InventoryApi) GetReservations(w http.ResponseWriter, r *http.Request) {
-	product := r.Context().Value(CtxKeyProduct).(inventory.Product)
-	limit := r.Context().Value(CtxKeyLimit).(int)
-	offset := r.Context().Value(CtxKeyOffset).(int)
-
-	state, err := inventory.ParseReserveState(r.URL.Query().Get("state"))
-	if err != nil {
-		Render(w, r, ErrInvalidRequest(errors.New("invalid state")))
-		return
-	}
-
-	res, err := a.service.GetReservations(r.Context(), product.Sku, state, limit, offset)
-
-	if err != nil {
-		if errors.Is(err, core.ErrNotFound) {
-			Render(w, r, ErrNotFound)
-		} else {
-			log.Err(err).Send()
-			Render(w, r, ErrInternalServer)
-		}
-		return
-	}
-
-	resList := NewReservationListResponse(res)
-	render.Status(r, http.StatusOK)
-	RenderList(w, r, resList)
-}
-
-func Render(w http.ResponseWriter, r *http.Request, rnd render.Renderer) {
-	if err := render.Render(w, r, rnd); err != nil {
-		log.Warn().Err(err).Msg("failed to render")
-	}
-}
-
-func RenderList(w http.ResponseWriter, r *http.Request, l []render.Renderer) {
-	if err := render.RenderList(w, r, l); err != nil {
-		log.Warn().Err(err).Msg("failed to render")
-	}
 }

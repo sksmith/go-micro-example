@@ -286,8 +286,8 @@ func TestCreateReservation(t *testing.T) {
 		return nil
 	}
 
-	mockRepo.GetSkuReservesByStateFunc =
-		func(ctx context.Context, sku string, state inventory.ReserveState, limit, offset int,
+	mockRepo.GetReservationsFunc =
+		func(ctx context.Context, resOptions inventory.GetReservationsOptions, limit, offset int,
 			options ...core.QueryOptions) ([]inventory.Reservation, error) {
 
 			return []inventory.Reservation{tr}, nil
