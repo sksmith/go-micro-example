@@ -6,7 +6,7 @@ config:
   print: false
 
 log:
-  level: info
+  level: debug
   structured: false
 
 db:

@@ -2,11 +2,14 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/render"
+	"github.com/gobwas/ws"
+	"github.com/gobwas/ws/wsutil"
 	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/core"
 	"github.com/sksmith/go-micro-example/core/inventory"
@@ -25,6 +28,8 @@ const (
 )
 
 func (a *InventoryApi) ConfigureRouter(r chi.Router) {
+	r.HandleFunc("/subscribe", a.Subscribe)
+
 	r.Route("/", func(r chi.Router) {
 		r.With(Paginate).Get("/", a.List)
 		r.Put("/", a.Create)
@@ -35,6 +40,41 @@ func (a *InventoryApi) ConfigureRouter(r chi.Router) {
 			r.Get("/", a.GetProductInventory)
 		})
 	})
+}
+
+func (a *InventoryApi) Subscribe(w http.ResponseWriter, r *http.Request) {
+	log.Info().Msg("client requesting subscription")
+
+	conn, _, _, err := ws.UpgradeHTTP(r, w)
+	if err != nil {
+		log.Err(err).Msg("failed to establish inventory subscription connection")
+		Render(w, r, ErrInternalServer)
+	}
+	go func() {
+		defer conn.Close()
+
+		ch := make(chan inventory.ProductInventory, 1)
+
+		id := a.service.Subscribe(ch)
+		defer func() {
+			a.service.Unsubscribe(id)
+		}()
+
+		for inv := range ch {
+			resp := &ProductResponse{ProductInventory: inv}
+			body, err := json.Marshal(resp)
+			if err != nil {
+				log.Err(err).Str("clientId", id).Msg("failed to marshal product response")
+				continue
+			}
+
+			err = wsutil.WriteServerText(conn, body)
+			if err != nil {
+				log.Err(err).Str("clientId", id).Msg("failed to write server message, disconnecting client")
+				return
+			}
+		}
+	}()
 }
 
 func (a *InventoryApi) List(w http.ResponseWriter, r *http.Request) {

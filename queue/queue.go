@@ -207,7 +207,7 @@ func publish(sessions chan chan session, exchange string, messages <-chan messag
 			pub.NotifyPublish(confirm)
 		}
 
-		log.Info().Str("exchange", exchange).Msg("ready to publish messages")
+		log.Debug().Str("exchange", exchange).Msg("ready to publish messages")
 
 	Publish:
 		for {

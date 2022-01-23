@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/go-chi/render"
-	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/core/inventory"
 )
 
@@ -35,7 +34,6 @@ func NewProductListResponse(products []inventory.ProductInventory) []render.Rend
 func NewReservationListResponse(reservations []inventory.Reservation) []render.Renderer {
 	list := make([]render.Renderer, 0)
 	for _, rsv := range reservations {
-		log.Info().Interface("appending", rsv).Send()
 		list = append(list, &ReservationResponse{Reservation: rsv})
 	}
 

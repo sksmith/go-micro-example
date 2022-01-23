@@ -4,13 +4,14 @@ import (
 	"context"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/core"
 )
 
 func NewService(repo Repository, q Queue) *service {
-	return &service{repo: repo, queue: q}
+	return &service{repo: repo, queue: q, subs: make(map[string]chan<- ProductInventory)}
 }
 
 type Service interface {
@@ -22,6 +23,8 @@ type Service interface {
 	GetProductInventory(ctx context.Context, sku string) (ProductInventory, error)
 	GetReservations(ctx context.Context, options GetReservationsOptions, limit, offset int) ([]Reservation, error)
 	GetReservation(ctx context.Context, ID uint64) (Reservation, error)
+	Subscribe(ch chan<- ProductInventory) (id string)
+	Unsubscribe(id string)
 }
 
 type GetReservationsOptions struct {
@@ -32,6 +35,7 @@ type GetReservationsOptions struct {
 type service struct {
 	repo  Repository
 	queue Queue
+	subs  map[string]chan<- ProductInventory
 }
 
 func (s *service) CreateProduct(ctx context.Context, product Product) error {
@@ -158,7 +162,7 @@ func (s *service) Produce(ctx context.Context, product Product, pr ProductionReq
 		return errors.WithMessage(err, "failed to commit production transaction")
 	}
 
-	err = s.queue.PublishInventory(ctx, productInventory)
+	err = s.publishInventory(ctx, productInventory)
 	if err != nil {
 		return errors.WithMessage(err, "failed to publish inventory")
 	}
@@ -297,7 +301,7 @@ func (s *service) fillReserves(ctx context.Context, product Product) error {
 			return errors.WithStack(err)
 		}
 
-		err = s.queue.PublishInventory(ctx, productInventory)
+		err = s.publishInventory(ctx, productInventory)
 		if err != nil {
 			return errors.WithMessage(err, "failed to publish inventory")
 		}
@@ -315,6 +319,35 @@ func (s *service) fillReserves(ctx context.Context, product Product) error {
 	}
 
 	return nil
+}
+
+func (s *service) Subscribe(ch chan<- ProductInventory) (id string) {
+	id = uuid.NewString()
+	s.subs[id] = ch
+	log.Debug().Str("clientId", id).Msg("subscribing to inventory")
+	return id
+}
+
+func (s *service) Unsubscribe(id string) {
+	log.Debug().Str("clientId", id).Msg("unsubscribing from inventory")
+	close(s.subs[id])
+	s.subs[id] = nil
+}
+
+func (s *service) publishInventory(ctx context.Context, pi ProductInventory) error {
+	err := s.queue.PublishInventory(ctx, pi)
+	if err != nil {
+		return errors.WithMessage(err, "failed to publish inventory to queue")
+	}
+	go s.notifySubscribers(pi)
+	return nil
+}
+
+func (s *service) notifySubscribers(pi ProductInventory) {
+	for id, ch := range s.subs {
+		log.Debug().Str("clientId", id).Interface("productInventory", pi).Msg("notifying subscriber of inventory update")
+		ch <- pi
+	}
 }
 
 func fillReserve(reservation *Reservation, productInventory *ProductInventory) {

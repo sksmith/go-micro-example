@@ -39,7 +39,8 @@ func ConfigureRouter(cfg *config.Config, service inventory.Service, userService 
 	})
 	r.Handle("/metrics", promhttp.Handler())
 	r.Route("/env", NewEnvApi(cfg).ConfigureRouter)
-	r.With(Authenticate(userService)).Route("/api/v1", func(r chi.Router) {
+	// r.With(Authenticate(userService)).Route("/api/v1", func(r chi.Router) {
+	r.Route("/api/v1", func(r chi.Router) {
 		r.Route("/inventory", NewInventoryApi(service).ConfigureRouter)
 		r.Route("/reservation", NewReservationApi(service).ConfigureRouter)
 		r.Route("/user", NewUserApi(userService).ConfigureRouter)
