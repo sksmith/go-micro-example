@@ -2,12 +2,15 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/render"
+	"github.com/gobwas/ws"
+	"github.com/gobwas/ws/wsutil"
 	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/core"
 	"github.com/sksmith/go-micro-example/core/inventory"
@@ -26,6 +29,8 @@ const (
 )
 
 func (ra *ReservationApi) ConfigureRouter(r chi.Router) {
+	r.HandleFunc("/subscribe", ra.Subscribe)
+
 	r.Route("/", func(r chi.Router) {
 		r.With(Paginate).Get("/", ra.List)
 		r.Put("/", ra.Create)
@@ -36,6 +41,43 @@ func (ra *ReservationApi) ConfigureRouter(r chi.Router) {
 			r.Delete("/", ra.Cancel)
 		})
 	})
+}
+
+func (a *ReservationApi) Subscribe(w http.ResponseWriter, r *http.Request) {
+	log.Info().Msg("client requesting subscription")
+
+	conn, _, _, err := ws.UpgradeHTTP(r, w)
+	if err != nil {
+		log.Err(err).Msg("failed to establish inventory subscription connection")
+		Render(w, r, ErrInternalServer)
+	}
+	go func() {
+		defer conn.Close()
+
+		ch := make(chan inventory.Reservation, 1)
+
+		id := a.service.SubscribeReservations(ch)
+		defer func() {
+			a.service.UnsubscribeReservations(id)
+		}()
+
+		for res := range ch {
+			resp := &ReservationResponse{Reservation: res}
+
+			body, err := json.Marshal(resp)
+			if err != nil {
+				log.Err(err).Interface("clientId", id).Msg("failed to marshal product response")
+				continue
+			}
+
+			log.Debug().Interface("clientId", id).Interface("reservationResponse", resp).Msg("sending reservation update to client")
+			err = wsutil.WriteServerText(conn, body)
+			if err != nil {
+				log.Err(err).Interface("clientId", id).Msg("failed to write server message, disconnecting client")
+				return
+			}
+		}
+	}()
 }
 
 func (a *ReservationApi) Get(w http.ResponseWriter, r *http.Request) {

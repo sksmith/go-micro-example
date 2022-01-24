@@ -11,21 +11,36 @@ import (
 )
 
 func NewService(repo Repository, q Queue) *service {
-	return &service{repo: repo, queue: q, subs: make(map[string]chan<- ProductInventory)}
+	return &service{
+		repo:            repo,
+		queue:           q,
+		inventorySubs:   make(map[InventorySubscriptionID]chan<- ProductInventory),
+		reservationSubs: make(map[ReservationsSubscriptionID]chan<- Reservation),
+	}
 }
 
 type Service interface {
 	Produce(ctx context.Context, product Product, event ProductionRequest) error
-	Reserve(ctx context.Context, rr ReservationRequest) (Reservation, error)
-	GetAllProductInventory(ctx context.Context, limit, offset int) ([]ProductInventory, error)
-	GetProduct(ctx context.Context, sku string) (Product, error)
 	CreateProduct(ctx context.Context, product Product) error
+
+	GetProduct(ctx context.Context, sku string) (Product, error)
+	GetAllProductInventory(ctx context.Context, limit, offset int) ([]ProductInventory, error)
 	GetProductInventory(ctx context.Context, sku string) (ProductInventory, error)
+
+	Reserve(ctx context.Context, rr ReservationRequest) (Reservation, error)
+
 	GetReservations(ctx context.Context, options GetReservationsOptions, limit, offset int) ([]Reservation, error)
 	GetReservation(ctx context.Context, ID uint64) (Reservation, error)
-	Subscribe(ch chan<- ProductInventory) (id string)
-	Unsubscribe(id string)
+
+	SubscribeInventory(ch chan<- ProductInventory) (id InventorySubscriptionID)
+	UnsubscribeInventory(id InventorySubscriptionID)
+
+	SubscribeReservations(ch chan<- Reservation) (id ReservationsSubscriptionID)
+	UnsubscribeReservations(id ReservationsSubscriptionID)
 }
+
+type InventorySubscriptionID string
+type ReservationsSubscriptionID string
 
 type GetReservationsOptions struct {
 	Sku   string
@@ -33,9 +48,10 @@ type GetReservationsOptions struct {
 }
 
 type service struct {
-	repo  Repository
-	queue Queue
-	subs  map[string]chan<- ProductInventory
+	repo            Repository
+	queue           Queue
+	inventorySubs   map[InventorySubscriptionID]chan<- ProductInventory
+	reservationSubs map[ReservationsSubscriptionID]chan<- Reservation
 }
 
 func (s *service) CreateProduct(ctx context.Context, product Product) error {
@@ -238,6 +254,97 @@ func (s *service) Reserve(ctx context.Context, rr ReservationRequest) (Reservati
 	return res, nil
 }
 
+func (s *service) GetAllProductInventory(ctx context.Context, limit, offset int) ([]ProductInventory, error) {
+	return s.repo.GetAllProductInventory(ctx, limit, offset)
+}
+
+func (s *service) GetProduct(ctx context.Context, sku string) (Product, error) {
+	const funcName = "GetProduct"
+
+	log.Info().
+		Str("func", funcName).
+		Str("sku", sku).
+		Msg("getting product")
+
+	product, err := s.repo.GetProduct(ctx, sku)
+	if err != nil {
+		return product, errors.WithStack(err)
+	}
+	return product, nil
+}
+
+func (s *service) GetProductInventory(ctx context.Context, sku string) (ProductInventory, error) {
+	const funcName = "GetProductInventory"
+
+	log.Info().
+		Str("func", funcName).
+		Str("sku", sku).
+		Msg("getting product inventory")
+
+	product, err := s.repo.GetProductInventory(ctx, sku)
+	if err != nil {
+		return product, errors.WithStack(err)
+	}
+	return product, nil
+}
+
+func (s *service) GetReservation(ctx context.Context, ID uint64) (Reservation, error) {
+	const funcName = "GetReservation"
+
+	log.Info().
+		Str("func", funcName).
+		Uint64("id", ID).
+		Msg("getting reservation")
+
+	rsv, err := s.repo.GetReservation(ctx, ID)
+	if err != nil {
+		return rsv, errors.WithStack(err)
+	}
+	return rsv, nil
+}
+
+func (s *service) GetReservations(ctx context.Context, options GetReservationsOptions, limit, offset int) ([]Reservation, error) {
+	const funcName = "GetProductInventory"
+
+	log.Info().
+		Str("func", funcName).
+		Str("sku", options.Sku).
+		Str("state", string(options.State)).
+		Msg("getting reservations")
+
+	rsv, err := s.repo.GetReservations(ctx, options, limit, offset)
+	if err != nil {
+		return rsv, errors.WithStack(err)
+	}
+	return rsv, nil
+}
+
+func (s *service) SubscribeInventory(ch chan<- ProductInventory) (id InventorySubscriptionID) {
+	id = InventorySubscriptionID(uuid.NewString())
+	s.inventorySubs[id] = ch
+	log.Debug().Interface("clientId", id).Msg("subscribing to inventory")
+	return id
+}
+
+func (s *service) UnsubscribeInventory(id InventorySubscriptionID) {
+	log.Debug().Interface("clientId", id).Msg("unsubscribing from inventory")
+	close(s.inventorySubs[id])
+	delete(s.inventorySubs, id)
+}
+
+func (s *service) SubscribeReservations(ch chan<- Reservation) (id ReservationsSubscriptionID) {
+	id = ReservationsSubscriptionID(uuid.NewString())
+	s.reservationSubs[id] = ch
+	log.Debug().Interface("clientId", id).Msg("subscribing to reservations")
+	return id
+}
+
+func (s *service) UnsubscribeReservations(id ReservationsSubscriptionID) {
+	log.Debug().Interface("clientId", id).Msg("unsubscribing from reservations")
+	close(s.reservationSubs[id])
+	delete(s.reservationSubs, id)
+}
+
 func (s *service) fillReserves(ctx context.Context, product Product) error {
 	const funcName = "fillReserves"
 
@@ -306,11 +413,9 @@ func (s *service) fillReserves(ctx context.Context, product Product) error {
 			return errors.WithMessage(err, "failed to publish inventory")
 		}
 
-		if reservation.State == Closed {
-			err := s.queue.PublishReservation(ctx, reservation)
-			if err != nil {
-				return err
-			}
+		err := s.publishReservation(ctx, reservation)
+		if err != nil {
+			return err
 		}
 	}
 
@@ -319,35 +424,6 @@ func (s *service) fillReserves(ctx context.Context, product Product) error {
 	}
 
 	return nil
-}
-
-func (s *service) Subscribe(ch chan<- ProductInventory) (id string) {
-	id = uuid.NewString()
-	s.subs[id] = ch
-	log.Debug().Str("clientId", id).Msg("subscribing to inventory")
-	return id
-}
-
-func (s *service) Unsubscribe(id string) {
-	log.Debug().Str("clientId", id).Msg("unsubscribing from inventory")
-	close(s.subs[id])
-	s.subs[id] = nil
-}
-
-func (s *service) publishInventory(ctx context.Context, pi ProductInventory) error {
-	err := s.queue.PublishInventory(ctx, pi)
-	if err != nil {
-		return errors.WithMessage(err, "failed to publish inventory to queue")
-	}
-	go s.notifySubscribers(pi)
-	return nil
-}
-
-func (s *service) notifySubscribers(pi ProductInventory) {
-	for id, ch := range s.subs {
-		log.Debug().Str("clientId", id).Interface("productInventory", pi).Msg("notifying subscriber of inventory update")
-		ch <- pi
-	}
 }
 
 func fillReserve(reservation *Reservation, productInventory *ProductInventory) {
@@ -363,122 +439,34 @@ func fillReserve(reservation *Reservation, productInventory *ProductInventory) {
 	}
 }
 
-func (s *service) GetAllProductInventory(ctx context.Context, limit, offset int) ([]ProductInventory, error) {
-	return s.repo.GetAllProductInventory(ctx, limit, offset)
-}
-
-func (s *service) GetProduct(ctx context.Context, sku string) (Product, error) {
-	const funcName = "GetProduct"
-
-	log.Info().
-		Str("func", funcName).
-		Str("sku", sku).
-		Msg("getting product")
-
-	product, err := s.repo.GetProduct(ctx, sku)
+func (s *service) publishInventory(ctx context.Context, pi ProductInventory) error {
+	err := s.queue.PublishInventory(ctx, pi)
 	if err != nil {
-		return product, errors.WithStack(err)
+		return errors.WithMessage(err, "failed to publish inventory to queue")
 	}
-	return product, nil
+	go s.notifyInventorySubscribers(pi)
+	return nil
 }
 
-func (s *service) GetProductInventory(ctx context.Context, sku string) (ProductInventory, error) {
-	const funcName = "GetProductInventory"
-
-	log.Info().
-		Str("func", funcName).
-		Str("sku", sku).
-		Msg("getting product inventory")
-
-	product, err := s.repo.GetProductInventory(ctx, sku)
+func (s *service) publishReservation(ctx context.Context, r Reservation) error {
+	err := s.queue.PublishReservation(ctx, r)
 	if err != nil {
-		return product, errors.WithStack(err)
+		return errors.WithMessage(err, "failed to publish reservation to queue")
 	}
-	return product, nil
+	go s.notifyReservationSubscribers(r)
+	return nil
 }
 
-func (s *service) GetReservation(ctx context.Context, ID uint64) (Reservation, error) {
-	const funcName = "GetReservation"
-
-	log.Info().
-		Str("func", funcName).
-		Uint64("id", ID).
-		Msg("getting reservation")
-
-	rsv, err := s.repo.GetReservation(ctx, ID)
-	if err != nil {
-		return rsv, errors.WithStack(err)
-	}
-	return rsv, nil
-}
-
-func (s *service) GetReservations(ctx context.Context, options GetReservationsOptions, limit, offset int) ([]Reservation, error) {
-	const funcName = "GetProductInventory"
-
-	log.Info().
-		Str("func", funcName).
-		Str("sku", options.Sku).
-		Str("state", string(options.State)).
-		Msg("getting reservations")
-
-	rsv, err := s.repo.GetReservations(ctx, options, limit, offset)
-	if err != nil {
-		return rsv, errors.WithStack(err)
-	}
-	return rsv, nil
-}
-
-func rollback(ctx context.Context, tx core.Transaction, err error) {
-	e := tx.Rollback(ctx)
-	if e != nil {
-		log.Warn().Err(err).Msg("failed to rollback")
+func (s *service) notifyInventorySubscribers(pi ProductInventory) {
+	for id, ch := range s.inventorySubs {
+		log.Debug().Interface("clientId", id).Interface("productInventory", pi).Msg("notifying subscriber of inventory update")
+		ch <- pi
 	}
 }
 
-type Transactional interface {
-	BeginTransaction(ctx context.Context) (core.Transaction, error)
-}
-
-type Repository interface {
-	ProductionEventRepository
-	ReservationRepository
-	InventoryRepository
-	ProductRepository
-}
-
-type ProductionEventRepository interface {
-	Transactional
-	GetProductionEventByRequestID(ctx context.Context, requestID string, options ...core.QueryOptions) (pe ProductionEvent, err error)
-
-	SaveProductionEvent(ctx context.Context, event *ProductionEvent, options ...core.UpdateOptions) error
-}
-
-type ReservationRepository interface {
-	Transactional
-	GetReservations(ctx context.Context, resOptions GetReservationsOptions, limit, offset int, options ...core.QueryOptions) ([]Reservation, error)
-	GetReservationByRequestID(ctx context.Context, requestId string, options ...core.QueryOptions) (Reservation, error)
-	GetReservation(ctx context.Context, ID uint64, options ...core.QueryOptions) (Reservation, error)
-
-	SaveReservation(ctx context.Context, reservation *Reservation, options ...core.UpdateOptions) error
-	UpdateReservation(ctx context.Context, ID uint64, state ReserveState, qty int64, options ...core.UpdateOptions) error
-}
-
-type InventoryRepository interface {
-	Transactional
-	GetProductInventory(ctx context.Context, sku string, options ...core.QueryOptions) (pi ProductInventory, err error)
-	GetAllProductInventory(ctx context.Context, limit int, offset int, options ...core.QueryOptions) ([]ProductInventory, error)
-
-	SaveProductInventory(ctx context.Context, productInventory ProductInventory, options ...core.UpdateOptions) error
-}
-
-type ProductRepository interface {
-	Transactional
-	GetProduct(ctx context.Context, sku string, options ...core.QueryOptions) (Product, error)
-
-	SaveProduct(ctx context.Context, product Product, options ...core.UpdateOptions) error
-}
-
-type Queue interface {
-	PublishInventory(ctx context.Context, productInventory ProductInventory) error
-	PublishReservation(ctx context.Context, reservation Reservation) error
+func (s *service) notifyReservationSubscribers(r Reservation) {
+	for id, ch := range s.reservationSubs {
+		log.Debug().Interface("clientId", id).Interface("productInventory", r).Msg("notifying subscriber of reservation update")
+		ch <- r
+	}
 }

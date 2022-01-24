@@ -52,7 +52,6 @@ func Paginate(next http.Handler) http.Handler {
 			}
 		}
 
-		log.Debug().Int("limit", limit).Int("offset", offset).Msg("paginating")
 		ctx := context.WithValue(r.Context(), CtxKeyLimit, limit)
 		ctx = context.WithValue(ctx, CtxKeyOffset, offset)
 

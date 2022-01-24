@@ -39,3 +39,4 @@ curl -i -u guest:guest -H "content-type:application/json" \
 curl -i -u guest:guest -H "content-type:application/json" \
     -XPOST -d'{}' \
     http://localhost:15672/api/bindings/%2F/e/product.exchange/q/product.queue
+

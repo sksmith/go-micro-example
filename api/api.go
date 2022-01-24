@@ -39,6 +39,7 @@ func ConfigureRouter(cfg *config.Config, service inventory.Service, userService 
 	})
 	r.Handle("/metrics", promhttp.Handler())
 	r.Route("/env", NewEnvApi(cfg).ConfigureRouter)
+	// TODO Enable authentication, how to handle this for websockets?
 	// r.With(Authenticate(userService)).Route("/api/v1", func(r chi.Router) {
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Route("/inventory", NewInventoryApi(service).ConfigureRouter)

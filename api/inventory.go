@@ -55,22 +55,23 @@ func (a *InventoryApi) Subscribe(w http.ResponseWriter, r *http.Request) {
 
 		ch := make(chan inventory.ProductInventory, 1)
 
-		id := a.service.Subscribe(ch)
+		id := a.service.SubscribeInventory(ch)
 		defer func() {
-			a.service.Unsubscribe(id)
+			a.service.UnsubscribeInventory(id)
 		}()
 
 		for inv := range ch {
 			resp := &ProductResponse{ProductInventory: inv}
 			body, err := json.Marshal(resp)
 			if err != nil {
-				log.Err(err).Str("clientId", id).Msg("failed to marshal product response")
+				log.Err(err).Interface("clientId", id).Msg("failed to marshal product response")
 				continue
 			}
 
+			log.Debug().Interface("clientId", id).Interface("productResponse", resp).Msg("sending inventory update to client")
 			err = wsutil.WriteServerText(conn, body)
 			if err != nil {
-				log.Err(err).Str("clientId", id).Msg("failed to write server message, disconnecting client")
+				log.Err(err).Interface("clientId", id).Msg("failed to write server message, disconnecting client")
 				return
 			}
 		}
