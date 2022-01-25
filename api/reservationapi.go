@@ -16,11 +16,21 @@ import (
 	"github.com/sksmith/go-micro-example/core/inventory"
 )
 
-type ReservationApi struct {
-	service inventory.Service
+type ReservationService interface {
+	Reserve(ctx context.Context, rr inventory.ReservationRequest) (inventory.Reservation, error)
+
+	GetReservations(ctx context.Context, options inventory.GetReservationsOptions, limit, offset int) ([]inventory.Reservation, error)
+	GetReservation(ctx context.Context, ID uint64) (inventory.Reservation, error)
+
+	SubscribeReservations(ch chan<- inventory.Reservation) (id inventory.ReservationsSubscriptionID)
+	UnsubscribeReservations(id inventory.ReservationsSubscriptionID)
 }
 
-func NewReservationApi(service inventory.Service) *ReservationApi {
+type ReservationApi struct {
+	service ReservationService
+}
+
+func NewReservationApi(service ReservationService) *ReservationApi {
 	return &ReservationApi{service: service}
 }
 

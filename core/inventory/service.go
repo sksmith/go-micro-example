@@ -10,33 +10,13 @@ import (
 	"github.com/sksmith/go-micro-example/core"
 )
 
-func NewService(repo Repository, q Queue) *service {
+func NewService(repo Repository, q InventoryQueue) *service {
 	return &service{
 		repo:            repo,
 		queue:           q,
 		inventorySubs:   make(map[InventorySubscriptionID]chan<- ProductInventory),
 		reservationSubs: make(map[ReservationsSubscriptionID]chan<- Reservation),
 	}
-}
-
-type Service interface {
-	Produce(ctx context.Context, product Product, event ProductionRequest) error
-	CreateProduct(ctx context.Context, product Product) error
-
-	GetProduct(ctx context.Context, sku string) (Product, error)
-	GetAllProductInventory(ctx context.Context, limit, offset int) ([]ProductInventory, error)
-	GetProductInventory(ctx context.Context, sku string) (ProductInventory, error)
-
-	Reserve(ctx context.Context, rr ReservationRequest) (Reservation, error)
-
-	GetReservations(ctx context.Context, options GetReservationsOptions, limit, offset int) ([]Reservation, error)
-	GetReservation(ctx context.Context, ID uint64) (Reservation, error)
-
-	SubscribeInventory(ch chan<- ProductInventory) (id InventorySubscriptionID)
-	UnsubscribeInventory(id InventorySubscriptionID)
-
-	SubscribeReservations(ch chan<- Reservation) (id ReservationsSubscriptionID)
-	UnsubscribeReservations(id ReservationsSubscriptionID)
 }
 
 type InventorySubscriptionID string
@@ -49,7 +29,7 @@ type GetReservationsOptions struct {
 
 type service struct {
 	repo            Repository
-	queue           Queue
+	queue           InventoryQueue
 	inventorySubs   map[InventorySubscriptionID]chan<- ProductInventory
 	reservationSubs map[ReservationsSubscriptionID]chan<- Reservation
 }

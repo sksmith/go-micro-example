@@ -21,7 +21,7 @@ import (
 	"github.com/sksmith/go-micro-example/db/invrepo"
 )
 
-func configureServer(s inventory.Service) *httptest.Server {
+func configureServer(s api.InventoryService) *httptest.Server {
 	r := chi.NewRouter()
 
 	invApi := api.NewInventoryApi(s)

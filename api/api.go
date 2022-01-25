@@ -10,11 +10,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/config"
-	"github.com/sksmith/go-micro-example/core/inventory"
 	"github.com/sksmith/go-micro-example/core/user"
 )
 
-func ConfigureRouter(cfg *config.Config, service inventory.Service, userService user.Service) chi.Router {
+func ConfigureRouter(cfg *config.Config, invSvc InventoryService, resSvc ReservationService, userService user.Service) chi.Router {
 	r := chi.NewRouter()
 
 	r.Use(cors.Handler(cors.Options{
@@ -42,8 +41,8 @@ func ConfigureRouter(cfg *config.Config, service inventory.Service, userService 
 	// TODO Enable authentication, how to handle this for websockets?
 	// r.With(Authenticate(userService)).Route("/api/v1", func(r chi.Router) {
 	r.Route("/api/v1", func(r chi.Router) {
-		r.Route("/inventory", NewInventoryApi(service).ConfigureRouter)
-		r.Route("/reservation", NewReservationApi(service).ConfigureRouter)
+		r.Route("/inventory", NewInventoryApi(invSvc).ConfigureRouter)
+		r.Route("/reservation", NewReservationApi(resSvc).ConfigureRouter)
 		r.Route("/user", NewUserApi(userService).ConfigureRouter)
 	})
 

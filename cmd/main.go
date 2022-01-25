@@ -39,7 +39,7 @@ func main() {
 
 	log.Info().Msg("creating inventory service...")
 	ir := invrepo.NewPostgresRepo(dbPool)
-	inventoryService := inventory.NewService(ir, iq)
+	invService := inventory.NewService(ir, iq)
 
 	log.Info().Msg("creating user service...")
 	ur := usrrepo.NewPostgresRepo(dbPool)
@@ -49,10 +49,10 @@ func main() {
 	api.ConfigureMetrics()
 
 	log.Info().Msg("configuring router...")
-	r := api.ConfigureRouter(cfg, inventoryService, userService)
+	r := api.ConfigureRouter(cfg, invService, invService, userService)
 
 	log.Info().Msg("consuming products...")
-	_ = queue.NewProductQueue(ctx, cfg, inventoryService)
+	_ = queue.NewProductQueue(ctx, cfg, invService)
 
 	log.Info().Str("port", cfg.Port.Value).Int64("startTimeMs", time.Since(start).Milliseconds()).Msg("listening")
 	log.Fatal().Err(http.ListenAndServe(":"+cfg.Port.Value, r))

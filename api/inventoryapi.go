@@ -15,11 +15,23 @@ import (
 	"github.com/sksmith/go-micro-example/core/inventory"
 )
 
-type InventoryApi struct {
-	service inventory.Service
+type InventoryService interface {
+	Produce(ctx context.Context, product inventory.Product, event inventory.ProductionRequest) error
+	CreateProduct(ctx context.Context, product inventory.Product) error
+
+	GetProduct(ctx context.Context, sku string) (inventory.Product, error)
+	GetAllProductInventory(ctx context.Context, limit, offset int) ([]inventory.ProductInventory, error)
+	GetProductInventory(ctx context.Context, sku string) (inventory.ProductInventory, error)
+
+	SubscribeInventory(ch chan<- inventory.ProductInventory) (id inventory.InventorySubscriptionID)
+	UnsubscribeInventory(id inventory.InventorySubscriptionID)
 }
 
-func NewInventoryApi(service inventory.Service) *InventoryApi {
+type InventoryApi struct {
+	service InventoryService
+}
+
+func NewInventoryApi(service InventoryService) *InventoryApi {
 	return &InventoryApi{service: service}
 }
 
@@ -42,6 +54,12 @@ func (a *InventoryApi) ConfigureRouter(r chi.Router) {
 	})
 }
 
+// Subscribe provides consumes real-time inventory updates and sends them
+// to the client via websocket connection.
+//
+// Note: This isn't exactly realistic because in the real world, this application
+// would need to be able to scale. If it were scaled, clients would only get updates
+// that occurred in their connected instance.
 func (a *InventoryApi) Subscribe(w http.ResponseWriter, r *http.Request) {
 	log.Info().Msg("client requesting subscription")
 

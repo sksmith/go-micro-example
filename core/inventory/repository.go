@@ -57,7 +57,7 @@ type ProductRepository interface {
 	SaveProduct(ctx context.Context, product Product, options ...core.UpdateOptions) error
 }
 
-type Queue interface {
+type InventoryQueue interface {
 	PublishInventory(ctx context.Context, productInventory ProductInventory) error
 	PublishReservation(ctx context.Context, reservation Reservation) error
 }
