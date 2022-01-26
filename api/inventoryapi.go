@@ -44,7 +44,7 @@ func (a *InventoryApi) ConfigureRouter(r chi.Router) {
 
 	r.Route("/", func(r chi.Router) {
 		r.With(Paginate).Get("/", a.List)
-		r.Put("/", a.Create)
+		r.Put("/", a.CreateProduct)
 
 		r.Route("/{sku}", func(r chi.Router) {
 			r.Use(a.ProductCtx)
@@ -110,21 +110,21 @@ func (a *InventoryApi) List(w http.ResponseWriter, r *http.Request) {
 	RenderList(w, r, NewProductListResponse(products))
 }
 
-func (a *InventoryApi) Create(w http.ResponseWriter, r *http.Request) {
+func (a *InventoryApi) CreateProduct(w http.ResponseWriter, r *http.Request) {
 	data := &CreateProductRequest{}
 	if err := render.Bind(r, data); err != nil {
 		Render(w, r, ErrInvalidRequest(err))
 		return
 	}
 
-	if err := a.service.CreateProduct(r.Context(), *data.Product); err != nil {
+	if err := a.service.CreateProduct(r.Context(), data.Product); err != nil {
 		log.Err(err).Send()
 		Render(w, r, ErrInternalServer)
 		return
 	}
 
 	render.Status(r, http.StatusCreated)
-	Render(w, r, NewProductResponse(inventory.ProductInventory{Product: *data.Product}))
+	Render(w, r, NewProductResponse(inventory.ProductInventory{Product: data.Product}))
 }
 
 func (a *InventoryApi) ProductCtx(next http.Handler) http.Handler {

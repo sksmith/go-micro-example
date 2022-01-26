@@ -1,3 +1,5 @@
+// The api package packages handles configuring routing for http and websocket requests into the
+// server. It validates those requests and sends those to the core through the provided ports.
 package api
 
 import (
@@ -10,16 +12,25 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/config"
-	"github.com/sksmith/go-micro-example/core/user"
 )
 
-func ConfigureRouter(cfg *config.Config, invSvc InventoryService, resSvc ReservationService, userService user.Service) chi.Router {
+const (
+	HealthEndpoint  = "/health"
+	EnvEndpoint     = "/env"
+	MetricsEndpoint = "/metrics"
+
+	ApiPath         = "/api/v1"
+	InventoryPath   = "/inventory"
+	ReservationPath = "/reservation"
+	UserPath        = "/user"
+)
+
+// ConfigureRouter instantiates a go-chi router with middleware and routes for the server
+func ConfigureRouter(cfg *config.Config, invSvc InventoryService, resSvc ReservationService, userService UserService) chi.Router {
 	r := chi.NewRouter()
 
 	r.Use(cors.Handler(cors.Options{
-		// AllowedOrigins:   []string{"https://foo.com"}, // Use this to allow specific origin hosts
-		AllowedOrigins: []string{"https://*.seanksmith.me", "http://*.seanksmith.me", "http://localhost*", "https://localhost*"},
-		// AllowOriginFunc:  func(r *http.Request, origin string) bool { return true },
+		AllowedOrigins:   []string{"https://*.seanksmith.me", "http://*.seanksmith.me", "http://localhost:*", "https://localhost:*"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
 		ExposedHeaders:   []string{"Link"},
@@ -38,12 +49,14 @@ func ConfigureRouter(cfg *config.Config, invSvc InventoryService, resSvc Reserva
 	})
 	r.Handle("/metrics", promhttp.Handler())
 	r.Route("/env", NewEnvApi(cfg).ConfigureRouter)
+
 	// TODO Enable authentication, how to handle this for websockets?
 	// r.With(Authenticate(userService)).Route("/api/v1", func(r chi.Router) {
-	r.Route("/api/v1", func(r chi.Router) {
-		r.Route("/inventory", NewInventoryApi(invSvc).ConfigureRouter)
-		r.Route("/reservation", NewReservationApi(resSvc).ConfigureRouter)
-		r.Route("/user", NewUserApi(userService).ConfigureRouter)
+
+	r.Route(ApiPath, func(r chi.Router) {
+		r.Route(InventoryPath, NewInventoryApi(invSvc).ConfigureRouter)
+		r.Route(ReservationPath, NewReservationApi(resSvc).ConfigureRouter)
+		r.Route(UserPath, NewUserApi(userService).ConfigureRouter)
 	})
 
 	return r

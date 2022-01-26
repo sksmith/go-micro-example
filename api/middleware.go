@@ -25,11 +25,6 @@ const (
 	CtxKeyUser   CtxKey = "user"
 )
 
-var (
-	urlHitCount *prometheus.CounterVec
-	urlLatency  *prometheus.SummaryVec
-)
-
 func Paginate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		limitStr := r.URL.Query().Get("limit")
@@ -116,6 +111,7 @@ func Logging(next http.Handler) http.Handler {
 				Str("host", r.Host).
 				Str("uri", r.RequestURI).
 				Str("proto", r.Proto).
+				Str("origin", r.Header.Get("Origin")).
 				Int("status", ww.Status()).
 				Int("bytes", ww.BytesWritten()).
 				Str("duration", dur).Send()
@@ -125,16 +121,15 @@ func Logging(next http.Handler) http.Handler {
 
 	return http.HandlerFunc(fn)
 }
-
-func ConfigureMetrics() {
-	urlHitCount = prometheus.NewCounterVec(
+func Metrics(next http.Handler) http.Handler {
+	urlHitCount := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "url_hit_count",
 			Help: "Number of times the given url was hit",
 		},
 		[]string{"method", "url"},
 	)
-	urlLatency = prometheus.NewSummaryVec(
+	urlLatency := prometheus.NewSummaryVec(
 		prometheus.SummaryOpts{
 			Name:       "url_latency",
 			Help:       "The latency quantiles for the given URL",
@@ -145,9 +140,7 @@ func ConfigureMetrics() {
 
 	prometheus.MustRegister(urlHitCount)
 	prometheus.MustRegister(urlLatency)
-}
 
-func Metrics(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 

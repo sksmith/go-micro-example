@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/go-chi/chi"
@@ -9,11 +10,18 @@ import (
 	"github.com/sksmith/go-micro-example/core/user"
 )
 
-type UserApi struct {
-	service user.Service
+type UserService interface {
+	Create(ctx context.Context, user user.CreateUserRequest) (user.User, error)
+	Get(ctx context.Context, username string) (user.User, error)
+	Delete(ctx context.Context, username string) error
+	Login(ctx context.Context, username, password string) (user.User, error)
 }
 
-func NewUserApi(service user.Service) *UserApi {
+type UserApi struct {
+	service UserService
+}
+
+func NewUserApi(service UserService) *UserApi {
 	return &UserApi{service: service}
 }
 

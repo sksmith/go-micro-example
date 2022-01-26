@@ -188,6 +188,12 @@ func init() {
 	viper.SetDefault("rabbitmq.product.dlt.exchange", def.RabbitMQ.Product.Dlt.Exchange.Default)
 }
 
+func LoadDefaults() *Config {
+	config := &Config{}
+	setupDefaults(config)
+	return config
+}
+
 func Load() *Config {
 	config := &Config{}
 	setupDefaults(config)

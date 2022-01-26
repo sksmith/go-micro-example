@@ -45,9 +45,6 @@ func main() {
 	ur := usrrepo.NewPostgresRepo(dbPool)
 	userService := user.NewService(ur)
 
-	log.Info().Msg("configuring metrics...")
-	api.ConfigureMetrics()
-
 	log.Info().Msg("configuring router...")
 	r := api.ConfigureRouter(cfg, invService, invService, userService)
 

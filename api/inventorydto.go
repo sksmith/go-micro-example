@@ -41,11 +41,7 @@ func NewReservationListResponse(reservations []inventory.Reservation) []render.R
 }
 
 type CreateProductRequest struct {
-	*inventory.Product
-
-	// we don't want to allow setting quantities upon creation of a product
-	ProtectedReserved  int `json:"reserved"`
-	ProtectedAvailable int `json:"available"`
+	inventory.Product
 }
 
 func (p *CreateProductRequest) Bind(_ *http.Request) error {

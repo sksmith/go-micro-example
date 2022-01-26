@@ -29,7 +29,7 @@ func (e *ErrResponse) Render(_ http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-func ErrInvalidRequest(err error) render.Renderer {
+func ErrInvalidRequest(err error) *ErrResponse {
 	return &ErrResponse{
 		Err:            err,
 		HTTPStatusCode: http.StatusBadRequest,
@@ -38,7 +38,11 @@ func ErrInvalidRequest(err error) render.Renderer {
 	}
 }
 
-var ErrNotFound = &ErrResponse{HTTPStatusCode: http.StatusNotFound, StatusText: "Resource not found."}
+var ErrNotFound = &ErrResponse{
+	HTTPStatusCode: http.StatusNotFound,
+	StatusText:     "Resource not found.",
+}
+
 var ErrInternalServer = &ErrResponse{
 	Err:            nil,
 	HTTPStatusCode: http.StatusInternalServerError,

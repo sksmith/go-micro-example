@@ -1,4 +1,3 @@
-// TODO
 package api
 
 import (
