@@ -27,6 +27,7 @@ const (
 
 // ConfigureRouter instantiates a go-chi router with middleware and routes for the server
 func ConfigureRouter(cfg *config.Config, invSvc InventoryService, resSvc ReservationService, userService UserService) chi.Router {
+	log.Info().Msg("configuring router...")
 	r := chi.NewRouter()
 
 	r.Use(cors.Handler(cors.Options{

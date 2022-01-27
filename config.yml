@@ -10,13 +10,12 @@ log:
   structured: false
 
 db:
-  name: micro-tmpl-db
+  name: go-micro-example-db
   host: localhost
   port: 5432
   user: postgres
   pass: postgres
   clean: false
-  inMemory: false
   logLevel: warn
   pool:
     minSize: 1
@@ -27,7 +26,6 @@ rabbitmq:
   port: 5672
   user: guest
   pass: guest
-  mock: false
   inventory:
     exchange: inventory.exchange
   reservation:

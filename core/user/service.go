@@ -5,11 +5,14 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/core"
 	"golang.org/x/crypto/bcrypt"
 )
 
 func NewService(repo Repository) *service {
+	log.Info().Msg("creating user service...")
+
 	return &service{repo: repo}
 }
 

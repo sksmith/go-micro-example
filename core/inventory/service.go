@@ -11,6 +11,7 @@ import (
 )
 
 func NewService(repo Repository, q InventoryQueue) *service {
+	log.Info().Msg("creating inventory service...")
 	return &service{
 		repo:            repo,
 		queue:           q,

@@ -75,6 +75,8 @@ type ProductQueue struct {
 }
 
 func NewProductQueue(ctx context.Context, cfg *config.Config, handler ProductHandler) *ProductQueue {
+	log.Info().Msg("creating product queue...")
+
 	prodChan := make(chan message)
 	prodDltChan := make(chan message)
 

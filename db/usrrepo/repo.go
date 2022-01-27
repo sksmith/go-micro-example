@@ -19,6 +19,8 @@ type dbRepo struct {
 }
 
 func NewPostgresRepo(conn core.Conn) user.Repository {
+	log.Info().Msg("creating user repository...")
+
 	l, err := lru.New(256)
 	if err != nil {
 		log.Warn().Err(err).Msg("unable to configure cache")

@@ -90,7 +90,6 @@ type DbConfig struct {
 	Port        StringConfig `json:"port"     yaml:"port"`
 	Migrate     BoolConfig   `json:"migrate"  yaml:"migrate"`
 	Clean       BoolConfig   `json:"clean"    yaml:"clean"`
-	InMemory    BoolConfig   `json:"inMemory" yaml:"inMemory"`
 	User        StringConfig `json:"user"     yaml:"user"`
 	Pass        StringConfig `json:"pass"     yaml:"pass"`
 	Pool        DbPoolConfig `json:"pool"     yaml:"pool"`
@@ -173,7 +172,6 @@ func init() {
 	viper.SetDefault("db.user", def.Db.User.Default)
 	viper.SetDefault("db.pass", def.Db.Pass.Default)
 	viper.SetDefault("db.clean", def.Db.Clean.Default)
-	viper.SetDefault("db.inMemory", def.Db.InMemory.Default)
 	viper.SetDefault("db.pool.minSize", def.Db.Pool.MinSize.Default)
 	viper.SetDefault("db.pool.maxSize", def.Db.Pool.MaxSize.Default)
 
@@ -181,7 +179,6 @@ func init() {
 	viper.SetDefault("rabbitmq.port", def.RabbitMQ.Port.Default)
 	viper.SetDefault("rabbitmq.user", def.RabbitMQ.User.Default)
 	viper.SetDefault("rabbitmq.pass", def.RabbitMQ.Pass.Default)
-	viper.SetDefault("rabbitmq.mock", def.RabbitMQ.Mock.Default)
 	viper.SetDefault("rabbitmq.inventory.exchange", def.RabbitMQ.Inventory.Exchange.Default)
 	viper.SetDefault("rabbitmq.reservation.exchange", def.RabbitMQ.Reservation.Exchange.Default)
 	viper.SetDefault("rabbitmq.product.queue", def.RabbitMQ.Product.Queue.Default)
@@ -333,7 +330,6 @@ func setupDefaults(config *Config) {
 	config.Db.Host = StringConfig{Value: "5432", Default: "5432", Description: "Port of the database."}
 	config.Db.Migrate = BoolConfig{Value: true, Default: true, Description: "Whether or not database migrations should be executed on startup."}
 	config.Db.Clean = BoolConfig{Value: false, Default: false, Description: "WARNING: THIS WILL DELETE ALL DATA FROM THE DB. Used only during migration. If clean is true, all 'down' migrations are executed."}
-	config.Db.InMemory = BoolConfig{Value: false, Default: false, Description: "Whether or not the application should use an in memory database."}
 	config.Db.User = StringConfig{Value: "postgres", Default: "postgres", Description: "User the application will use to connect to the database."}
 	config.Db.Pass = StringConfig{Value: "postgres", Default: "postgres", Description: "Password the application will use for connecting to the database."}
 	config.Db.Pool.MinSize = IntConfig{Value: 1, Default: 1, Description: "The minimum size of the pool."}
@@ -347,7 +343,6 @@ func setupDefaults(config *Config) {
 	config.RabbitMQ.Port = StringConfig{Value: "5432", Default: "5432", Description: "RabbitMQ's broker host port."}
 	config.RabbitMQ.User = StringConfig{Value: "guest", Default: "guest", Description: "User the application will use to connect to RabbitMQ."}
 	config.RabbitMQ.Pass = StringConfig{Value: "guest", Default: "guest", Description: "Password the application will use to connect to RabbitMQ."}
-	config.RabbitMQ.Mock = BoolConfig{Value: false, Default: false, Description: "Whether or not the application should mock sending messages to RabbitMQ."}
 
 	config.RabbitMQ.Inventory.Description = "RabbitMQ settings for inventory related updates."
 	config.RabbitMQ.Inventory.Exchange = StringConfig{Value: "inventory.exchange", Default: "inventory.exchange", Description: "RabbitMQ exchang}}e to use for posting inventory updates."}

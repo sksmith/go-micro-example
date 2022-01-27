@@ -25,9 +25,7 @@ import (
 
 func main() {
 	start := time.Now()
-
 	ctx := context.Background()
-
 	cfg := config.Load()
 
 	configLogging(cfg)
@@ -37,18 +35,14 @@ func main() {
 	dbPool := configDatabase(ctx, cfg)
 	iq := queue.NewInventoryQueue(ctx, cfg)
 
-	log.Info().Msg("creating inventory service...")
 	ir := invrepo.NewPostgresRepo(dbPool)
 	invService := inventory.NewService(ir, iq)
 
-	log.Info().Msg("creating user service...")
 	ur := usrrepo.NewPostgresRepo(dbPool)
 	userService := user.NewService(ur)
 
-	log.Info().Msg("configuring router...")
 	r := api.ConfigureRouter(cfg, invService, invService, userService)
 
-	log.Info().Msg("consuming products...")
 	_ = queue.NewProductQueue(ctx, cfg, invService)
 
 	log.Info().Str("port", cfg.Port.Value).Int64("startTimeMs", time.Since(start).Milliseconds()).Msg("listening")
@@ -71,23 +65,20 @@ func printLogHeader(cfg *config.Config) {
 		f.Print()
 
 		log.Info().Msg("=============================================")
-		log.Info().Msg(fmt.Sprintf("       Revision: %s", cfg.Revision.Value))
-		log.Info().Msg(fmt.Sprintf("        Profile: %s", cfg.Profile.Value))
-		log.Info().Msg(fmt.Sprintf("  Config Server: %s - %s", cfg.Config.Source.Value, cfg.Config.Spring.Branch.Value))
-		log.Info().Msg(fmt.Sprintf("    Tag Version: %s", cfg.AppVersion.Value))
-		log.Info().Msg(fmt.Sprintf("   Sha1 Version: %s", cfg.Sha1Version.Value))
-		log.Info().Msg(fmt.Sprintf("     Build Time: %s", cfg.BuildTime.Value))
+		log.Info().Msg(fmt.Sprintf("      Revision: %s", cfg.Revision.Value))
+		log.Info().Msg(fmt.Sprintf("       Profile: %s", cfg.Profile.Value))
+		log.Info().Msg(fmt.Sprintf(" Config Server: %s - %s", cfg.Config.Source.Value, cfg.Config.Spring.Branch.Value))
+		log.Info().Msg(fmt.Sprintf("   Tag Version: %s", cfg.AppVersion.Value))
+		log.Info().Msg(fmt.Sprintf("  Sha1 Version: %s", cfg.Sha1Version.Value))
+		log.Info().Msg(fmt.Sprintf("    Build Time: %s", cfg.BuildTime.Value))
 		log.Info().Msg("=============================================")
 	}
 }
 
-func configDatabase(ctx context.Context, cfg *config.Config) (dbPool *pgxpool.Pool) {
-	if !cfg.Db.InMemory.Value {
-		var err error
-		dbPool, err = db.ConnectDb(ctx, cfg)
-		if err != nil {
-			log.Fatal().Err(err).Msg("failed to connect to db")
-		}
+func configDatabase(ctx context.Context, cfg *config.Config) *pgxpool.Pool {
+	dbPool, err := db.ConnectDb(ctx, cfg)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to connect to db")
 	}
 
 	return dbPool

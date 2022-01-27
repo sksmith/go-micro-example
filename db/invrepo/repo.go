@@ -6,6 +6,7 @@ import (
 
 	"github.com/jackc/pgx/v4"
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/core"
 	"github.com/sksmith/go-micro-example/core/inventory"
 	"github.com/sksmith/go-micro-example/db"
@@ -16,6 +17,7 @@ type dbRepo struct {
 }
 
 func NewPostgresRepo(conn core.Conn) *dbRepo {
+	log.Info().Msg("creating inventory repository...")
 	return &dbRepo{
 		conn: conn,
 	}
