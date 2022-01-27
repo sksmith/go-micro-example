@@ -1,13 +1,16 @@
 package api_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/go-chi/chi"
+	"github.com/gobwas/ws/wsutil"
 	"github.com/sksmith/go-micro-example/api"
 	"github.com/sksmith/go-micro-example/config"
 	"github.com/sksmith/go-micro-example/core/inventory"
@@ -73,6 +76,38 @@ func unmarshal(res *http.Response, v interface{}, t *testing.T) {
 		t.Fatal(err)
 	}
 	err = json.Unmarshal(body, v)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func put(url string, request interface{}, t *testing.T) *http.Response {
+	json, err := json.Marshal(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req, err := http.NewRequest(http.MethodPut, url, bytes.NewBuffer(json))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req.Header.Set("Content-Type", "application/json; charset=utf-8")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return res
+}
+
+func readWs(conn net.Conn, v interface{}, t *testing.T) {
+	msg, _, err := wsutil.ReadServerData(conn)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = json.Unmarshal(msg, v)
 	if err != nil {
 		t.Fatal(err)
 	}

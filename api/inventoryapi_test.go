@@ -1,12 +1,9 @@
 package api_test
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -14,8 +11,8 @@ import (
 	"testing"
 
 	"github.com/gobwas/ws"
-	"github.com/gobwas/ws/wsutil"
 	"github.com/sksmith/go-micro-example/api"
+	"github.com/sksmith/go-micro-example/core"
 	"github.com/sksmith/go-micro-example/core/inventory"
 
 	"github.com/go-chi/chi"
@@ -60,7 +57,8 @@ func TestInventorySubscribe(t *testing.T) {
 
 	curInv := getTestProductInventory()
 	for i := 0; i < 3; i++ {
-		got := getWsProductInventory(conn, t)
+		got := &inventory.ProductInventory{}
+		readWs(conn, got, t)
 
 		if got.Name != curInv[i].Name {
 			t.Errorf("unexpected ws response[%d] got=[%s] want=[%s]", i, got.Name, curInv[i].Name)
@@ -251,16 +249,16 @@ func TestInventoryCreateProduct(t *testing.T) {
 
 		res := put(ts.URL, test.request, t)
 
+		if res.StatusCode != test.wantStatusCode {
+			t.Errorf("status code got=%d\nwant=%d", res.StatusCode, test.wantStatusCode)
+		}
+
 		if test.wantErr == nil {
 			got := api.ProductResponse{}
 			unmarshal(res, &got, t)
 
 			if !reflect.DeepEqual(got, *test.wantProductResponse) {
 				t.Errorf("product\n got=%+v\nwant=%+v", got, *test.wantProductResponse)
-			}
-
-			if res.StatusCode != test.wantStatusCode {
-				t.Errorf("status code got=%d\nwant=%d", res.StatusCode, test.wantStatusCode)
 			}
 		} else {
 			got := &api.ErrResponse{}
@@ -276,24 +274,209 @@ func TestInventoryCreateProduct(t *testing.T) {
 	}
 }
 
-func put(url string, request interface{}, t *testing.T) *http.Response {
-	json, err := json.Marshal(request)
-	if err != nil {
-		t.Fatal(err)
+func TestInventoryCreateProductionEvent(t *testing.T) {
+	ts, mockInvSvc := setupInventoryTestServer()
+	defer ts.Close()
+
+	tests := []struct {
+		getProductFunc              func(ctx context.Context, sku string) (inventory.Product, error)
+		produceFunc                 func(ctx context.Context, product inventory.Product, event inventory.ProductionRequest) error
+		sku                         string
+		request                     *api.CreateProductionEventRequest
+		wantProductionEventResponse *api.ProductionEventResponse
+		wantErr                     *api.ErrResponse
+		wantStatusCode              int
+	}{
+		{
+			getProductFunc: func(ctx context.Context, sku string) (inventory.Product, error) {
+				return getTestProductInventory()[0].Product, nil
+			},
+			produceFunc: func(ctx context.Context, product inventory.Product, event inventory.ProductionRequest) error {
+				return nil
+			},
+			sku:                         "testsku1",
+			request:                     createProductionEventRequest("abc123", 1),
+			wantProductionEventResponse: &api.ProductionEventResponse{},
+			wantErr:                     nil,
+			wantStatusCode:              201,
+		},
+		{
+			getProductFunc: func(ctx context.Context, sku string) (inventory.Product, error) {
+				return inventory.Product{}, core.ErrNotFound
+			},
+			produceFunc:                 nil,
+			sku:                         "testsku1",
+			request:                     createProductionEventRequest("abc123", 1),
+			wantProductionEventResponse: nil,
+			wantErr:                     api.ErrNotFound,
+			wantStatusCode:              404,
+		},
+		{
+			getProductFunc: func(ctx context.Context, sku string) (inventory.Product, error) {
+				return inventory.Product{}, errors.New("some unexpected error")
+			},
+			produceFunc:                 nil,
+			sku:                         "testsku1",
+			request:                     createProductionEventRequest("abc123", 1),
+			wantProductionEventResponse: nil,
+			wantErr:                     api.ErrInternalServer,
+			wantStatusCode:              500,
+		},
+		{
+			getProductFunc: func(ctx context.Context, sku string) (inventory.Product, error) {
+				return getTestProductInventory()[0].Product, nil
+			},
+			produceFunc: func(ctx context.Context, product inventory.Product, event inventory.ProductionRequest) error {
+				return errors.New("some unexpected error")
+			},
+			sku:                         "testsku1",
+			request:                     createProductionEventRequest("abc123", 1),
+			wantProductionEventResponse: nil,
+			wantErr:                     api.ErrInternalServer,
+			wantStatusCode:              500,
+		},
 	}
 
-	req, err := http.NewRequest(http.MethodPut, url, bytes.NewBuffer(json))
-	if err != nil {
-		t.Fatal(err)
+	for _, test := range tests {
+		mockInvSvc.GetProductFunc = test.getProductFunc
+		mockInvSvc.ProduceFunc = test.produceFunc
+
+		url := ts.URL + "/" + test.sku + "/productionEvent"
+		res := put(url, test.request, t)
+
+		if res.StatusCode != test.wantStatusCode {
+			t.Errorf("status code got=%d want=%d", res.StatusCode, test.wantStatusCode)
+		}
+
+		if test.wantErr == nil {
+			got := api.ProductionEventResponse{}
+			unmarshal(res, &got, t)
+
+			if !reflect.DeepEqual(got, *test.wantProductionEventResponse) {
+				t.Errorf("product\n got=%+v\nwant=%+v", got, *test.wantProductionEventResponse)
+			}
+		} else {
+			got := &api.ErrResponse{}
+			unmarshal(res, got, t)
+
+			if got.StatusText != test.wantErr.StatusText {
+				t.Errorf("status text got=%s want=%s", got.StatusText, test.wantErr.StatusText)
+			}
+			if got.ErrorText != test.wantErr.ErrorText {
+				t.Errorf("error text got=%s want=%s", got.ErrorText, test.wantErr.ErrorText)
+			}
+		}
+	}
+}
+
+func TestInventoryGetProductInventory(t *testing.T) {
+	ts, mockInvSvc := setupInventoryTestServer()
+	defer ts.Close()
+
+	tests := []struct {
+		sku                     string
+		getProductFunc          func(ctx context.Context, sku string) (inventory.Product, error)
+		getProductInventoryFunc func(ctx context.Context, sku string) (inventory.ProductInventory, error)
+		wantProductResponse     *api.ProductResponse
+		wantErr                 *api.ErrResponse
+		wantStatusCode          int
+	}{
+		{
+			getProductFunc: func(ctx context.Context, sku string) (inventory.Product, error) {
+				return getTestProductInventory()[0].Product, nil
+			},
+			getProductInventoryFunc: func(ctx context.Context, sku string) (inventory.ProductInventory, error) {
+				return getTestProductInventory()[0], nil
+			},
+			sku:                 "test1sku",
+			wantProductResponse: createProductResponse("test1name", "test1sku", "test1upc", 1),
+			wantErr:             nil,
+			wantStatusCode:      200,
+		},
+		{
+			getProductFunc: func(ctx context.Context, sku string) (inventory.Product, error) {
+				return inventory.Product{}, core.ErrNotFound
+			},
+			getProductInventoryFunc: nil,
+			sku:                     "test1sku",
+			wantProductResponse:     nil,
+			wantErr:                 api.ErrNotFound,
+			wantStatusCode:          404,
+		},
+		{
+			getProductFunc: func(ctx context.Context, sku string) (inventory.Product, error) {
+				return getTestProductInventory()[0].Product, nil
+			},
+			getProductInventoryFunc: func(ctx context.Context, sku string) (inventory.ProductInventory, error) {
+				return inventory.ProductInventory{}, core.ErrNotFound
+			},
+			sku:                 "test1sku",
+			wantProductResponse: nil,
+			wantErr:             api.ErrNotFound,
+			wantStatusCode:      404,
+		},
+		{
+			getProductFunc: func(ctx context.Context, sku string) (inventory.Product, error) {
+				return inventory.Product{}, errors.New("some unexpected error")
+			},
+			getProductInventoryFunc: nil,
+			sku:                     "test1sku",
+			wantProductResponse:     nil,
+			wantErr:                 api.ErrInternalServer,
+			wantStatusCode:          500,
+		},
+		{
+			getProductFunc: func(ctx context.Context, sku string) (inventory.Product, error) {
+				return getTestProductInventory()[0].Product, nil
+			},
+			getProductInventoryFunc: func(ctx context.Context, sku string) (inventory.ProductInventory, error) {
+				return inventory.ProductInventory{}, errors.New("some unexpected error")
+			},
+			sku:                 "test1sku",
+			wantProductResponse: nil,
+			wantErr:             api.ErrInternalServer,
+			wantStatusCode:      500,
+		},
 	}
 
-	req.Header.Set("Content-Type", "application/json; charset=utf-8")
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
+	for _, test := range tests {
+		mockInvSvc.GetProductFunc = test.getProductFunc
+		mockInvSvc.GetProductInventoryFunc = test.getProductInventoryFunc
 
-	return res
+		res, err := http.Get(ts.URL + "/" + test.sku)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if res.StatusCode != test.wantStatusCode {
+			t.Errorf("status code got=%d want=%d", res.StatusCode, test.wantStatusCode)
+		}
+
+		if test.wantErr == nil {
+			got := api.ProductResponse{}
+			unmarshal(res, &got, t)
+
+			if !reflect.DeepEqual(got, *test.wantProductResponse) {
+				t.Errorf("product\n got=%+v\nwant=%+v", got, *test.wantProductResponse)
+			}
+		} else {
+			got := &api.ErrResponse{}
+			unmarshal(res, got, t)
+
+			if got.StatusText != test.wantErr.StatusText {
+				t.Errorf("status text got=%s want=%s", got.StatusText, test.wantErr.StatusText)
+			}
+			if got.ErrorText != test.wantErr.ErrorText {
+				t.Errorf("error text got=%s want=%s", got.ErrorText, test.wantErr.ErrorText)
+			}
+		}
+	}
+}
+
+func createProductionEventRequest(requestID string, quantity int64) *api.CreateProductionEventRequest {
+	return &api.CreateProductionEventRequest{
+		ProductionRequest: &inventory.ProductionRequest{RequestID: requestID, Quantity: quantity},
+	}
 }
 
 func createProductRequest(name, sku, upc string) api.CreateProductRequest {
@@ -311,22 +494,8 @@ func createProductResponse(name, sku, upc string, available int64) *api.ProductR
 
 func getTestProductInventory() []inventory.ProductInventory {
 	return []inventory.ProductInventory{
-		{Available: 1, Product: inventory.Product{Sku: "test1sku", Upc: "test1 upc", Name: "test1 name"}},
-		{Available: 2, Product: inventory.Product{Sku: "test2sku", Upc: "test2 upc", Name: "test2 name"}},
-		{Available: 3, Product: inventory.Product{Sku: "test3sku", Upc: "test3 upc", Name: "test3 name"}},
+		{Available: 1, Product: inventory.Product{Sku: "test1sku", Upc: "test1upc", Name: "test1name"}},
+		{Available: 2, Product: inventory.Product{Sku: "test2sku", Upc: "test2upc", Name: "test2name"}},
+		{Available: 3, Product: inventory.Product{Sku: "test3sku", Upc: "test3upc", Name: "test3name"}},
 	}
-}
-
-func getWsProductInventory(conn net.Conn, t *testing.T) inventory.ProductInventory {
-	msg, _, err := wsutil.ReadServerData(conn)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	inv := &inventory.ProductInventory{}
-	err = json.Unmarshal(msg, inv)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return *inv
 }
