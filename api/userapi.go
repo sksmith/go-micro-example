@@ -26,14 +26,13 @@ func NewUserApi(service UserService) *UserApi {
 }
 
 func (a *UserApi) ConfigureRouter(r chi.Router) {
-	r.Route("/", func(r chi.Router) {
-		r.With(AdminOnly).Post("/", a.Create)
-	})
+	r.With(AdminOnly).Post("/", a.Create)
 }
 
 func (a *UserApi) Create(w http.ResponseWriter, r *http.Request) {
 	data := &CreateUserRequestDto{}
 	if err := render.Bind(r, data); err != nil {
+		log.Err(err).Send()
 		Render(w, r, ErrInvalidRequest(err))
 		return
 	}

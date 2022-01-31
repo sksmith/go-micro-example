@@ -20,7 +20,7 @@ build:
 		-o ./bin/go-micro-example ./cmd
 
 test:
-	go test -v -cover ./...
+	go test -cover ./...
 
 run:
 	echo "executing the application"

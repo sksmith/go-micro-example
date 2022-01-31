@@ -1,6 +1,10 @@
 package inventory
 
-import "context"
+import (
+	"context"
+
+	"github.com/sksmith/go-micro-example/test"
+)
 
 type MockInventoryService struct {
 	ProduceFunc                func(ctx context.Context, product Product, event ProductionRequest) error
@@ -8,8 +12,9 @@ type MockInventoryService struct {
 	GetProductFunc             func(ctx context.Context, sku string) (Product, error)
 	GetAllProductInventoryFunc func(ctx context.Context, limit, offset int) ([]ProductInventory, error)
 	GetProductInventoryFunc    func(ctx context.Context, sku string) (ProductInventory, error)
-	SubscribeInventoryFunc     func(ch chan<- ProductInventory) (id InventorySubscriptionID)
-	UnsubscribeInventoryFunc   func(id InventorySubscriptionID)
+	SubscribeInventoryFunc     func(ch chan<- ProductInventory) (id InventorySubID)
+	UnsubscribeInventoryFunc   func(id InventorySubID)
+	test.CallWatcher
 }
 
 func NewMockInventoryService() MockInventoryService {
@@ -21,36 +26,43 @@ func NewMockInventoryService() MockInventoryService {
 			return []ProductInventory{}, nil
 		},
 		GetProductInventoryFunc:  func(ctx context.Context, sku string) (ProductInventory, error) { return ProductInventory{}, nil },
-		SubscribeInventoryFunc:   func(ch chan<- ProductInventory) (id InventorySubscriptionID) { return "" },
-		UnsubscribeInventoryFunc: func(id InventorySubscriptionID) {},
+		SubscribeInventoryFunc:   func(ch chan<- ProductInventory) (id InventorySubID) { return "" },
+		UnsubscribeInventoryFunc: func(id InventorySubID) {},
 	}
 }
 
 func (i *MockInventoryService) Produce(ctx context.Context, product Product, event ProductionRequest) error {
+	i.AddCall(ctx, product, event)
 	return i.ProduceFunc(ctx, product, event)
 }
 
 func (i *MockInventoryService) CreateProduct(ctx context.Context, product Product) error {
+	i.AddCall(ctx, product)
 	return i.CreateProductFunc(ctx, product)
 }
 
 func (i *MockInventoryService) GetProduct(ctx context.Context, sku string) (Product, error) {
+	i.AddCall(ctx, sku)
 	return i.GetProductFunc(ctx, sku)
 }
 
 func (i *MockInventoryService) GetAllProductInventory(ctx context.Context, limit, offset int) ([]ProductInventory, error) {
+	i.AddCall(ctx, limit, offset)
 	return i.GetAllProductInventoryFunc(ctx, limit, offset)
 }
 
 func (i *MockInventoryService) GetProductInventory(ctx context.Context, sku string) (ProductInventory, error) {
+	i.AddCall(ctx, sku)
 	return i.GetProductInventoryFunc(ctx, sku)
 }
 
-func (i *MockInventoryService) SubscribeInventory(ch chan<- ProductInventory) (id InventorySubscriptionID) {
+func (i *MockInventoryService) SubscribeInventory(ch chan<- ProductInventory) (id InventorySubID) {
+	i.AddCall(ch)
 	return i.SubscribeInventoryFunc(ch)
 }
 
-func (i *MockInventoryService) UnsubscribeInventory(id InventorySubscriptionID) {
+func (i *MockInventoryService) UnsubscribeInventory(id InventorySubID) {
+	i.AddCall(id)
 	i.UnsubscribeInventoryFunc(id)
 }
 
@@ -60,8 +72,8 @@ type MockReservationService struct {
 	GetReservationsFunc func(ctx context.Context, options GetReservationsOptions, limit, offset int) ([]Reservation, error)
 	GetReservationFunc  func(ctx context.Context, ID uint64) (Reservation, error)
 
-	SubscribeReservationsFunc   func(ch chan<- Reservation) (id ReservationsSubscriptionID)
-	UnsubscribeReservationsFunc func(id ReservationsSubscriptionID)
+	SubscribeReservationsFunc   func(ch chan<- Reservation) (id ReservationsSubID)
+	UnsubscribeReservationsFunc func(id ReservationsSubID)
 }
 
 func NewMockReservationService() MockReservationService {
@@ -71,8 +83,8 @@ func NewMockReservationService() MockReservationService {
 			return []Reservation{}, nil
 		},
 		GetReservationFunc:          func(ctx context.Context, ID uint64) (Reservation, error) { return Reservation{}, nil },
-		SubscribeReservationsFunc:   func(ch chan<- Reservation) (id ReservationsSubscriptionID) { return "" },
-		UnsubscribeReservationsFunc: func(id ReservationsSubscriptionID) {},
+		SubscribeReservationsFunc:   func(ch chan<- Reservation) (id ReservationsSubID) { return "" },
+		UnsubscribeReservationsFunc: func(id ReservationsSubID) {},
 	}
 }
 
@@ -88,10 +100,10 @@ func (r *MockReservationService) GetReservation(ctx context.Context, ID uint64) 
 	return r.GetReservationFunc(ctx, ID)
 }
 
-func (r *MockReservationService) SubscribeReservations(ch chan<- Reservation) (id ReservationsSubscriptionID) {
+func (r *MockReservationService) SubscribeReservations(ch chan<- Reservation) (id ReservationsSubID) {
 	return r.SubscribeReservationsFunc(ch)
 }
 
-func (r *MockReservationService) UnsubscribeReservations(id ReservationsSubscriptionID) {
+func (r *MockReservationService) UnsubscribeReservations(id ReservationsSubID) {
 	r.UnsubscribeReservationsFunc(id)
 }

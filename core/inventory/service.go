@@ -15,13 +15,13 @@ func NewService(repo Repository, q InventoryQueue) *service {
 	return &service{
 		repo:            repo,
 		queue:           q,
-		inventorySubs:   make(map[InventorySubscriptionID]chan<- ProductInventory),
-		reservationSubs: make(map[ReservationsSubscriptionID]chan<- Reservation),
+		inventorySubs:   make(map[InventorySubID]chan<- ProductInventory),
+		reservationSubs: make(map[ReservationsSubID]chan<- Reservation),
 	}
 }
 
-type InventorySubscriptionID string
-type ReservationsSubscriptionID string
+type InventorySubID string
+type ReservationsSubID string
 
 type GetReservationsOptions struct {
 	Sku   string
@@ -31,56 +31,39 @@ type GetReservationsOptions struct {
 type service struct {
 	repo            Repository
 	queue           InventoryQueue
-	inventorySubs   map[InventorySubscriptionID]chan<- ProductInventory
-	reservationSubs map[ReservationsSubscriptionID]chan<- Reservation
+	inventorySubs   map[InventorySubID]chan<- ProductInventory
+	reservationSubs map[ReservationsSubID]chan<- Reservation
 }
 
 func (s *service) CreateProduct(ctx context.Context, product Product) error {
 	const funcName = "CreateProduct"
 
 	dbProduct, err := s.repo.GetProduct(ctx, product.Sku)
-	if err != nil && !errors.Is(err, core.ErrNotFound) {
+	if err != nil != errors.Is(err, core.ErrNotFound) {
 		return errors.WithStack(err)
 	}
-
-	if dbProduct.Sku != "" {
-		log.Debug().
-			Str("func", funcName).
-			Str("sku", dbProduct.Sku).
-			Msg("product already exists")
+	if err == nil {
+		log.Debug().Str("func", funcName).Str("sku", dbProduct.Sku).Msg("product already exists")
 		return nil
 	}
 
 	tx, err := s.repo.BeginTransaction(ctx)
-	if err != nil {
-		return errors.WithStack(err)
-	}
-
 	defer func() {
 		if err != nil {
 			rollback(ctx, tx, err)
 		}
 	}()
+	if err != nil {
+		return errors.WithStack(err)
+	}
 
-	log.Info().
-		Str("func", funcName).
-		Str("sku", product.Sku).
-		Str("upc", product.Upc).
-		Msg("creating product")
-
+	log.Info().Str("func", funcName).Str("sku", product.Sku).Msg("creating product")
 	if err = s.repo.SaveProduct(ctx, product, core.UpdateOptions{Tx: tx}); err != nil {
 		return errors.WithStack(err)
 	}
 
-	log.Info().
-		Str("func", funcName).
-		Str("sku", product.Sku).
-		Msg("creating product inventory")
-
-	pi := ProductInventory{
-		Product:   product,
-		Available: 0,
-	}
+	log.Info().Str("func", funcName).Str("sku", product.Sku).Msg("creating product inventory")
+	pi := ProductInventory{Product: product}
 
 	if err = s.repo.SaveProductInventory(ctx, pi, core.UpdateOptions{Tx: tx}); err != nil {
 		return errors.WithStack(err)
@@ -116,10 +99,7 @@ func (s *service) Produce(ctx context.Context, product Product, pr ProductionReq
 	}
 
 	if event.RequestID != "" {
-		log.Debug().
-			Str("func", funcName).
-			Str("requestId", pr.RequestID).
-			Msg("production request already exists")
+		log.Debug().Str("func", funcName).Str("requestId", pr.RequestID).Msg("production request already exists")
 		return nil
 	}
 
@@ -131,15 +111,14 @@ func (s *service) Produce(ctx context.Context, product Product, pr ProductionReq
 	}
 
 	tx, err := s.repo.BeginTransaction(ctx)
-	if err != nil {
-		return errors.WithStack(err)
-	}
-
 	defer func() {
 		if err != nil {
 			rollback(ctx, tx, err)
 		}
 	}()
+	if err != nil {
+		return errors.WithStack(err)
+	}
 
 	if err = s.repo.SaveProductionEvent(ctx, &event, core.UpdateOptions{Tx: tx}); err != nil {
 		return errors.WithMessage(err, "failed to save production event")
@@ -176,20 +155,18 @@ func (s *service) Reserve(ctx context.Context, rr ReservationRequest) (Reservati
 
 	log.Info().
 		Str("func", funcName).
-		Str("requestId", rr.RequestID).
+		Str("requestID", rr.RequestID).
 		Str("sku", rr.Sku).
 		Str("requester", rr.Requester).
 		Int64("quantity", rr.Quantity).
 		Msg("reserving inventory")
 
 	tx, err := s.repo.BeginTransaction(ctx)
-
 	defer func() {
 		if err != nil {
 			rollback(ctx, tx, err)
 		}
 	}()
-
 	if err != nil {
 		return Reservation{}, err
 	}
@@ -215,7 +192,6 @@ func (s *service) Reserve(ctx context.Context, rr ReservationRequest) (Reservati
 		Requester:         rr.Requester,
 		Sku:               rr.Sku,
 		State:             Open,
-		ReservedQuantity:  0,
 		RequestedQuantity: rr.Quantity,
 		Created:           time.Now(),
 	}
@@ -242,10 +218,7 @@ func (s *service) GetAllProductInventory(ctx context.Context, limit, offset int)
 func (s *service) GetProduct(ctx context.Context, sku string) (Product, error) {
 	const funcName = "GetProduct"
 
-	log.Info().
-		Str("func", funcName).
-		Str("sku", sku).
-		Msg("getting product")
+	log.Info().Str("func", funcName).Str("sku", sku).Msg("getting product")
 
 	product, err := s.repo.GetProduct(ctx, sku)
 	if err != nil {
@@ -257,10 +230,7 @@ func (s *service) GetProduct(ctx context.Context, sku string) (Product, error) {
 func (s *service) GetProductInventory(ctx context.Context, sku string) (ProductInventory, error) {
 	const funcName = "GetProductInventory"
 
-	log.Info().
-		Str("func", funcName).
-		Str("sku", sku).
-		Msg("getting product inventory")
+	log.Info().Str("func", funcName).Str("sku", sku).Msg("getting product inventory")
 
 	product, err := s.repo.GetProductInventory(ctx, sku)
 	if err != nil {
@@ -272,10 +242,7 @@ func (s *service) GetProductInventory(ctx context.Context, sku string) (ProductI
 func (s *service) GetReservation(ctx context.Context, ID uint64) (Reservation, error) {
 	const funcName = "GetReservation"
 
-	log.Info().
-		Str("func", funcName).
-		Uint64("id", ID).
-		Msg("getting reservation")
+	log.Info().Str("func", funcName).Uint64("id", ID).Msg("getting reservation")
 
 	rsv, err := s.repo.GetReservation(ctx, ID)
 	if err != nil {
@@ -300,27 +267,27 @@ func (s *service) GetReservations(ctx context.Context, options GetReservationsOp
 	return rsv, nil
 }
 
-func (s *service) SubscribeInventory(ch chan<- ProductInventory) (id InventorySubscriptionID) {
-	id = InventorySubscriptionID(uuid.NewString())
+func (s *service) SubscribeInventory(ch chan<- ProductInventory) (id InventorySubID) {
+	id = InventorySubID(uuid.NewString())
 	s.inventorySubs[id] = ch
 	log.Debug().Interface("clientId", id).Msg("subscribing to inventory")
 	return id
 }
 
-func (s *service) UnsubscribeInventory(id InventorySubscriptionID) {
+func (s *service) UnsubscribeInventory(id InventorySubID) {
 	log.Debug().Interface("clientId", id).Msg("unsubscribing from inventory")
 	close(s.inventorySubs[id])
 	delete(s.inventorySubs, id)
 }
 
-func (s *service) SubscribeReservations(ch chan<- Reservation) (id ReservationsSubscriptionID) {
-	id = ReservationsSubscriptionID(uuid.NewString())
+func (s *service) SubscribeReservations(ch chan<- Reservation) (id ReservationsSubID) {
+	id = ReservationsSubID(uuid.NewString())
 	s.reservationSubs[id] = ch
 	log.Debug().Interface("clientId", id).Msg("subscribing to reservations")
 	return id
 }
 
-func (s *service) UnsubscribeReservations(id ReservationsSubscriptionID) {
+func (s *service) UnsubscribeReservations(id ReservationsSubID) {
 	log.Debug().Interface("clientId", id).Msg("unsubscribing from reservations")
 	close(s.reservationSubs[id])
 	delete(s.reservationSubs, id)
@@ -330,15 +297,14 @@ func (s *service) fillReserves(ctx context.Context, product Product) error {
 	const funcName = "fillReserves"
 
 	tx, err := s.repo.BeginTransaction(ctx)
-	if err != nil {
-		return errors.WithStack(err)
-	}
-
 	defer func() {
 		if err != nil {
 			rollback(ctx, tx, err)
 		}
 	}()
+	if err != nil {
+		return errors.WithStack(err)
+	}
 
 	openReservations, err := s.repo.GetReservations(ctx, GetReservationsOptions{Sku: product.Sku, State: Open}, 100, 0, core.QueryOptions{Tx: tx, ForUpdate: true})
 	if err != nil {
@@ -364,7 +330,16 @@ func (s *service) fillReserves(ctx context.Context, product Product) error {
 			break
 		}
 
-		fillReserve(&reservation, &productInventory)
+		reserveAmount := reservation.RequestedQuantity - reservation.ReservedQuantity
+		if reserveAmount > productInventory.Available {
+			reserveAmount = productInventory.Available
+		}
+		productInventory.Available -= reserveAmount
+		reservation.ReservedQuantity += reserveAmount
+
+		if reservation.ReservedQuantity == reservation.RequestedQuantity {
+			reservation.State = Closed
+		}
 
 		log.Debug().
 			Str("func", funcName).
@@ -405,19 +380,6 @@ func (s *service) fillReserves(ctx context.Context, product Product) error {
 	}
 
 	return nil
-}
-
-func fillReserve(reservation *Reservation, productInventory *ProductInventory) {
-	reserveAmount := reservation.RequestedQuantity - reservation.ReservedQuantity
-	if reserveAmount > productInventory.Available {
-		reserveAmount = productInventory.Available
-	}
-	productInventory.Available -= reserveAmount
-	reservation.ReservedQuantity += reserveAmount
-
-	if reservation.ReservedQuantity == reservation.RequestedQuantity {
-		reservation.State = Closed
-	}
 }
 
 func (s *service) publishInventory(ctx context.Context, pi ProductInventory) error {

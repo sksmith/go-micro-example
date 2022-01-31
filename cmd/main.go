@@ -26,7 +26,7 @@ import (
 func main() {
 	start := time.Now()
 	ctx := context.Background()
-	cfg := config.Load()
+	cfg := config.Load("config")
 
 	configLogging(cfg)
 	printLogHeader(cfg)

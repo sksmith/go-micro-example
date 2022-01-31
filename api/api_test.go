@@ -81,15 +81,32 @@ func unmarshal(res *http.Response, v interface{}, t *testing.T) {
 	}
 }
 
-func put(url string, request interface{}, t *testing.T) *http.Response {
+type requestOptions struct {
+	username string
+	password string
+}
+
+func put(url string, request interface{}, t *testing.T, op ...requestOptions) *http.Response {
+	return sendRequest(http.MethodPut, url, request, t, op...)
+}
+
+func post(url string, request interface{}, t *testing.T, op ...requestOptions) *http.Response {
+	return sendRequest(http.MethodPost, url, request, t, op...)
+}
+
+func sendRequest(method, url string, request interface{}, t *testing.T, op ...requestOptions) *http.Response {
 	json, err := json.Marshal(request)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	req, err := http.NewRequest(http.MethodPut, url, bytes.NewBuffer(json))
+	req, err := http.NewRequest(method, url, bytes.NewBuffer(json))
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	if len(op) > 0 {
+		req.SetBasicAuth(op[0].username, op[0].password)
 	}
 
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")

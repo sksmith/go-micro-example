@@ -22,10 +22,10 @@ func TestInventorySubscribe(t *testing.T) {
 	mockSvc := inventory.NewMockInventoryService()
 
 	subscribeCalled := false
-	expectedSubId := inventory.InventorySubscriptionID("subid1")
+	expectedSubId := inventory.InventorySubID("subid1")
 	unsubscribeCalled := false
 
-	mockSvc.SubscribeInventoryFunc = func(ch chan<- inventory.ProductInventory) (id inventory.InventorySubscriptionID) {
+	mockSvc.SubscribeInventoryFunc = func(ch chan<- inventory.ProductInventory) (id inventory.InventorySubID) {
 		subscribeCalled = true
 		go func() {
 			inv := getTestProductInventory()
@@ -38,7 +38,7 @@ func TestInventorySubscribe(t *testing.T) {
 		return expectedSubId
 	}
 
-	mockSvc.UnsubscribeInventoryFunc = func(id inventory.InventorySubscriptionID) {
+	mockSvc.UnsubscribeInventoryFunc = func(id inventory.InventorySubID) {
 		unsubscribeCalled = true
 	}
 
@@ -108,7 +108,7 @@ func TestInventoryList(t *testing.T) {
 			wantInventory:  getTestProductInventory(),
 			serviceErr:     nil,
 			wantErr:        nil,
-			wantStatusCode: 200,
+			wantStatusCode: http.StatusOK,
 		},
 		{
 			limit:          5,
@@ -119,7 +119,7 @@ func TestInventoryList(t *testing.T) {
 			wantInventory:  getTestProductInventory(),
 			serviceErr:     nil,
 			wantErr:        nil,
-			wantStatusCode: 200,
+			wantStatusCode: http.StatusOK,
 		},
 		{
 			limit:          -1,
@@ -130,7 +130,7 @@ func TestInventoryList(t *testing.T) {
 			wantInventory:  []inventory.ProductInventory{},
 			serviceErr:     nil,
 			wantErr:        nil,
-			wantStatusCode: 200,
+			wantStatusCode: http.StatusOK,
 		},
 		{
 			limit:          -1,
@@ -141,7 +141,7 @@ func TestInventoryList(t *testing.T) {
 			wantInventory:  []inventory.ProductInventory{},
 			serviceErr:     errors.New("something bad happened"),
 			wantErr:        api.ErrInternalServer,
-			wantStatusCode: 500,
+			wantStatusCode: http.StatusInternalServerError,
 		},
 	}
 
@@ -210,35 +210,35 @@ func TestInventoryCreateProduct(t *testing.T) {
 			serviceErr:          nil,
 			wantProductResponse: createProductResponse("name1", "sku1", "upc1", 0),
 			wantErr:             nil,
-			wantStatusCode:      201,
+			wantStatusCode:      http.StatusCreated,
 		},
 		{
 			request:             createProductRequest("name1", "sku1", "upc1"),
 			serviceErr:          errors.New("some unexpected error"),
 			wantProductResponse: nil,
 			wantErr:             api.ErrInternalServer,
-			wantStatusCode:      500,
+			wantStatusCode:      http.StatusInternalServerError,
 		},
 		{
 			request:             createProductRequest("name1", "sku1", ""),
 			serviceErr:          nil,
 			wantProductResponse: nil,
 			wantErr:             api.ErrInvalidRequest(errors.New("missing required field(s)")),
-			wantStatusCode:      400,
+			wantStatusCode:      http.StatusBadRequest,
 		},
 		{
 			request:             createProductRequest("name1", "", "upc1"),
 			serviceErr:          nil,
 			wantProductResponse: nil,
 			wantErr:             api.ErrInvalidRequest(errors.New("missing required field(s)")),
-			wantStatusCode:      400,
+			wantStatusCode:      http.StatusBadRequest,
 		},
 		{
 			request:             createProductRequest("", "sku1", "upc1"),
 			serviceErr:          nil,
 			wantProductResponse: nil,
 			wantErr:             api.ErrInvalidRequest(errors.New("missing required field(s)")),
-			wantStatusCode:      400,
+			wantStatusCode:      http.StatusBadRequest,
 		},
 	}
 
@@ -298,7 +298,7 @@ func TestInventoryCreateProductionEvent(t *testing.T) {
 			request:                     createProductionEventRequest("abc123", 1),
 			wantProductionEventResponse: &api.ProductionEventResponse{},
 			wantErr:                     nil,
-			wantStatusCode:              201,
+			wantStatusCode:              http.StatusCreated,
 		},
 		{
 			getProductFunc: func(ctx context.Context, sku string) (inventory.Product, error) {
@@ -309,7 +309,7 @@ func TestInventoryCreateProductionEvent(t *testing.T) {
 			request:                     createProductionEventRequest("abc123", 1),
 			wantProductionEventResponse: nil,
 			wantErr:                     api.ErrNotFound,
-			wantStatusCode:              404,
+			wantStatusCode:              http.StatusNotFound,
 		},
 		{
 			getProductFunc: func(ctx context.Context, sku string) (inventory.Product, error) {
@@ -320,7 +320,7 @@ func TestInventoryCreateProductionEvent(t *testing.T) {
 			request:                     createProductionEventRequest("abc123", 1),
 			wantProductionEventResponse: nil,
 			wantErr:                     api.ErrInternalServer,
-			wantStatusCode:              500,
+			wantStatusCode:              http.StatusInternalServerError,
 		},
 		{
 			getProductFunc: func(ctx context.Context, sku string) (inventory.Product, error) {
@@ -333,7 +333,7 @@ func TestInventoryCreateProductionEvent(t *testing.T) {
 			request:                     createProductionEventRequest("abc123", 1),
 			wantProductionEventResponse: nil,
 			wantErr:                     api.ErrInternalServer,
-			wantStatusCode:              500,
+			wantStatusCode:              http.StatusInternalServerError,
 		},
 	}
 
@@ -391,7 +391,7 @@ func TestInventoryGetProductInventory(t *testing.T) {
 			sku:                 "test1sku",
 			wantProductResponse: createProductResponse("test1name", "test1sku", "test1upc", 1),
 			wantErr:             nil,
-			wantStatusCode:      200,
+			wantStatusCode:      http.StatusOK,
 		},
 		{
 			getProductFunc: func(ctx context.Context, sku string) (inventory.Product, error) {
@@ -401,7 +401,7 @@ func TestInventoryGetProductInventory(t *testing.T) {
 			sku:                     "test1sku",
 			wantProductResponse:     nil,
 			wantErr:                 api.ErrNotFound,
-			wantStatusCode:          404,
+			wantStatusCode:          http.StatusNotFound,
 		},
 		{
 			getProductFunc: func(ctx context.Context, sku string) (inventory.Product, error) {
@@ -413,7 +413,7 @@ func TestInventoryGetProductInventory(t *testing.T) {
 			sku:                 "test1sku",
 			wantProductResponse: nil,
 			wantErr:             api.ErrNotFound,
-			wantStatusCode:      404,
+			wantStatusCode:      http.StatusNotFound,
 		},
 		{
 			getProductFunc: func(ctx context.Context, sku string) (inventory.Product, error) {
@@ -423,7 +423,7 @@ func TestInventoryGetProductInventory(t *testing.T) {
 			sku:                     "test1sku",
 			wantProductResponse:     nil,
 			wantErr:                 api.ErrInternalServer,
-			wantStatusCode:          500,
+			wantStatusCode:          http.StatusInternalServerError,
 		},
 		{
 			getProductFunc: func(ctx context.Context, sku string) (inventory.Product, error) {
@@ -435,7 +435,7 @@ func TestInventoryGetProductInventory(t *testing.T) {
 			sku:                 "test1sku",
 			wantProductResponse: nil,
 			wantErr:             api.ErrInternalServer,
-			wantStatusCode:      500,
+			wantStatusCode:      http.StatusInternalServerError,
 		},
 	}
 

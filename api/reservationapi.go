@@ -22,8 +22,8 @@ type ReservationService interface {
 	GetReservations(ctx context.Context, options inventory.GetReservationsOptions, limit, offset int) ([]inventory.Reservation, error)
 	GetReservation(ctx context.Context, ID uint64) (inventory.Reservation, error)
 
-	SubscribeReservations(ch chan<- inventory.Reservation) (id inventory.ReservationsSubscriptionID)
-	UnsubscribeReservations(id inventory.ReservationsSubscriptionID)
+	SubscribeReservations(ch chan<- inventory.Reservation) (id inventory.ReservationsSubID)
+	UnsubscribeReservations(id inventory.ReservationsSubID)
 }
 
 type ReservationApi struct {
@@ -91,7 +91,7 @@ func (a *ReservationApi) Subscribe(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *ReservationApi) Get(w http.ResponseWriter, r *http.Request) {
-	res := r.Context().Value(CtxKeyProduct).(inventory.Reservation)
+	res := r.Context().Value(CtxKeyReservation).(inventory.Reservation)
 
 	resp := &ReservationResponse{Reservation: res}
 	render.Status(r, http.StatusOK)
@@ -106,9 +106,14 @@ func (a *ReservationApi) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	res, err := a.service.Reserve(r.Context(), *data.ReservationRequest)
+
 	if err != nil {
-		log.Error().Stack().Err(err).Msg("failed to reserve")
-		Render(w, r, ErrInternalServer)
+		if errors.Is(err, core.ErrNotFound) {
+			Render(w, r, ErrNotFound)
+		} else {
+			log.Error().Err(err).Interface("reservationRequest", data).Msg("failed to reserve")
+			Render(w, r, ErrInternalServer)
+		}
 		return
 	}
 

@@ -3,10 +3,10 @@ package invrepo
 import (
 	"context"
 
-	"github.com/jackc/pgconn"
-	"github.com/jackc/pgx/v4"
 	"github.com/sksmith/go-micro-example/core"
 	"github.com/sksmith/go-micro-example/core/inventory"
+	"github.com/sksmith/go-micro-example/db"
+	"github.com/sksmith/go-micro-example/test"
 )
 
 type MockRepo struct {
@@ -27,62 +27,77 @@ type MockRepo struct {
 	SaveProductInventoryFunc   func(ctx context.Context, productInventory inventory.ProductInventory, options ...core.UpdateOptions) error
 
 	BeginTransactionFunc func(ctx context.Context) (core.Transaction, error)
+
+	*test.CallWatcher
 }
 
-func (r MockRepo) SaveProductionEvent(ctx context.Context, event *inventory.ProductionEvent, options ...core.UpdateOptions) error {
+func (r *MockRepo) SaveProductionEvent(ctx context.Context, event *inventory.ProductionEvent, options ...core.UpdateOptions) error {
+	r.AddCall(ctx, event, options)
 	return r.SaveProductionEventFunc(ctx, event, options...)
 }
 
-func (r MockRepo) UpdateReservation(ctx context.Context, ID uint64, state inventory.ReserveState, qty int64, options ...core.UpdateOptions) error {
+func (r *MockRepo) UpdateReservation(ctx context.Context, ID uint64, state inventory.ReserveState, qty int64, options ...core.UpdateOptions) error {
+	r.AddCall(ctx, ID, state, options)
 	return r.UpdateReservationFunc(ctx, ID, state, qty, options...)
 }
 
-func (r MockRepo) GetProductionEventByRequestID(ctx context.Context, requestID string, options ...core.QueryOptions) (pe inventory.ProductionEvent, err error) {
+func (r *MockRepo) GetProductionEventByRequestID(ctx context.Context, requestID string, options ...core.QueryOptions) (pe inventory.ProductionEvent, err error) {
+	r.AddCall(ctx, requestID, options)
 	return r.GetProductionEventByRequestIDFunc(ctx, requestID, options...)
 }
 
-func (r MockRepo) SaveReservation(ctx context.Context, reservation *inventory.Reservation, options ...core.UpdateOptions) error {
+func (r *MockRepo) SaveReservation(ctx context.Context, reservation *inventory.Reservation, options ...core.UpdateOptions) error {
+	r.AddCall(ctx, reservation, options)
 	return r.SaveReservationFunc(ctx, reservation, options...)
 }
 
-func (r MockRepo) GetReservation(ctx context.Context, ID uint64, options ...core.QueryOptions) (inventory.Reservation, error) {
+func (r *MockRepo) GetReservation(ctx context.Context, ID uint64, options ...core.QueryOptions) (inventory.Reservation, error) {
+	r.AddCall(ctx, ID, options)
 	return r.GetReservationFunc(ctx, ID, options...)
 }
 
-func (r MockRepo) GetReservations(ctx context.Context, resOptions inventory.GetReservationsOptions, limit, offset int, options ...core.QueryOptions) ([]inventory.Reservation, error) {
+func (r *MockRepo) GetReservations(ctx context.Context, resOptions inventory.GetReservationsOptions, limit, offset int, options ...core.QueryOptions) ([]inventory.Reservation, error) {
+	r.AddCall(ctx, resOptions, limit, offset, options)
 	return r.GetReservationsFunc(ctx, resOptions, limit, offset, options...)
 }
 
-func (r MockRepo) SaveProduct(ctx context.Context, product inventory.Product, options ...core.UpdateOptions) error {
+func (r *MockRepo) SaveProduct(ctx context.Context, product inventory.Product, options ...core.UpdateOptions) error {
+	r.AddCall(ctx, product, options)
 	return r.SaveProductFunc(ctx, product, options...)
 }
 
-func (r MockRepo) GetProduct(ctx context.Context, sku string, options ...core.QueryOptions) (inventory.Product, error) {
+func (r *MockRepo) GetProduct(ctx context.Context, sku string, options ...core.QueryOptions) (inventory.Product, error) {
+	r.AddCall(ctx, sku, options)
 	return r.GetProductFunc(ctx, sku, options...)
 }
 
-func (r MockRepo) GetProductInventory(ctx context.Context, sku string, options ...core.QueryOptions) (inventory.ProductInventory, error) {
+func (r *MockRepo) GetProductInventory(ctx context.Context, sku string, options ...core.QueryOptions) (inventory.ProductInventory, error) {
+	r.AddCall(ctx, sku, options)
 	return r.GetProductInventoryFunc(ctx, sku, options...)
 }
 
-func (r MockRepo) SaveProductInventory(ctx context.Context, productInventory inventory.ProductInventory, options ...core.UpdateOptions) error {
+func (r *MockRepo) SaveProductInventory(ctx context.Context, productInventory inventory.ProductInventory, options ...core.UpdateOptions) error {
+	r.AddCall(ctx, productInventory, options)
 	return r.SaveProductInventoryFunc(ctx, productInventory, options...)
 }
 
-func (r MockRepo) GetAllProductInventory(ctx context.Context, limit int, offset int, options ...core.QueryOptions) ([]inventory.ProductInventory, error) {
+func (r *MockRepo) GetAllProductInventory(ctx context.Context, limit int, offset int, options ...core.QueryOptions) ([]inventory.ProductInventory, error) {
+	r.AddCall(ctx, limit, offset, options)
 	return r.GetAllProductInventoryFunc(ctx, limit, offset, options...)
 }
 
-func (r MockRepo) BeginTransaction(ctx context.Context) (core.Transaction, error) {
+func (r *MockRepo) BeginTransaction(ctx context.Context) (core.Transaction, error) {
+	r.AddCall(ctx)
 	return r.BeginTransactionFunc(ctx)
 }
 
-func (r MockRepo) GetReservationByRequestID(ctx context.Context, requestId string, options ...core.QueryOptions) (inventory.Reservation, error) {
+func (r *MockRepo) GetReservationByRequestID(ctx context.Context, requestId string, options ...core.QueryOptions) (inventory.Reservation, error) {
+	r.AddCall(ctx, requestId, options)
 	return r.GetReservationByRequestIDFunc(ctx, requestId, options...)
 }
 
-func NewMockRepo() MockRepo {
-	return MockRepo{
+func NewMockRepo() *MockRepo {
+	return &MockRepo{
 		SaveProductionEventFunc: func(ctx context.Context, event *inventory.ProductionEvent, options ...core.UpdateOptions) error {
 			return nil
 		},
@@ -105,7 +120,7 @@ func NewMockRepo() MockRepo {
 		GetAllProductInventoryFunc: func(ctx context.Context, limit int, offset int, options ...core.QueryOptions) ([]inventory.ProductInventory, error) {
 			return nil, nil
 		},
-		BeginTransactionFunc: func(ctx context.Context) (core.Transaction, error) { return MockTransaction{}, nil },
+		BeginTransactionFunc: func(ctx context.Context) (core.Transaction, error) { return db.NewMockTransaction(), nil },
 		GetReservationByRequestIDFunc: func(ctx context.Context, requestId string, options ...core.QueryOptions) (inventory.Reservation, error) {
 			return inventory.Reservation{}, nil
 		},
@@ -115,36 +130,6 @@ func NewMockRepo() MockRepo {
 		SaveProductInventoryFunc: func(ctx context.Context, productInventory inventory.ProductInventory, options ...core.UpdateOptions) error {
 			return nil
 		},
+		CallWatcher: test.NewCallWatcher(),
 	}
-}
-
-type MockTransaction struct {
-}
-
-func (m MockTransaction) Commit(_ context.Context) error {
-	return nil
-}
-
-func (m MockTransaction) Rollback(_ context.Context) error {
-	return nil
-}
-
-func (m MockTransaction) Query(_ context.Context, _ string, _ ...interface{}) (pgx.Rows, error) {
-	return nil, nil
-}
-
-func (m MockTransaction) QueryRow(_ context.Context, _ string, _ ...interface{}) pgx.Row {
-	return nil
-}
-
-func (m MockTransaction) Exec(_ context.Context, _ string, _ ...interface{}) (pgconn.CommandTag, error) {
-	return nil, nil
-}
-
-func (m MockTransaction) Begin(_ context.Context) (pgx.Tx, error) {
-	return nil, nil
-}
-
-func (m MockTransaction) Conn() core.Conn {
-	return nil
 }

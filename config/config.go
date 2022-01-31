@@ -191,14 +191,14 @@ func LoadDefaults() *Config {
 	return config
 }
 
-func Load() *Config {
+func Load(filename string) *Config {
 	config := &Config{}
 	setupDefaults(config)
 
 	var err error
 	switch config.Config.Source.Value {
 	case "local":
-		err = loadLocalConfigs(config)
+		err = loadLocalConfigs(filename, config)
 	case "etcd":
 		err = loadRemoteConfigs(config)
 	default:
@@ -206,7 +206,7 @@ func Load() *Config {
 			Str("configSource", config.Config.Source.Value).
 			Msg("unrecognized configuration source, using local")
 
-		err = loadLocalConfigs(config)
+		err = loadLocalConfigs(filename, config)
 	}
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to load configurations")
@@ -220,12 +220,13 @@ func Load() *Config {
 	return config
 }
 
-func loadLocalConfigs(config *Config) error {
+func loadLocalConfigs(filename string, config *Config) error {
 	log.Info().Msg("loading local configurations...")
 
-	viper.SetConfigName("config")
+	viper.SetConfigName(filename)
 	viper.SetConfigType("yaml")
 	viper.AddConfigPath(".")
+	viper.AddConfigPath("../.")
 
 	err := viper.ReadInConfig()
 	if err != nil {
@@ -245,25 +246,34 @@ func loadLocalConfigs(config *Config) error {
 }
 
 func ValueToConfigValue() mapstructure.DecodeHookFunc {
-	return func(f reflect.Kind, t reflect.Kind, data interface{}) (interface{}, error) {
+	return func(f reflect.Value, t reflect.Value) (interface{}, error) {
+		data := f.Interface()
 
-		if t != reflect.Struct {
+		if t.Kind() != reflect.Struct {
 			return data, nil
 		}
 
-		switch f {
+		switch f.Kind() {
 		case reflect.Int:
 			raw := int64(data.(int))
-			return IntConfig{Value: raw}, nil
+			to := t.Interface().(IntConfig)
+			to.Value = raw
+			return to, nil
 		case reflect.Int64:
 			raw := data.(int64)
-			return IntConfig{Value: raw}, nil
+			to := t.Interface().(IntConfig)
+			to.Value = raw
+			return to, nil
 		case reflect.String:
 			raw := data.(string)
-			return StringConfig{Value: raw}, nil
+			to := t.Interface().(StringConfig)
+			to.Value = raw
+			return to, nil
 		case reflect.Bool:
 			raw := data.(bool)
-			return BoolConfig{Value: raw}, nil
+			to := t.Interface().(BoolConfig)
+			to.Value = raw
+			return to, nil
 		}
 
 		return data, nil
@@ -278,24 +288,31 @@ func loadRemoteConfigs(config *Config) error {
 func loadCommandLineOverrides(config *Config) error {
 	flag.Parse()
 	if *profile != config.Profile.Default {
+		log.Debug().Str("profile", *profile).Str("config.Profile", config.Profile.Value).Str("config.Profile.Default", config.Profile.Default).Msg("overriding profile")
 		config.Profile.Value = *profile
 	}
 	if *port != config.Port.Default {
+		log.Debug().Str("port", *port).Str("config.port", config.Port.Value).Msg("overriding port")
 		config.Port.Value = *port
 	}
 	if *configSource != config.Config.Source.Default {
+		log.Debug().Str("configSource", *configSource).Str("config.Config.Source", config.Config.Source.Value).Msg("overriding config source")
 		config.Config.Source.Value = *configSource
 	}
 	if *configUrl != config.Config.Spring.Url.Default {
+		log.Debug().Str("configUrl", *profile).Str("config.Config.Spring.Url", config.Config.Spring.Url.Value).Msg("overriding config url")
 		config.Config.Spring.Url.Value = *configUrl
 	}
 	if *configBranch != config.Config.Spring.Branch.Default {
+		log.Debug().Str("configUrl", *configBranch).Str("config.Config.Spring.Branch", config.Config.Spring.Branch.Value).Msg("overriding config branch")
 		config.Config.Spring.Branch.Value = *configBranch
 	}
 	if *configUser != config.Config.Spring.User.Default {
+		log.Debug().Str("configUser", *configBranch).Str("config.Config.Spring.User", config.Config.Spring.User.Value).Msg("overriding config user")
 		config.Config.Spring.User.Value = *configUser
 	}
 	if *configPass != config.Config.Spring.Pass.Default {
+		log.Debug().Msg("overriding password")
 		config.Config.Spring.Pass.Value = *configPass
 	}
 	return nil

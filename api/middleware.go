@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -12,6 +13,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/rs/zerolog/log"
+	"github.com/sksmith/go-micro-example/core"
 	"github.com/sksmith/go-micro-example/core/user"
 )
 
@@ -70,7 +72,12 @@ func Authenticate(ua UserAccess) func(http.Handler) http.Handler {
 
 			u, err := ua.Login(r.Context(), username, password)
 			if err != nil {
-				authErr(w)
+				if errors.Is(err, core.ErrNotFound) {
+					authErr(w)
+				} else {
+					log.Error().Err(err).Str("username", username).Msg("error acquiring user")
+					Render(w, r, ErrInternalServer)
+				}
 				return
 			}
 

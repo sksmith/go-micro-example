@@ -23,8 +23,8 @@ type InventoryService interface {
 	GetAllProductInventory(ctx context.Context, limit, offset int) ([]inventory.ProductInventory, error)
 	GetProductInventory(ctx context.Context, sku string) (inventory.ProductInventory, error)
 
-	SubscribeInventory(ch chan<- inventory.ProductInventory) (id inventory.InventorySubscriptionID)
-	UnsubscribeInventory(id inventory.InventorySubscriptionID)
+	SubscribeInventory(ch chan<- inventory.ProductInventory) (id inventory.InventorySubID)
+	UnsubscribeInventory(id inventory.InventorySubID)
 }
 
 type InventoryApi struct {

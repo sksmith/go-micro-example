@@ -8,6 +8,9 @@ import (
 )
 
 func rollback(ctx context.Context, tx core.Transaction, err error) {
+	if tx == nil {
+		return
+	}
 	e := tx.Rollback(ctx)
 	if e != nil {
 		log.Warn().Err(err).Msg("failed to rollback")
