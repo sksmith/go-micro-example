@@ -1,8 +1,10 @@
 package config
 
 import (
+	"errors"
 	"flag"
 	"reflect"
+	"strconv"
 	"time"
 
 	"github.com/mitchellh/mapstructure"
@@ -47,6 +49,12 @@ type IntConfig struct {
 	Value       int64  `json:"value"   yaml:"value"`
 	Default     int64  `json:"default" yaml:"default"`
 	Description string `json:"description" yaml:"description"`
+}
+
+type FloatConfig struct {
+	Value       float64 `json:"value"   yaml:"value"`
+	Default     float64 `json:"default" yaml:"default"`
+	Description string  `json:"description" yaml:"description"`
 }
 
 type Config struct {
@@ -111,7 +119,6 @@ type QueueConfig struct {
 	Port        StringConfig           `json:"port"        yaml:"port"`
 	User        StringConfig           `json:"user"        yaml:"user"`
 	Pass        StringConfig           `json:"pass"        yaml:"pass"`
-	Mock        BoolConfig             `json:"mock"        yaml:"mock"`
 	Inventory   InventoryQueueConfig   `json:"inventory"   yaml:"inventory"`
 	Reservation ReservationQueueConfig `json:"reservation" yaml:"reservation"`
 	Product     ProductQueueConfig     `json:"product"     yaml:"product"`
@@ -247,37 +254,148 @@ func loadLocalConfigs(filename string, config *Config) error {
 
 func ValueToConfigValue() mapstructure.DecodeHookFunc {
 	return func(f reflect.Value, t reflect.Value) (interface{}, error) {
-		data := f.Interface()
 
 		if t.Kind() != reflect.Struct {
-			return data, nil
+			return f.Interface(), nil
 		}
 
-		switch f.Kind() {
-		case reflect.Int:
-			raw := int64(data.(int))
-			to := t.Interface().(IntConfig)
-			to.Value = raw
-			return to, nil
-		case reflect.Int64:
-			raw := data.(int64)
-			to := t.Interface().(IntConfig)
-			to.Value = raw
-			return to, nil
-		case reflect.String:
-			raw := data.(string)
-			to := t.Interface().(StringConfig)
-			to.Value = raw
-			return to, nil
-		case reflect.Bool:
-			raw := data.(bool)
-			to := t.Interface().(BoolConfig)
-			to.Value = raw
-			return to, nil
+		to := t.Interface()
+		switch t := to.(type) {
+		case IntConfig:
+			v, err := getInt(f)
+			if err != nil {
+				return nil, err
+			}
+			t.Value = v
+			return t, nil
+		case StringConfig:
+			v, err := getString(f)
+			if err != nil {
+				return nil, err
+			}
+			t.Value = v
+			return t, nil
+		case BoolConfig:
+			v, err := getBool(f)
+			if err != nil {
+				return nil, err
+			}
+			t.Value = v
+			return t, nil
+		case FloatConfig:
+			v, err := getFloat(f)
+			if err != nil {
+				return nil, err
+			}
+			t.Value = v
+			return t, nil
 		}
 
-		return data, nil
+		return f.Interface(), nil
 	}
+}
+
+func getString(f reflect.Value) (string, error) {
+	data := f.Interface()
+
+	switch f.Kind() {
+	case reflect.Int64:
+		raw := data.(int64)
+		return strconv.FormatInt(raw, 10), nil
+	case reflect.Int:
+		raw := data.(int)
+		return strconv.Itoa(raw), nil
+	case reflect.String:
+		raw := data.(string)
+		return raw, nil
+	case reflect.Bool:
+		raw := data.(bool)
+		return strconv.FormatBool(raw), nil
+	case reflect.Float64:
+		raw := data.(float64)
+		return strconv.FormatFloat(raw, 'f', 3, 64), nil
+	}
+
+	return "", errors.New("unrecognized type")
+}
+
+func getBool(f reflect.Value) (bool, error) {
+	data := f.Interface()
+
+	switch f.Kind() {
+	case reflect.Int64:
+		raw := data.(int64)
+		return raw > 0, nil
+	case reflect.Int:
+		raw := data.(int)
+		return raw > 0, nil
+	case reflect.String:
+		raw := data.(string)
+		return raw == "true", nil
+	case reflect.Bool:
+		return data.(bool), nil
+	case reflect.Float64:
+		raw := data.(float64)
+		return raw > 0, nil
+	}
+
+	return false, errors.New("unrecognized type")
+}
+
+func getFloat(f reflect.Value) (float64, error) {
+	data := f.Interface()
+
+	switch f.Kind() {
+	case reflect.Int64:
+		raw := data.(int64)
+		return float64(raw), nil
+	case reflect.Int:
+		raw := data.(int)
+		return float64(raw), nil
+	case reflect.String:
+		raw := data.(string)
+		return strconv.ParseFloat(raw, 64)
+	case reflect.Bool:
+		raw := data.(bool)
+		if raw {
+			return 1, nil
+		} else {
+			return 0, nil
+		}
+	case reflect.Float64:
+		raw := data.(float64)
+		return raw, nil
+	}
+
+	return -1, errors.New("unrecognized type")
+}
+
+func getInt(f reflect.Value) (int64, error) {
+	data := f.Interface()
+
+	switch f.Kind() {
+	case reflect.Int64:
+		raw := data.(int64)
+		return raw, nil
+	case reflect.Int:
+		raw := data.(int)
+		return int64(raw), nil
+	case reflect.String:
+		raw := data.(string)
+		return strconv.ParseInt(raw, 10, 64)
+	case reflect.Bool:
+		raw := data.(bool)
+		if raw {
+			return 1, nil
+		} else {
+			return 0, nil
+		}
+	case reflect.Float64:
+		raw := data.(float64)
+		return int64(raw), nil
+	}
+
+	return -1, errors.New("unrecognized type")
 }
 
 func loadRemoteConfigs(config *Config) error {

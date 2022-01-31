@@ -131,12 +131,12 @@ func createUserReq(username, password string, isAdmin bool) api.CreateUserReques
 
 func setupUserTestServer() (*httptest.Server, *user.MockUserService) {
 	svc := user.NewMockUserService()
-	usrApi := api.NewUserApi(&svc)
+	usrApi := api.NewUserApi(svc)
 	r := chi.NewRouter()
-	r.With(api.Authenticate(&svc)).Route("/", func(r chi.Router) {
+	r.With(api.Authenticate(svc)).Route("/", func(r chi.Router) {
 		usrApi.ConfigureRouter(r)
 	})
 	ts := httptest.NewServer(r)
 
-	return ts, &svc
+	return ts, svc
 }

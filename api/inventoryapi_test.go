@@ -42,7 +42,7 @@ func TestInventorySubscribe(t *testing.T) {
 		unsubscribeCalled = true
 	}
 
-	invApi := api.NewInventoryApi(&mockSvc)
+	invApi := api.NewInventoryApi(mockSvc)
 	r := chi.NewRouter()
 	invApi.ConfigureRouter(r)
 	ts := httptest.NewServer(r)
@@ -76,12 +76,12 @@ func TestInventorySubscribe(t *testing.T) {
 
 func setupInventoryTestServer() (*httptest.Server, *inventory.MockInventoryService) {
 	mockSvc := inventory.NewMockInventoryService()
-	invApi := api.NewInventoryApi(&mockSvc)
+	invApi := api.NewInventoryApi(mockSvc)
 	r := chi.NewRouter()
 	invApi.ConfigureRouter(r)
 	ts := httptest.NewServer(r)
 
-	return ts, &mockSvc
+	return ts, mockSvc
 }
 
 func TestInventoryList(t *testing.T) {

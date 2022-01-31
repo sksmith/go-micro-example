@@ -41,7 +41,7 @@ func TestReservationSubscribe(t *testing.T) {
 		unsubscribeCalled = true
 	}
 
-	resApi := api.NewReservationApi(&mockSvc)
+	resApi := api.NewReservationApi(mockSvc)
 	r := chi.NewRouter()
 	resApi.ConfigureRouter(r)
 	ts := httptest.NewServer(r)
@@ -355,12 +355,12 @@ func createReservationRequest(requestID, requester, sku string, quantity int64) 
 
 func setupReservationTestServer() (*httptest.Server, *inventory.MockReservationService) {
 	mockSvc := inventory.NewMockReservationService()
-	invApi := api.NewReservationApi(&mockSvc)
+	invApi := api.NewReservationApi(mockSvc)
 	r := chi.NewRouter()
 	invApi.ConfigureRouter(r)
 	ts := httptest.NewServer(r)
 
-	return ts, &mockSvc
+	return ts, mockSvc
 }
 
 var testReservations = []inventory.Reservation{

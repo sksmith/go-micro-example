@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/go-chi/chi"
@@ -15,7 +16,13 @@ import (
 	"github.com/sksmith/go-micro-example/config"
 	"github.com/sksmith/go-micro-example/core/inventory"
 	"github.com/sksmith/go-micro-example/core/user"
+	"github.com/sksmith/go-micro-example/test"
 )
+
+func TestMain(m *testing.M) {
+	test.ConfigLogging()
+	os.Exit(m.Run())
+}
 
 func TestCorsConfig(t *testing.T) {
 	tests := []struct {
@@ -63,10 +70,10 @@ func TestCorsConfig(t *testing.T) {
 func getRouter() chi.Router {
 	cfg := config.LoadDefaults()
 	invSvc, resSvc, usrSvc := getMocks()
-	return api.ConfigureRouter(cfg, &invSvc, &resSvc, &usrSvc)
+	return api.ConfigureRouter(cfg, invSvc, resSvc, usrSvc)
 }
 
-func getMocks() (inventory.MockInventoryService, inventory.MockReservationService, user.MockUserService) {
+func getMocks() (*inventory.MockInventoryService, *inventory.MockReservationService, *user.MockUserService) {
 	return inventory.NewMockInventoryService(), inventory.NewMockReservationService(), user.NewMockUserService()
 }
 

@@ -14,11 +14,11 @@ type MockInventoryService struct {
 	GetProductInventoryFunc    func(ctx context.Context, sku string) (ProductInventory, error)
 	SubscribeInventoryFunc     func(ch chan<- ProductInventory) (id InventorySubID)
 	UnsubscribeInventoryFunc   func(id InventorySubID)
-	test.CallWatcher
+	*test.CallWatcher
 }
 
-func NewMockInventoryService() MockInventoryService {
-	return MockInventoryService{
+func NewMockInventoryService() *MockInventoryService {
+	return &MockInventoryService{
 		ProduceFunc:       func(ctx context.Context, product Product, event ProductionRequest) error { return nil },
 		CreateProductFunc: func(ctx context.Context, product Product) error { return nil },
 		GetProductFunc:    func(ctx context.Context, sku string) (Product, error) { return Product{}, nil },
@@ -28,6 +28,7 @@ func NewMockInventoryService() MockInventoryService {
 		GetProductInventoryFunc:  func(ctx context.Context, sku string) (ProductInventory, error) { return ProductInventory{}, nil },
 		SubscribeInventoryFunc:   func(ch chan<- ProductInventory) (id InventorySubID) { return "" },
 		UnsubscribeInventoryFunc: func(id InventorySubID) {},
+		CallWatcher:              test.NewCallWatcher(),
 	}
 }
 
@@ -74,10 +75,11 @@ type MockReservationService struct {
 
 	SubscribeReservationsFunc   func(ch chan<- Reservation) (id ReservationsSubID)
 	UnsubscribeReservationsFunc func(id ReservationsSubID)
+	*test.CallWatcher
 }
 
-func NewMockReservationService() MockReservationService {
-	return MockReservationService{
+func NewMockReservationService() *MockReservationService {
+	return &MockReservationService{
 		ReserveFunc: func(ctx context.Context, rr ReservationRequest) (Reservation, error) { return Reservation{}, nil },
 		GetReservationsFunc: func(ctx context.Context, options GetReservationsOptions, limit, offset int) ([]Reservation, error) {
 			return []Reservation{}, nil
@@ -85,25 +87,31 @@ func NewMockReservationService() MockReservationService {
 		GetReservationFunc:          func(ctx context.Context, ID uint64) (Reservation, error) { return Reservation{}, nil },
 		SubscribeReservationsFunc:   func(ch chan<- Reservation) (id ReservationsSubID) { return "" },
 		UnsubscribeReservationsFunc: func(id ReservationsSubID) {},
+		CallWatcher:                 test.NewCallWatcher(),
 	}
 }
 
 func (r *MockReservationService) Reserve(ctx context.Context, rr ReservationRequest) (Reservation, error) {
+	r.CallWatcher.AddCall(ctx, rr)
 	return r.ReserveFunc(ctx, rr)
 }
 
 func (r *MockReservationService) GetReservations(ctx context.Context, options GetReservationsOptions, limit, offset int) ([]Reservation, error) {
+	r.CallWatcher.AddCall(ctx, options, limit, offset)
 	return r.GetReservationsFunc(ctx, options, limit, offset)
 }
 
 func (r *MockReservationService) GetReservation(ctx context.Context, ID uint64) (Reservation, error) {
+	r.CallWatcher.AddCall(ctx, ID)
 	return r.GetReservationFunc(ctx, ID)
 }
 
 func (r *MockReservationService) SubscribeReservations(ch chan<- Reservation) (id ReservationsSubID) {
+	r.CallWatcher.AddCall(ch)
 	return r.SubscribeReservationsFunc(ch)
 }
 
 func (r *MockReservationService) UnsubscribeReservations(id ReservationsSubID) {
+	r.CallWatcher.AddCall(id)
 	r.UnsubscribeReservationsFunc(id)
 }

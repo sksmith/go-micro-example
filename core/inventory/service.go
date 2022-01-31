@@ -111,14 +111,14 @@ func (s *service) Produce(ctx context.Context, product Product, pr ProductionReq
 	}
 
 	tx, err := s.repo.BeginTransaction(ctx)
+	if err != nil {
+		return errors.WithStack(err)
+	}
 	defer func() {
 		if err != nil {
 			rollback(ctx, tx, err)
 		}
 	}()
-	if err != nil {
-		return errors.WithStack(err)
-	}
 
 	if err = s.repo.SaveProductionEvent(ctx, &event, core.UpdateOptions{Tx: tx}); err != nil {
 		return errors.WithMessage(err, "failed to save production event")

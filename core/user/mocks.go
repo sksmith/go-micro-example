@@ -9,8 +9,8 @@ type MockUserService struct {
 	LoginFunc  func(ctx context.Context, username, password string) (User, error)
 }
 
-func NewMockUserService() MockUserService {
-	return MockUserService{
+func NewMockUserService() *MockUserService {
+	return &MockUserService{
 		CreateFunc: func(ctx context.Context, user CreateUserRequest) (User, error) { return User{}, nil },
 		GetFunc:    func(ctx context.Context, username string) (User, error) { return User{}, nil },
 		DeleteFunc: func(ctx context.Context, username string) error { return nil },

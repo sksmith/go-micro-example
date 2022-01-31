@@ -1,10 +1,17 @@
 package config_test
 
 import (
+	"os"
 	"testing"
 
 	"github.com/sksmith/go-micro-example/config"
+	"github.com/sksmith/go-micro-example/test"
 )
+
+func TestMain(m *testing.M) {
+	test.ConfigLogging()
+	os.Exit(m.Run())
+}
 
 func TestLoadDefaults(t *testing.T) {
 	cfg := config.LoadDefaults()
