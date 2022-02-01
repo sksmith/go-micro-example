@@ -22,5 +22,6 @@ WORKDIR /app
 
 COPY --from=builder /app/go-micro-example /usr/bin/
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --from=builder /app/config.yml /app
 
 ENTRYPOINT ["go-micro-example"]

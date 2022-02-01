@@ -439,9 +439,9 @@ func loadCommandLineOverrides(config *Config) error {
 func setupDefaults(config *Config) {
 	config.AppName = StringConfig{Value: AppName, Default: AppName, Description: "Name of the application in a human readable format. Example: Go Micro Example"}
 
-	config.AppVersion = StringConfig{Value: "", Default: "", Description: "Semantic version of the application. Example: v1.2.3"}
-	config.Sha1Version = StringConfig{Value: "", Default: "", Description: "Git sha1 hash of the application version."}
-	config.BuildTime = StringConfig{Value: "", Default: "", Description: "When this version of the application was compiled."}
+	config.AppVersion = StringConfig{Value: AppVersion, Default: "", Description: "Semantic version of the application. Example: v1.2.3"}
+	config.Sha1Version = StringConfig{Value: Sha1Version, Default: "", Description: "Git sha1 hash of the application version."}
+	config.BuildTime = StringConfig{Value: BuildTime, Default: "", Description: "When this version of the application was compiled."}
 	config.Profile = StringConfig{Value: "local", Default: "local", Description: "Running profile of the application, can assist with sensible defaults or change behavior. Examples: local, dev, prod"}
 	config.Revision = StringConfig{Value: Revision, Default: Revision, Description: "A hard coded revision handy for quickly determining if local changes are running. Examples: 1, Two, 9999"}
 	config.Port = StringConfig{Value: "8080", Default: "8080", Description: "Port that the application will bind to on startup. Examples: 8080, 3000"}

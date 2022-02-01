@@ -128,6 +128,7 @@ func Logging(next http.Handler) http.Handler {
 
 	return http.HandlerFunc(fn)
 }
+
 func Metrics(next http.Handler) http.Handler {
 	urlHitCount := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
