@@ -338,6 +338,15 @@ func (s *service) FillReserves(ctx context.Context, product Product) error {
 	}
 
 	for _, reservation := range openReservations {
+		subtx, err := tx.Begin(ctx)
+		if err != nil {
+			return err
+		}
+		defer func() {
+			if err != nil {
+				rollback(ctx, subtx, err)
+			}
+		}()
 		reservation := reservation
 
 		log.Trace().
@@ -385,12 +394,16 @@ func (s *service) FillReserves(ctx context.Context, product Product) error {
 			return errors.WithStack(err)
 		}
 
+		if err = subtx.Commit(ctx); err != nil {
+			return errors.WithStack(err)
+		}
+
 		err = s.publishInventory(ctx, productInventory)
 		if err != nil {
 			return errors.WithMessage(err, "failed to publish inventory")
 		}
 
-		err := s.publishReservation(ctx, reservation)
+		err = s.publishReservation(ctx, reservation)
 		if err != nil {
 			return err
 		}

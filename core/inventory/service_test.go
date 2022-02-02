@@ -5,7 +5,9 @@ import (
 	"os"
 	"reflect"
 	"testing"
+	"time"
 
+	"github.com/jackc/pgx/v4"
 	"github.com/pkg/errors"
 	"github.com/sksmith/go-micro-example/core"
 	"github.com/sksmith/go-micro-example/core/inventory"
@@ -729,10 +731,381 @@ func TestGetProductInventory(t *testing.T) {
 	}
 }
 
+func TestGetReservation(t *testing.T) {
+	reservations := getReservations()
+	tests := []struct {
+		name string
+		ID   uint64
+
+		getReservationFunc func(ctx context.Context, ID uint64, options ...core.QueryOptions) (inventory.Reservation, error)
+
+		wantReservation inventory.Reservation
+		wantErr         bool
+	}{
+		{
+			name:            "reservation is returned",
+			wantReservation: reservations[0],
+		},
+		{
+			name: "reservation is returned",
+			getReservationFunc: func(ctx context.Context, ID uint64, options ...core.QueryOptions) (inventory.Reservation, error) {
+				return inventory.Reservation{}, errors.New("some unexpected error")
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, test := range tests {
+		mockRepo := invrepo.NewMockRepo()
+		if test.getReservationFunc != nil {
+			mockRepo.GetReservationFunc = test.getReservationFunc
+		} else {
+			mockRepo.GetReservationFunc = func(ctx context.Context, ID uint64, options ...core.QueryOptions) (inventory.Reservation, error) {
+				return reservations[0], nil
+			}
+		}
+		mockQueue := queue.NewMockQueue()
+
+		service := inventory.NewService(mockRepo, mockQueue)
+
+		t.Run(test.name, func(t *testing.T) {
+			res, err := service.GetReservation(context.Background(), 0)
+
+			if test.wantErr && err == nil {
+				t.Errorf("expected error, got none")
+			} else if !test.wantErr && err != nil {
+				t.Errorf("did not want error, got=%v", err)
+			}
+
+			if !reflect.DeepEqual(res, test.wantReservation) {
+				t.Errorf("unexpected reservation got=%v want=%v", res, test.wantReservation)
+			}
+		})
+	}
+}
+
+func TestGetReservations(t *testing.T) {
+	reservations := getReservations()
+	tests := []struct {
+		name    string
+		options inventory.GetReservationsOptions
+		limit   int
+		offset  int
+
+		getReservationsFunc func(ctx context.Context, resOptions inventory.GetReservationsOptions, limit int, offset int, options ...core.QueryOptions) ([]inventory.Reservation, error)
+
+		wantReservations []inventory.Reservation
+		wantErr          bool
+	}{
+		{
+			name:             "reservations are returned",
+			wantReservations: reservations,
+		},
+		{
+			name: "reservation is returned",
+			getReservationsFunc: func(ctx context.Context, resOptions inventory.GetReservationsOptions, limit int, offset int, options ...core.QueryOptions) ([]inventory.Reservation, error) {
+				return []inventory.Reservation{}, errors.New("some unexpected error")
+			},
+			wantReservations: []inventory.Reservation{},
+			wantErr:          true,
+		},
+	}
+
+	for _, test := range tests {
+		mockRepo := invrepo.NewMockRepo()
+		if test.getReservationsFunc != nil {
+			mockRepo.GetReservationsFunc = test.getReservationsFunc
+		} else {
+			mockRepo.GetReservationsFunc = func(ctx context.Context, resOptions inventory.GetReservationsOptions, limit int, offset int, options ...core.QueryOptions) ([]inventory.Reservation, error) {
+				return reservations, nil
+			}
+		}
+		mockQueue := queue.NewMockQueue()
+
+		service := inventory.NewService(mockRepo, mockQueue)
+
+		t.Run(test.name, func(t *testing.T) {
+			res, err := service.GetReservations(context.Background(), test.options, test.limit, test.offset)
+
+			if test.wantErr && err == nil {
+				t.Errorf("expected error, got none")
+			} else if !test.wantErr && err != nil {
+				t.Errorf("did not want error, got=%v", err)
+			}
+
+			if !reflect.DeepEqual(res, test.wantReservations) {
+				t.Errorf("unexpected reservations got=%v want=%v", res, test.wantReservations)
+			}
+		})
+	}
+}
+
+type reservationUpdate struct {
+	ID       uint64
+	State    inventory.ReserveState
+	Quantity int64
+}
+
+func TestFillReserves(t *testing.T) {
+	product := inventory.Product{Name: "name", Sku: "sku", Upc: "upc"}
+	tests := []struct {
+		name                    string
+		product                 inventory.Product
+		saveProductInventoryErr error
+		updateReservationErr    error
+
+		getReservationsFunc      func(ctx context.Context, resOptions inventory.GetReservationsOptions, limit int, offset int, options ...core.QueryOptions) ([]inventory.Reservation, error)
+		getProductInventoryFunc  func(ctx context.Context, sku string, options ...core.QueryOptions) (pi inventory.ProductInventory, err error)
+		saveProductInventoryFunc func(ctx context.Context, productInventory inventory.ProductInventory, options ...core.UpdateOptions) error
+		updateReservationFunc    func(ctx context.Context, ID uint64, state inventory.ReserveState, qty int64, options ...core.UpdateOptions) error
+
+		beginTransactionFunc func(ctx context.Context) (core.Transaction, error)
+		commitFunc           func(ctx context.Context) error
+
+		wantRepoCallCnt      map[string]int
+		wantQueueCallCnt     map[string]int
+		wantTxCallCnt        map[string]int
+		wantProductInventory inventory.ProductInventory
+		wantResUpdates       []reservationUpdate
+		wantErr              bool
+	}{
+		{
+			name:    "enough inventory to close reservation",
+			product: product,
+
+			getReservationsFunc: func(ctx context.Context, resOptions inventory.GetReservationsOptions, limit, offset int, options ...core.QueryOptions) ([]inventory.Reservation, error) {
+				return []inventory.Reservation{
+					{ID: 0, State: inventory.Open, ReservedQuantity: 0, RequestedQuantity: 10},
+				}, nil
+			},
+			getProductInventoryFunc: func(ctx context.Context, sku string, options ...core.QueryOptions) (pi inventory.ProductInventory, err error) {
+				return inventory.ProductInventory{Product: product, Available: 10}, nil
+			},
+
+			wantProductInventory: inventory.ProductInventory{Product: product, Available: 0},
+			wantResUpdates: []reservationUpdate{
+				{ID: 0, State: inventory.Closed, Quantity: 10},
+			},
+
+			wantQueueCallCnt: map[string]int{"PublishInventory": 1, "PublishReservation": 1},
+			wantTxCallCnt:    map[string]int{"Commit": 1, "Rollback": 0},
+		},
+		{
+			name:    "not enough inventory to close reservation",
+			product: product,
+
+			getReservationsFunc: func(ctx context.Context, resOptions inventory.GetReservationsOptions, limit, offset int, options ...core.QueryOptions) ([]inventory.Reservation, error) {
+				return []inventory.Reservation{
+					{ID: 0, State: inventory.Open, ReservedQuantity: 0, RequestedQuantity: 10},
+				}, nil
+			},
+			getProductInventoryFunc: func(ctx context.Context, sku string, options ...core.QueryOptions) (pi inventory.ProductInventory, err error) {
+				return inventory.ProductInventory{Product: product, Available: 5}, nil
+			},
+
+			wantProductInventory: inventory.ProductInventory{Product: product, Available: 0},
+			wantResUpdates: []reservationUpdate{
+				{ID: 0, State: inventory.Open, Quantity: 5},
+			},
+
+			wantQueueCallCnt: map[string]int{"PublishInventory": 1, "PublishReservation": 1},
+			wantTxCallCnt:    map[string]int{"Commit": 1, "Rollback": 0},
+		},
+		{
+			name:    "enough inventory to close multiple reservations",
+			product: product,
+
+			getReservationsFunc: func(ctx context.Context, resOptions inventory.GetReservationsOptions, limit, offset int, options ...core.QueryOptions) ([]inventory.Reservation, error) {
+				return []inventory.Reservation{
+					{ID: 0, State: inventory.Open, ReservedQuantity: 0, RequestedQuantity: 3},
+					{ID: 1, State: inventory.Open, ReservedQuantity: 0, RequestedQuantity: 3},
+					{ID: 2, State: inventory.Open, ReservedQuantity: 0, RequestedQuantity: 3},
+				}, nil
+			},
+			getProductInventoryFunc: func(ctx context.Context, sku string, options ...core.QueryOptions) (pi inventory.ProductInventory, err error) {
+				return inventory.ProductInventory{Product: product, Available: 10}, nil
+			},
+
+			wantProductInventory: inventory.ProductInventory{Product: product, Available: 1},
+			wantResUpdates: []reservationUpdate{
+				{ID: 0, State: inventory.Closed, Quantity: 3},
+				{ID: 1, State: inventory.Closed, Quantity: 3},
+				{ID: 2, State: inventory.Closed, Quantity: 3},
+			},
+
+			wantQueueCallCnt: map[string]int{"PublishInventory": 3, "PublishReservation": 3},
+			wantTxCallCnt:    map[string]int{"Commit": 3, "Rollback": 0},
+		},
+	}
+
+	for _, test := range tests {
+		mockTx := db.NewMockTransaction()
+		if test.commitFunc != nil {
+			mockTx.CommitFunc = test.commitFunc
+		}
+		mockTx.BeginFunc = func(ctx context.Context) (pgx.Tx, error) {
+			return mockTx, nil
+		}
+
+		mockRepo := invrepo.NewMockRepo()
+		if test.beginTransactionFunc != nil {
+			mockRepo.BeginTransactionFunc = test.beginTransactionFunc
+		} else {
+			mockRepo.BeginTransactionFunc = func(ctx context.Context) (core.Transaction, error) {
+				return mockTx, nil
+			}
+		}
+		if test.getReservationsFunc != nil {
+			mockRepo.GetReservationsFunc = test.getReservationsFunc
+		}
+		if test.getProductInventoryFunc != nil {
+			mockRepo.GetProductInventoryFunc = test.getProductInventoryFunc
+		}
+		var gotProductInventory inventory.ProductInventory
+		mockRepo.SaveProductInventoryFunc = func(ctx context.Context, productInventory inventory.ProductInventory, options ...core.UpdateOptions) error {
+			gotProductInventory = productInventory
+			return test.saveProductInventoryErr
+		}
+
+		var gotResUpdates []reservationUpdate
+		mockRepo.UpdateReservationFunc = func(ctx context.Context, ID uint64, state inventory.ReserveState, qty int64, options ...core.UpdateOptions) error {
+			gotResUpdates = append(gotResUpdates, reservationUpdate{ID: ID, State: state, Quantity: qty})
+			return test.updateReservationErr
+		}
+
+		mockQueue := queue.NewMockQueue()
+
+		service := inventory.NewService(mockRepo, mockQueue)
+
+		t.Run(test.name, func(t *testing.T) {
+			err := service.FillReserves(context.Background(), test.product)
+
+			if test.wantErr && err == nil {
+				t.Errorf("expected error, got none")
+			} else if !test.wantErr && err != nil {
+				t.Errorf("did not want error, got=%v", err)
+			}
+
+			if !reflect.DeepEqual(gotProductInventory, test.wantProductInventory) {
+				t.Errorf("unexpected product inventory\n got=%+v\nwant=%+v", gotProductInventory, test.wantProductInventory)
+			}
+
+			if !reflect.DeepEqual(gotResUpdates, test.wantResUpdates) {
+				t.Errorf("unexpected reservation updates\n got=%+v\nwant=%+v", gotResUpdates, test.wantResUpdates)
+			}
+
+			for f, c := range test.wantRepoCallCnt {
+				mockRepo.VerifyCount(f, c, t)
+			}
+			for f, c := range test.wantQueueCallCnt {
+				mockQueue.VerifyCount(f, c, t)
+			}
+			for f, c := range test.wantTxCallCnt {
+				mockTx.VerifyCount(f, c, t)
+			}
+		})
+	}
+}
+
+func TestSubscribeInventory(t *testing.T) {
+	mockRepo := invrepo.NewMockRepo()
+	mockQueue := queue.NewMockQueue()
+	service := inventory.NewService(mockRepo, mockQueue)
+
+	mockRepo.GetProductInventoryFunc = func(ctx context.Context, sku string, options ...core.QueryOptions) (inventory.ProductInventory, error) {
+		return getProductInventory()[2], nil
+	}
+
+	ch := make(chan inventory.ProductInventory)
+	id := service.SubscribeInventory(ch)
+
+	go func() {
+		service.Produce(context.Background(), getProductInventory()[2].Product, inventory.ProductionRequest{RequestID: "request1", Quantity: 1})
+	}()
+
+	want := getProductInventory()[2]
+	want.Available++
+
+	select {
+	case got := <-ch:
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("unexpected product got=%v want=%v", got, want)
+		}
+	case <-time.After(10 * time.Millisecond):
+		t.Error("timed out waiting for product inventory from channel")
+	}
+
+	service.UnsubscribeInventory(id)
+
+	select {
+	case _, ok := <-ch:
+		if ok {
+			t.Errorf("channel should be closed")
+		}
+	case <-time.After(10 * time.Millisecond):
+		t.Error("channel should be closed by now")
+	}
+}
+
+func TestSubscribeReservations(t *testing.T) {
+	mockRepo := invrepo.NewMockRepo()
+	mockQueue := queue.NewMockQueue()
+	service := inventory.NewService(mockRepo, mockQueue)
+
+	mockRepo.GetReservationsFunc = func(ctx context.Context, resOptions inventory.GetReservationsOptions, limit int, offset int, options ...core.QueryOptions) ([]inventory.Reservation, error) {
+		return []inventory.Reservation{getReservations()[3]}, nil
+	}
+	mockRepo.GetProductInventoryFunc = func(ctx context.Context, sku string, options ...core.QueryOptions) (pi inventory.ProductInventory, err error) {
+		pi = getProductInventory()[2]
+		pi.Available += 10
+		return pi, nil
+	}
+
+	ch := make(chan inventory.Reservation)
+	id := service.SubscribeReservations(ch)
+
+	go func() {
+		service.Produce(context.Background(), getProductInventory()[2].Product, inventory.ProductionRequest{RequestID: "request1", Quantity: 10})
+	}()
+
+	want := getReservations()[3]
+	want.State = inventory.Closed
+	want.ReservedQuantity = want.RequestedQuantity
+
+	select {
+	case got := <-ch:
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("unexpected reservation\n got=%+v\nwant=%+v", got, want)
+		}
+	case <-time.After(10 * time.Millisecond):
+		t.Error("timed out waiting for reservation from channel")
+	}
+
+	service.UnsubscribeReservations(id)
+
+	select {
+	case _, ok := <-ch:
+		if ok {
+			t.Errorf("channel should be closed")
+		}
+	case <-time.After(10 * time.Millisecond):
+		t.Error("channel should be closed by now")
+	}
+}
+
 func getProductInventory() []inventory.ProductInventory {
 	return []inventory.ProductInventory{
 		{Product: inventory.Product{Sku: "sku1", Upc: "upc1", Name: "name1"}, Available: 1},
 		{Product: inventory.Product{Sku: "sku2", Upc: "upc2", Name: "name2"}, Available: 10},
 		{Product: inventory.Product{Sku: "sku3", Upc: "upc3", Name: "name3"}, Available: 0},
+	}
+}
+
+func getReservations() []inventory.Reservation {
+	return []inventory.Reservation{
+		{ID: 0, RequestID: "request1", Requester: "requester1", Sku: "sku1", State: inventory.Closed, ReservedQuantity: 10, RequestedQuantity: 10},
+		{ID: 1, RequestID: "request2", Requester: "requester2", Sku: "sku1", State: inventory.Closed, ReservedQuantity: 3, RequestedQuantity: 3},
+		{ID: 2, RequestID: "request3", Requester: "requester1", Sku: "sku2", State: inventory.Closed, ReservedQuantity: 10, RequestedQuantity: 10},
+		{ID: 3, RequestID: "request4", Requester: "requester1", Sku: "sku3", State: inventory.Open, ReservedQuantity: 2, RequestedQuantity: 10},
 	}
 }

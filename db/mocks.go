@@ -72,3 +72,64 @@ func (t *MockTransaction) Rollback(ctx context.Context) error {
 	t.AddCall(ctx)
 	return t.RollbackFunc(ctx)
 }
+
+type MockPgxTx struct {
+	*test.CallWatcher
+}
+
+func (m *MockPgxTx) Begin(ctx context.Context) (pgx.Tx, error) {
+	m.AddCall(ctx)
+	return nil, nil
+}
+
+func (m *MockPgxTx) BeginFunc(ctx context.Context, f func(pgx.Tx) error) (err error) {
+	m.AddCall(ctx, f)
+	return nil
+}
+
+func (m *MockPgxTx) Commit(ctx context.Context) error {
+	m.AddCall(ctx)
+	return nil
+}
+
+func (m *MockPgxTx) Rollback(ctx context.Context) error {
+	m.AddCall(ctx)
+	return nil
+}
+
+func (m *MockPgxTx) CopyFrom(ctx context.Context, tableName pgx.Identifier, columnNames []string, rowSrc pgx.CopyFromSource) (int64, error) {
+	m.AddCall(ctx, tableName, columnNames, rowSrc)
+	return 0, nil
+}
+
+func (m *MockPgxTx) SendBatch(ctx context.Context, b *pgx.Batch) pgx.BatchResults {
+
+}
+
+func (m *MockPgxTx) LargeObjects() pgx.LargeObjects {
+
+}
+
+func (m *MockPgxTx) Prepare(ctx context.Context, name, sql string) (*pgconn.StatementDescription, error) {
+
+}
+
+func (m *MockPgxTx) Exec(ctx context.Context, sql string, arguments ...interface{}) (commandTag pgconn.CommandTag, err error) {
+
+}
+
+func (m *MockPgxTx) Query(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error) {
+
+}
+
+func (m *MockPgxTx) QueryRow(ctx context.Context, sql string, args ...interface{}) pgx.Row {
+
+}
+
+func (m *MockPgxTx) QueryFunc(ctx context.Context, sql string, args []interface{}, scans []interface{}, f func(pgx.QueryFuncRow) error) (pgconn.CommandTag, error) {
+
+}
+
+func (m *MockPgxTx) Conn() *pgx.Conn {
+
+}

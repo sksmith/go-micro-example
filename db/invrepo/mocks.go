@@ -124,6 +124,9 @@ func NewMockRepo() *MockRepo {
 		GetReservationByRequestIDFunc: func(ctx context.Context, requestId string, options ...core.QueryOptions) (inventory.Reservation, error) {
 			return inventory.Reservation{}, nil
 		},
+		UpdateReservationFunc: func(ctx context.Context, ID uint64, state inventory.ReserveState, qty int64, options ...core.UpdateOptions) error {
+			return nil
+		},
 		GetProductInventoryFunc: func(ctx context.Context, sku string, options ...core.QueryOptions) (inventory.ProductInventory, error) {
 			return inventory.ProductInventory{}, nil
 		},
