@@ -2,6 +2,7 @@ package inventory_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"reflect"
 	"testing"
@@ -96,17 +97,17 @@ func TestCreateProduct(t *testing.T) {
 			wantErr:         true,
 		},
 		{
-			name:    "unexpected error comitting",
+			name:    "unexpected error beginning transaction",
 			product: inventory.Product{Name: "productname", Sku: "productsku", Upc: "productupc"},
 
 			beginTransactionFunc: func(ctx context.Context) (core.Transaction, error) { return nil, errors.New("some unexpected error") },
 
-			wantRepoCallCnt: map[string]int{"SaveProduct": 1, "SaveProductInventory": 1},
-			wantTxCallCnt:   map[string]int{"Commit": 1, "Rollback": 1},
+			wantRepoCallCnt: map[string]int{"SaveProduct": 0, "SaveProductInventory": 0},
+			wantTxCallCnt:   map[string]int{"Commit": 0, "Rollback": 0},
 			wantErr:         true,
 		},
 		{
-			name:    "unexpected error beginning transaction",
+			name:    "unexpected error comitting",
 			product: inventory.Product{Name: "productname", Sku: "productsku", Upc: "productupc"},
 
 			commitFunc: func(ctx context.Context) error { return errors.New("some unexpected error") },
@@ -859,12 +860,16 @@ func TestFillReserves(t *testing.T) {
 		saveProductInventoryFunc func(ctx context.Context, productInventory inventory.ProductInventory, options ...core.UpdateOptions) error
 		updateReservationFunc    func(ctx context.Context, ID uint64, state inventory.ReserveState, qty int64, options ...core.UpdateOptions) error
 
+		publishInventoryFunc   func(ctx context.Context, pi inventory.ProductInventory) error
+		publishReservationFunc func(ctx context.Context, r inventory.Reservation) error
+
 		beginTransactionFunc func(ctx context.Context) (core.Transaction, error)
 		commitFunc           func(ctx context.Context) error
 
 		wantRepoCallCnt      map[string]int
 		wantQueueCallCnt     map[string]int
 		wantTxCallCnt        map[string]int
+		wantSubTxCallCnt     map[string]int
 		wantProductInventory inventory.ProductInventory
 		wantResUpdates       []reservationUpdate
 		wantErr              bool
@@ -882,12 +887,15 @@ func TestFillReserves(t *testing.T) {
 				return inventory.ProductInventory{Product: product, Available: 10}, nil
 			},
 
-			wantProductInventory: inventory.ProductInventory{Product: product, Available: 0},
+			wantProductInventory: inventory.ProductInventory{
+				Product:   product,
+				Available: 0,
+			},
 			wantResUpdates: []reservationUpdate{
 				{ID: 0, State: inventory.Closed, Quantity: 10},
 			},
-
 			wantQueueCallCnt: map[string]int{"PublishInventory": 1, "PublishReservation": 1},
+			wantSubTxCallCnt: map[string]int{"Commit": 1, "Rollback": 0},
 			wantTxCallCnt:    map[string]int{"Commit": 1, "Rollback": 0},
 		},
 		{
@@ -903,12 +911,16 @@ func TestFillReserves(t *testing.T) {
 				return inventory.ProductInventory{Product: product, Available: 5}, nil
 			},
 
-			wantProductInventory: inventory.ProductInventory{Product: product, Available: 0},
+			wantProductInventory: inventory.ProductInventory{
+				Product:   product,
+				Available: 0,
+			},
 			wantResUpdates: []reservationUpdate{
 				{ID: 0, State: inventory.Open, Quantity: 5},
 			},
 
 			wantQueueCallCnt: map[string]int{"PublishInventory": 1, "PublishReservation": 1},
+			wantSubTxCallCnt: map[string]int{"Commit": 1, "Rollback": 0},
 			wantTxCallCnt:    map[string]int{"Commit": 1, "Rollback": 0},
 		},
 		{
@@ -926,7 +938,10 @@ func TestFillReserves(t *testing.T) {
 				return inventory.ProductInventory{Product: product, Available: 10}, nil
 			},
 
-			wantProductInventory: inventory.ProductInventory{Product: product, Available: 1},
+			wantProductInventory: inventory.ProductInventory{
+				Product:   product,
+				Available: 1,
+			},
 			wantResUpdates: []reservationUpdate{
 				{ID: 0, State: inventory.Closed, Quantity: 3},
 				{ID: 1, State: inventory.Closed, Quantity: 3},
@@ -934,17 +949,129 @@ func TestFillReserves(t *testing.T) {
 			},
 
 			wantQueueCallCnt: map[string]int{"PublishInventory": 3, "PublishReservation": 3},
-			wantTxCallCnt:    map[string]int{"Commit": 3, "Rollback": 0},
+			wantSubTxCallCnt: map[string]int{"Commit": 3, "Rollback": 0},
+			wantTxCallCnt:    map[string]int{"Commit": 1, "Rollback": 0},
+		},
+		{
+			name:    "unexpected error saving inventory",
+			product: product,
+
+			getReservationsFunc: func(ctx context.Context, resOptions inventory.GetReservationsOptions, limit, offset int, options ...core.QueryOptions) ([]inventory.Reservation, error) {
+				return []inventory.Reservation{
+					{ID: 0, State: inventory.Open, ReservedQuantity: 0, RequestedQuantity: 3},
+				}, nil
+			},
+			getProductInventoryFunc: func(ctx context.Context, sku string, options ...core.QueryOptions) (pi inventory.ProductInventory, err error) {
+				return inventory.ProductInventory{Product: product, Available: 10}, nil
+			},
+			saveProductInventoryErr: errors.New("some unexpected error"),
+
+			wantErr: true,
+			wantProductInventory: inventory.ProductInventory{
+				Product:   product,
+				Available: 7,
+			},
+			wantResUpdates:   []reservationUpdate{},
+			wantQueueCallCnt: map[string]int{"PublishInventory": 0, "PublishReservation": 0},
+			wantSubTxCallCnt: map[string]int{"Commit": 0, "Rollback": 1},
+			wantTxCallCnt:    map[string]int{"Commit": 0, "Rollback": 1},
+		},
+		{
+			name:    "unexpected error updating reservation",
+			product: product,
+
+			getReservationsFunc: func(ctx context.Context, resOptions inventory.GetReservationsOptions, limit, offset int, options ...core.QueryOptions) ([]inventory.Reservation, error) {
+				return []inventory.Reservation{
+					{ID: 0, State: inventory.Open, ReservedQuantity: 0, RequestedQuantity: 3},
+				}, nil
+			},
+			getProductInventoryFunc: func(ctx context.Context, sku string, options ...core.QueryOptions) (pi inventory.ProductInventory, err error) {
+				return inventory.ProductInventory{Product: product, Available: 10}, nil
+			},
+			updateReservationErr: errors.New("some unexpected error"),
+
+			wantErr: true,
+			wantProductInventory: inventory.ProductInventory{
+				Product:   product,
+				Available: 7,
+			},
+			wantResUpdates: []reservationUpdate{
+				{ID: 0, State: inventory.Closed, Quantity: 3},
+			},
+			wantQueueCallCnt: map[string]int{"PublishInventory": 0, "PublishReservation": 0},
+			wantSubTxCallCnt: map[string]int{"Commit": 0, "Rollback": 1},
+			wantTxCallCnt:    map[string]int{"Commit": 0, "Rollback": 1},
+		},
+		{
+			name:    "unexpected error publishing inventory",
+			product: product,
+
+			getReservationsFunc: func(ctx context.Context, resOptions inventory.GetReservationsOptions, limit, offset int, options ...core.QueryOptions) ([]inventory.Reservation, error) {
+				return []inventory.Reservation{
+					{ID: 0, State: inventory.Open, ReservedQuantity: 0, RequestedQuantity: 3},
+				}, nil
+			},
+			getProductInventoryFunc: func(ctx context.Context, sku string, options ...core.QueryOptions) (pi inventory.ProductInventory, err error) {
+				return inventory.ProductInventory{Product: product, Available: 10}, nil
+			},
+			publishInventoryFunc: func(ctx context.Context, pi inventory.ProductInventory) error {
+				return errors.New("some unexpected error")
+			},
+
+			wantErr: true,
+			wantProductInventory: inventory.ProductInventory{
+				Product:   product,
+				Available: 7,
+			},
+			wantResUpdates: []reservationUpdate{
+				{ID: 0, State: inventory.Closed, Quantity: 3},
+			},
+			wantQueueCallCnt: map[string]int{"PublishInventory": 1, "PublishReservation": 0},
+			wantSubTxCallCnt: map[string]int{"Commit": 1, "Rollback": 1},
+			wantTxCallCnt:    map[string]int{"Commit": 0, "Rollback": 1},
+		},
+		{
+			name:    "unexpected error publishing reservation",
+			product: product,
+
+			getReservationsFunc: func(ctx context.Context, resOptions inventory.GetReservationsOptions, limit, offset int, options ...core.QueryOptions) ([]inventory.Reservation, error) {
+				return []inventory.Reservation{
+					{ID: 0, State: inventory.Open, ReservedQuantity: 0, RequestedQuantity: 3},
+				}, nil
+			},
+			getProductInventoryFunc: func(ctx context.Context, sku string, options ...core.QueryOptions) (pi inventory.ProductInventory, err error) {
+				return inventory.ProductInventory{Product: product, Available: 10}, nil
+			},
+			publishReservationFunc: func(ctx context.Context, r inventory.Reservation) error {
+				return errors.New("some unexpected error")
+			},
+
+			wantErr: true,
+			wantProductInventory: inventory.ProductInventory{
+				Product:   product,
+				Available: 7,
+			},
+			wantResUpdates: []reservationUpdate{
+				{ID: 0, State: inventory.Closed, Quantity: 3},
+			},
+			wantQueueCallCnt: map[string]int{"PublishInventory": 1, "PublishReservation": 1},
+			wantSubTxCallCnt: map[string]int{"Commit": 1, "Rollback": 1},
+			wantTxCallCnt:    map[string]int{"Commit": 0, "Rollback": 1},
 		},
 	}
 
 	for _, test := range tests {
+		if test.name == "unexpected error publishing reservation" {
+			fmt.Println("ugh")
+		}
 		mockTx := db.NewMockTransaction()
 		if test.commitFunc != nil {
 			mockTx.CommitFunc = test.commitFunc
 		}
+
+		mockSubTx := db.NewMockPgxTx()
 		mockTx.BeginFunc = func(ctx context.Context) (pgx.Tx, error) {
-			return mockTx, nil
+			return mockSubTx, nil
 		}
 
 		mockRepo := invrepo.NewMockRepo()
@@ -967,13 +1094,19 @@ func TestFillReserves(t *testing.T) {
 			return test.saveProductInventoryErr
 		}
 
-		var gotResUpdates []reservationUpdate
+		gotResUpdates := []reservationUpdate{}
 		mockRepo.UpdateReservationFunc = func(ctx context.Context, ID uint64, state inventory.ReserveState, qty int64, options ...core.UpdateOptions) error {
 			gotResUpdates = append(gotResUpdates, reservationUpdate{ID: ID, State: state, Quantity: qty})
 			return test.updateReservationErr
 		}
 
 		mockQueue := queue.NewMockQueue()
+		if test.publishInventoryFunc != nil {
+			mockQueue.PublishInventoryFunc = test.publishInventoryFunc
+		}
+		if test.publishReservationFunc != nil {
+			mockQueue.PublishReservationFunc = test.publishReservationFunc
+		}
 
 		service := inventory.NewService(mockRepo, mockQueue)
 
@@ -1002,6 +1135,9 @@ func TestFillReserves(t *testing.T) {
 			}
 			for f, c := range test.wantTxCallCnt {
 				mockTx.VerifyCount(f, c, t)
+			}
+			for f, c := range test.wantSubTxCallCnt {
+				mockSubTx.VerifyCount(f, c, t)
 			}
 		})
 	}

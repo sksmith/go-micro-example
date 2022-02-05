@@ -21,7 +21,7 @@ func NewMockConn() MockConn {
 		QueryFunc:    func(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error) { return nil, nil },
 		QueryRowFunc: func(ctx context.Context, sql string, args ...interface{}) pgx.Row { return nil },
 		ExecFunc:     func(ctx context.Context, sql string, args ...interface{}) (pgconn.CommandTag, error) { return nil, nil },
-		BeginFunc:    func(ctx context.Context) (pgx.Tx, error) { return nil, nil },
+		BeginFunc:    func(ctx context.Context) (pgx.Tx, error) { return NewMockPgxTx(), nil },
 		CallWatcher:  test.NewCallWatcher(),
 	}
 }
@@ -77,6 +77,12 @@ type MockPgxTx struct {
 	*test.CallWatcher
 }
 
+func NewMockPgxTx() *MockPgxTx {
+	return &MockPgxTx{
+		CallWatcher: test.NewCallWatcher(),
+	}
+}
+
 func (m *MockPgxTx) Begin(ctx context.Context) (pgx.Tx, error) {
 	m.AddCall(ctx)
 	return nil, nil
@@ -103,33 +109,41 @@ func (m *MockPgxTx) CopyFrom(ctx context.Context, tableName pgx.Identifier, colu
 }
 
 func (m *MockPgxTx) SendBatch(ctx context.Context, b *pgx.Batch) pgx.BatchResults {
-
+	m.AddCall(ctx, b)
+	return nil
 }
 
 func (m *MockPgxTx) LargeObjects() pgx.LargeObjects {
-
+	m.AddCall()
+	return pgx.LargeObjects{}
 }
 
 func (m *MockPgxTx) Prepare(ctx context.Context, name, sql string) (*pgconn.StatementDescription, error) {
-
+	m.AddCall(ctx, name, sql)
+	return nil, nil
 }
 
 func (m *MockPgxTx) Exec(ctx context.Context, sql string, arguments ...interface{}) (commandTag pgconn.CommandTag, err error) {
-
+	m.AddCall(ctx, sql, arguments)
+	return nil, nil
 }
 
 func (m *MockPgxTx) Query(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error) {
-
+	m.AddCall(ctx, sql, args)
+	return nil, nil
 }
 
 func (m *MockPgxTx) QueryRow(ctx context.Context, sql string, args ...interface{}) pgx.Row {
-
+	m.AddCall(ctx, sql, args)
+	return nil
 }
 
 func (m *MockPgxTx) QueryFunc(ctx context.Context, sql string, args []interface{}, scans []interface{}, f func(pgx.QueryFuncRow) error) (pgconn.CommandTag, error) {
-
+	m.AddCall(ctx, sql, args, scans, f)
+	return nil, nil
 }
 
 func (m *MockPgxTx) Conn() *pgx.Conn {
-
+	m.AddCall()
+	return nil
 }

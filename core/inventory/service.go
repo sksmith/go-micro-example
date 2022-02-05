@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v4"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/core"
@@ -48,14 +49,14 @@ func (s *service) CreateProduct(ctx context.Context, product Product) error {
 	}
 
 	tx, err := s.repo.BeginTransaction(ctx)
+	if err != nil {
+		return errors.WithStack(err)
+	}
 	defer func() {
 		if err != nil {
 			rollback(ctx, tx, err)
 		}
 	}()
-	if err != nil {
-		return errors.WithStack(err)
-	}
 
 	log.Debug().Str("func", funcName).Str("sku", product.Sku).Msg("creating product")
 	if err = s.repo.SaveProduct(ctx, product, core.UpdateOptions{Tx: tx}); err != nil {
@@ -338,7 +339,8 @@ func (s *service) FillReserves(ctx context.Context, product Product) error {
 	}
 
 	for _, reservation := range openReservations {
-		subtx, err := tx.Begin(ctx)
+		var subtx pgx.Tx
+		subtx, err = tx.Begin(ctx)
 		if err != nil {
 			return err
 		}
@@ -400,12 +402,12 @@ func (s *service) FillReserves(ctx context.Context, product Product) error {
 
 		err = s.publishInventory(ctx, productInventory)
 		if err != nil {
-			return errors.WithMessage(err, "failed to publish inventory")
+			return errors.WithStack(err)
 		}
 
 		err = s.publishReservation(ctx, reservation)
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 	}
 
