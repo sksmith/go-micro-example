@@ -15,11 +15,11 @@ import (
 	"github.com/sksmith/go-micro-example/db"
 	"github.com/sksmith/go-micro-example/db/invrepo"
 	"github.com/sksmith/go-micro-example/queue"
-	"github.com/sksmith/go-micro-example/test"
+	"github.com/sksmith/go-micro-example/testutil"
 )
 
 func TestMain(m *testing.M) {
-	test.ConfigLogging()
+	testutil.ConfigLogging()
 	os.Exit(m.Run())
 }
 

@@ -93,16 +93,17 @@ type LogConfig struct {
 }
 
 type DbConfig struct {
-	Name        StringConfig `json:"name"     yaml:"name"`
-	Host        StringConfig `json:"host"     yaml:"host"`
-	Port        StringConfig `json:"port"     yaml:"port"`
-	Migrate     BoolConfig   `json:"migrate"  yaml:"migrate"`
-	Clean       BoolConfig   `json:"clean"    yaml:"clean"`
-	User        StringConfig `json:"user"     yaml:"user"`
-	Pass        StringConfig `json:"pass"     yaml:"pass"`
-	Pool        DbPoolConfig `json:"pool"     yaml:"pool"`
-	LogLevel    StringConfig `json:"logLevel" yaml:"logLevel"`
-	Description string       `json:"description" yaml:"description"`
+	Name            StringConfig `json:"name"            yaml:"name"`
+	Host            StringConfig `json:"host"            yaml:"host"`
+	Port            StringConfig `json:"port"            yaml:"port"`
+	Migrate         BoolConfig   `json:"migrate"         yaml:"migrate"`
+	MigrationFolder StringConfig `json:"migrationFolder" yaml:"migrationFolder"`
+	Clean           BoolConfig   `json:"clean"           yaml:"clean"`
+	User            StringConfig `json:"user"            yaml:"user"`
+	Pass            StringConfig `json:"pass"            yaml:"pass"`
+	Pool            DbPoolConfig `json:"pool"            yaml:"pool"`
+	LogLevel        StringConfig `json:"logLevel"        yaml:"logLevel"`
+	Description     string       `json:"description"     yaml:"description"`
 }
 
 type DbPoolConfig struct {
@@ -179,6 +180,8 @@ func init() {
 	viper.SetDefault("db.user", def.Db.User.Default)
 	viper.SetDefault("db.pass", def.Db.Pass.Default)
 	viper.SetDefault("db.clean", def.Db.Clean.Default)
+	viper.SetDefault("db.migrate", def.Db.Migrate.Default)
+	viper.SetDefault("db.migrationFile", def.Db.MigrationFolder.Default)
 	viper.SetDefault("db.pool.minSize", def.Db.Pool.MinSize.Default)
 	viper.SetDefault("db.pool.maxSize", def.Db.Pool.MaxSize.Default)
 
@@ -464,6 +467,7 @@ func setupDefaults(config *Config) {
 	config.Db.Name = StringConfig{Value: "micro-ex-db", Default: "micro-ex-db", Description: "The name of the database to connect to."}
 	config.Db.Host = StringConfig{Value: "5432", Default: "5432", Description: "Port of the database."}
 	config.Db.Migrate = BoolConfig{Value: true, Default: true, Description: "Whether or not database migrations should be executed on startup."}
+	config.Db.MigrationFolder = StringConfig{Value: "db/migrations", Default: "db/migrations", Description: "Location of migration files to be executed on startup."}
 	config.Db.Clean = BoolConfig{Value: false, Default: false, Description: "WARNING: THIS WILL DELETE ALL DATA FROM THE DB. Used only during migration. If clean is true, all 'down' migrations are executed."}
 	config.Db.User = StringConfig{Value: "postgres", Default: "postgres", Description: "User the application will use to connect to the database."}
 	config.Db.Pass = StringConfig{Value: "postgres", Default: "postgres", Description: "Password the application will use for connecting to the database."}

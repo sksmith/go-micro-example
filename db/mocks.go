@@ -5,7 +5,7 @@ import (
 
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
-	"github.com/sksmith/go-micro-example/test"
+	"github.com/sksmith/go-micro-example/testutil"
 )
 
 type MockConn struct {
@@ -13,7 +13,7 @@ type MockConn struct {
 	QueryRowFunc func(ctx context.Context, sql string, args ...interface{}) pgx.Row
 	ExecFunc     func(ctx context.Context, sql string, args ...interface{}) (pgconn.CommandTag, error)
 	BeginFunc    func(ctx context.Context) (pgx.Tx, error)
-	*test.CallWatcher
+	*testutil.CallWatcher
 }
 
 func NewMockConn() MockConn {
@@ -22,7 +22,7 @@ func NewMockConn() MockConn {
 		QueryRowFunc: func(ctx context.Context, sql string, args ...interface{}) pgx.Row { return nil },
 		ExecFunc:     func(ctx context.Context, sql string, args ...interface{}) (pgconn.CommandTag, error) { return nil, nil },
 		BeginFunc:    func(ctx context.Context) (pgx.Tx, error) { return NewMockPgxTx(), nil },
-		CallWatcher:  test.NewCallWatcher(),
+		CallWatcher:  testutil.NewCallWatcher(),
 	}
 }
 
@@ -51,7 +51,7 @@ type MockTransaction struct {
 	RollbackFunc func(ctx context.Context) error
 
 	MockConn
-	*test.CallWatcher
+	*testutil.CallWatcher
 }
 
 func NewMockTransaction() *MockTransaction {
@@ -59,7 +59,7 @@ func NewMockTransaction() *MockTransaction {
 		MockConn:     NewMockConn(),
 		CommitFunc:   func(ctx context.Context) error { return nil },
 		RollbackFunc: func(ctx context.Context) error { return nil },
-		CallWatcher:  test.NewCallWatcher(),
+		CallWatcher:  testutil.NewCallWatcher(),
 	}
 }
 
@@ -74,12 +74,12 @@ func (t *MockTransaction) Rollback(ctx context.Context) error {
 }
 
 type MockPgxTx struct {
-	*test.CallWatcher
+	*testutil.CallWatcher
 }
 
 func NewMockPgxTx() *MockPgxTx {
 	return &MockPgxTx{
-		CallWatcher: test.NewCallWatcher(),
+		CallWatcher: testutil.NewCallWatcher(),
 	}
 }
 

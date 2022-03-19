@@ -81,13 +81,7 @@ func ConnectDb(ctx context.Context, cfg *config.Config) (*pgxpool.Pool, error) {
 	if cfg.Db.Migrate.Value {
 		log.Info().Msg("executing migrations")
 
-		if err = RunMigrations(
-			cfg.Db.Host.Value,
-			cfg.Db.Name.Value,
-			cfg.Db.Port.Value,
-			cfg.Db.User.Value,
-			cfg.Db.Pass.Value,
-			cfg.Db.Clean.Value); err != nil {
+		if err = RunMigrations(cfg); err != nil {
 			log.Warn().Err(err).Msg("error executing migrations")
 		}
 	}
@@ -155,17 +149,19 @@ func (l logger) Log(ctx context.Context, level pgx.LogLevel, msg string, data ma
 	evt.Msg(msg)
 }
 
-func RunMigrations(host, database, port, user, password string, clean bool) error {
+func RunMigrations(cfg *config.Config) error {
 	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
-		user, password, host, port, database)
-	m, err := migrate.New("file:db/migrations", connStr)
+		cfg.Db.User.Value,
+		cfg.Db.Pass.Value,
+		cfg.Db.Host.Value,
+		cfg.Db.Port.Value,
+		cfg.Db.Name.Value)
+
+	m, err := migrate.New("file:"+cfg.Db.MigrationFolder.Value, connStr)
 	if err != nil {
-		m, err = migrate.New("file:db/migrations", connStr)
-		if err != nil {
-			return err
-		}
+		return err
 	}
-	if clean {
+	if cfg.Db.Clean.Value {
 		if err := m.Down(); err != nil {
 			if err != migrate.ErrNoChange {
 				return err

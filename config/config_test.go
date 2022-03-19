@@ -5,11 +5,11 @@ import (
 	"testing"
 
 	"github.com/sksmith/go-micro-example/config"
-	"github.com/sksmith/go-micro-example/test"
+	"github.com/sksmith/go-micro-example/testutil"
 )
 
 func TestMain(m *testing.M) {
-	test.ConfigLogging()
+	testutil.ConfigLogging()
 	os.Exit(m.Run())
 }
 

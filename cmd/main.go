@@ -33,12 +33,15 @@ func main() {
 	cfg.Print()
 
 	dbPool := configDatabase(ctx, cfg)
+
 	iq := queue.NewInventoryQueue(ctx, cfg)
 
 	ir := invrepo.NewPostgresRepo(dbPool)
+
 	invService := inventory.NewService(ir, iq)
 
 	ur := usrrepo.NewPostgresRepo(dbPool)
+
 	userService := user.NewService(ur)
 
 	r := api.ConfigureRouter(cfg, invService, invService, userService)

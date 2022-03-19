@@ -5,7 +5,7 @@ import (
 
 	"github.com/sksmith/go-micro-example/core"
 	"github.com/sksmith/go-micro-example/core/user"
-	"github.com/sksmith/go-micro-example/test"
+	"github.com/sksmith/go-micro-example/testutil"
 )
 
 type MockRepo struct {
@@ -13,7 +13,7 @@ type MockRepo struct {
 	GetFunc    func(ctx context.Context, username string, options ...core.QueryOptions) (user.User, error)
 	UpdateFunc func(ctx context.Context, user *user.User, options ...core.UpdateOptions) error
 	DeleteFunc func(ctx context.Context, username string, options ...core.UpdateOptions) error
-	*test.CallWatcher
+	*testutil.CallWatcher
 }
 
 func NewMockRepo() *MockRepo {
@@ -24,7 +24,7 @@ func NewMockRepo() *MockRepo {
 		},
 		UpdateFunc:  func(ctx context.Context, user *user.User, options ...core.UpdateOptions) error { return nil },
 		DeleteFunc:  func(ctx context.Context, username string, options ...core.UpdateOptions) error { return nil },
-		CallWatcher: test.NewCallWatcher(),
+		CallWatcher: testutil.NewCallWatcher(),
 	}
 }
 

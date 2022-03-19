@@ -14,6 +14,7 @@ import (
 	"github.com/sksmith/go-micro-example/api"
 	"github.com/sksmith/go-micro-example/core"
 	"github.com/sksmith/go-micro-example/core/inventory"
+	"github.com/sksmith/go-micro-example/testutil"
 
 	"github.com/go-chi/chi"
 )
@@ -58,7 +59,7 @@ func TestInventorySubscribe(t *testing.T) {
 	curInv := getTestProductInventory()
 	for i := 0; i < 3; i++ {
 		got := &inventory.ProductInventory{}
-		readWs(conn, got, t)
+		testutil.ReadWs(conn, got, t)
 
 		if got.Name != curInv[i].Name {
 			t.Errorf("unexpected ws response[%d] got=[%s] want=[%s]", i, got.Name, curInv[i].Name)
@@ -166,14 +167,14 @@ func TestInventoryList(t *testing.T) {
 
 		if test.wantErr == nil {
 			got := []inventory.ProductInventory{}
-			unmarshal(res, &got, t)
+			testutil.Unmarshal(res, &got, t)
 
 			if !reflect.DeepEqual(got, test.wantInventory) {
 				t.Errorf("inventory\n got:%+v\nwant:%+v\n", got, test.wantInventory)
 			}
 		} else {
 			got := api.ErrResponse{}
-			unmarshal(res, &got, t)
+			testutil.Unmarshal(res, &got, t)
 
 			if got.StatusText != test.wantErr.StatusText {
 				t.Errorf("errorResponse\n got:%v\nwant:%v\n", got.StatusText, test.wantErr.StatusText)
@@ -247,7 +248,7 @@ func TestInventoryCreateProduct(t *testing.T) {
 			return test.serviceErr
 		}
 
-		res := put(ts.URL, test.request, t)
+		res := testutil.Put(ts.URL, test.request, t)
 
 		if res.StatusCode != test.wantStatusCode {
 			t.Errorf("status code got=%d\nwant=%d", res.StatusCode, test.wantStatusCode)
@@ -255,14 +256,14 @@ func TestInventoryCreateProduct(t *testing.T) {
 
 		if test.wantErr == nil {
 			got := api.ProductResponse{}
-			unmarshal(res, &got, t)
+			testutil.Unmarshal(res, &got, t)
 
 			if !reflect.DeepEqual(got, *test.wantProductResponse) {
 				t.Errorf("product\n got=%+v\nwant=%+v", got, *test.wantProductResponse)
 			}
 		} else {
 			got := &api.ErrResponse{}
-			unmarshal(res, got, t)
+			testutil.Unmarshal(res, got, t)
 
 			if got.StatusText != test.wantErr.StatusText {
 				t.Errorf("status text got=%s want=%s", got.StatusText, test.wantErr.StatusText)
@@ -342,7 +343,7 @@ func TestInventoryCreateProductionEvent(t *testing.T) {
 		mockInvSvc.ProduceFunc = test.produceFunc
 
 		url := ts.URL + "/" + test.sku + "/productionEvent"
-		res := put(url, test.request, t)
+		res := testutil.Put(url, test.request, t)
 
 		if res.StatusCode != test.wantStatusCode {
 			t.Errorf("status code got=%d want=%d", res.StatusCode, test.wantStatusCode)
@@ -350,14 +351,14 @@ func TestInventoryCreateProductionEvent(t *testing.T) {
 
 		if test.wantErr == nil {
 			got := api.ProductionEventResponse{}
-			unmarshal(res, &got, t)
+			testutil.Unmarshal(res, &got, t)
 
 			if !reflect.DeepEqual(got, *test.wantProductionEventResponse) {
 				t.Errorf("product\n got=%+v\nwant=%+v", got, *test.wantProductionEventResponse)
 			}
 		} else {
 			got := &api.ErrResponse{}
-			unmarshal(res, got, t)
+			testutil.Unmarshal(res, got, t)
 
 			if got.StatusText != test.wantErr.StatusText {
 				t.Errorf("status text got=%s want=%s", got.StatusText, test.wantErr.StatusText)
@@ -454,14 +455,14 @@ func TestInventoryGetProductInventory(t *testing.T) {
 
 		if test.wantErr == nil {
 			got := api.ProductResponse{}
-			unmarshal(res, &got, t)
+			testutil.Unmarshal(res, &got, t)
 
 			if !reflect.DeepEqual(got, *test.wantProductResponse) {
 				t.Errorf("product\n got=%+v\nwant=%+v", got, *test.wantProductResponse)
 			}
 		} else {
 			got := &api.ErrResponse{}
-			unmarshal(res, got, t)
+			testutil.Unmarshal(res, got, t)
 
 			if got.StatusText != test.wantErr.StatusText {
 				t.Errorf("status text got=%s want=%s", got.StatusText, test.wantErr.StatusText)

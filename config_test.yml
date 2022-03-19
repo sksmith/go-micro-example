@@ -1,1 +1,38 @@
+port: 8080
 profile: test
+
+config:
+  source: local
+  print: false
+
+log:
+  level: debug
+  structured: false
+
+db:
+  name: go-micro-example-db
+  host: localhost
+  port: 5432
+  user: postgres
+  pass: postgres
+  migrate: true
+  migrationFolder: ../db/migrations
+  clean: true
+  logLevel: warn
+  pool:
+    minSize: 1
+    maxSize: 3
+
+rabbitmq:
+  host: localhost
+  port: 5672
+  user: guest
+  pass: guest
+  inventory:
+    exchange: inventory.exchange
+  reservation:
+    exchange: reservation.exchange
+  product:
+    queue: product.queue
+    dlt:
+      exchange: product.dlt.exchange

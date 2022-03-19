@@ -3,7 +3,7 @@ package inventory
 import (
 	"context"
 
-	"github.com/sksmith/go-micro-example/test"
+	"github.com/sksmith/go-micro-example/testutil"
 )
 
 type MockInventoryService struct {
@@ -14,7 +14,7 @@ type MockInventoryService struct {
 	GetProductInventoryFunc    func(ctx context.Context, sku string) (ProductInventory, error)
 	SubscribeInventoryFunc     func(ch chan<- ProductInventory) (id InventorySubID)
 	UnsubscribeInventoryFunc   func(id InventorySubID)
-	*test.CallWatcher
+	*testutil.CallWatcher
 }
 
 func NewMockInventoryService() *MockInventoryService {
@@ -28,7 +28,7 @@ func NewMockInventoryService() *MockInventoryService {
 		GetProductInventoryFunc:  func(ctx context.Context, sku string) (ProductInventory, error) { return ProductInventory{}, nil },
 		SubscribeInventoryFunc:   func(ch chan<- ProductInventory) (id InventorySubID) { return "" },
 		UnsubscribeInventoryFunc: func(id InventorySubID) {},
-		CallWatcher:              test.NewCallWatcher(),
+		CallWatcher:              testutil.NewCallWatcher(),
 	}
 }
 
@@ -75,7 +75,7 @@ type MockReservationService struct {
 
 	SubscribeReservationsFunc   func(ch chan<- Reservation) (id ReservationsSubID)
 	UnsubscribeReservationsFunc func(id ReservationsSubID)
-	*test.CallWatcher
+	*testutil.CallWatcher
 }
 
 func NewMockReservationService() *MockReservationService {
@@ -87,7 +87,7 @@ func NewMockReservationService() *MockReservationService {
 		GetReservationFunc:          func(ctx context.Context, ID uint64) (Reservation, error) { return Reservation{}, nil },
 		SubscribeReservationsFunc:   func(ch chan<- Reservation) (id ReservationsSubID) { return "" },
 		UnsubscribeReservationsFunc: func(id ReservationsSubID) {},
-		CallWatcher:                 test.NewCallWatcher(),
+		CallWatcher:                 testutil.NewCallWatcher(),
 	}
 }
 

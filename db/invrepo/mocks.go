@@ -6,7 +6,7 @@ import (
 	"github.com/sksmith/go-micro-example/core"
 	"github.com/sksmith/go-micro-example/core/inventory"
 	"github.com/sksmith/go-micro-example/db"
-	"github.com/sksmith/go-micro-example/test"
+	"github.com/sksmith/go-micro-example/testutil"
 )
 
 type MockRepo struct {
@@ -28,7 +28,7 @@ type MockRepo struct {
 
 	BeginTransactionFunc func(ctx context.Context) (core.Transaction, error)
 
-	*test.CallWatcher
+	*testutil.CallWatcher
 }
 
 func (r *MockRepo) SaveProductionEvent(ctx context.Context, event *inventory.ProductionEvent, options ...core.UpdateOptions) error {
@@ -133,6 +133,6 @@ func NewMockRepo() *MockRepo {
 		SaveProductInventoryFunc: func(ctx context.Context, productInventory inventory.ProductInventory, options ...core.UpdateOptions) error {
 			return nil
 		},
-		CallWatcher: test.NewCallWatcher(),
+		CallWatcher: testutil.NewCallWatcher(),
 	}
 }

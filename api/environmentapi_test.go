@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/sksmith/go-micro-example/api"
 	"github.com/sksmith/go-micro-example/config"
+	"github.com/sksmith/go-micro-example/testutil"
 )
 
 func TestGetEnvironment(t *testing.T) {
@@ -25,7 +26,7 @@ func TestGetEnvironment(t *testing.T) {
 	}
 
 	got := &config.Config{}
-	unmarshal(res, got, t)
+	testutil.Unmarshal(res, got, t)
 
 	if got.AppName != cfg.AppName {
 		t.Errorf("unexpected app name got=[%v] want=[%v]", got, cfg.AppName)

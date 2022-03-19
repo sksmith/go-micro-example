@@ -11,6 +11,7 @@ import (
 	"github.com/sksmith/go-micro-example/api"
 	"github.com/sksmith/go-micro-example/core"
 	"github.com/sksmith/go-micro-example/core/user"
+	"github.com/sksmith/go-micro-example/testutil"
 )
 
 func TestUserCreate(t *testing.T) {
@@ -96,7 +97,7 @@ func TestUserCreate(t *testing.T) {
 			mockSvc.LoginFunc = test.loginFunc
 			mockSvc.CreateFunc = test.createFunc
 
-			res := post(test.url, test.request, t, requestOptions{username: "someuser", password: "somepass"})
+			res := testutil.Post(test.url, test.request, t, testutil.RequestOptions{Username: "someuser", Password: "somepass"})
 
 			if res.StatusCode != test.wantStatusCode {
 				t.Errorf("status code got=%d want=%d", res.StatusCode, test.wantStatusCode)
@@ -108,7 +109,7 @@ func TestUserCreate(t *testing.T) {
 
 				want := test.wantResponse.(*api.ErrResponse)
 				got := &api.ErrResponse{}
-				unmarshal(res, got, t)
+				testutil.Unmarshal(res, got, t)
 
 				if got.StatusText != want.StatusText {
 					t.Errorf("status text got=%s want=%s", got.StatusText, want.StatusText)

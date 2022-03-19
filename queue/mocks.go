@@ -4,13 +4,13 @@ import (
 	"context"
 
 	"github.com/sksmith/go-micro-example/core/inventory"
-	"github.com/sksmith/go-micro-example/test"
+	"github.com/sksmith/go-micro-example/testutil"
 )
 
 type MockQueue struct {
 	PublishInventoryFunc   func(ctx context.Context, productInventory inventory.ProductInventory) error
 	PublishReservationFunc func(ctx context.Context, reservation inventory.Reservation) error
-	test.CallWatcher
+	testutil.CallWatcher
 }
 
 func NewMockQueue() *MockQueue {
@@ -21,7 +21,7 @@ func NewMockQueue() *MockQueue {
 		PublishReservationFunc: func(ctx context.Context, reservation inventory.Reservation) error {
 			return nil
 		},
-		CallWatcher: *test.NewCallWatcher(),
+		CallWatcher: *testutil.NewCallWatcher(),
 	}
 }
 

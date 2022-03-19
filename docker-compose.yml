@@ -9,9 +9,6 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: go-micro-example-db
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    restart: unless-stopped
 
   pgadmin:
     image: dpage/pgadmin4
@@ -22,7 +19,6 @@ services:
     environment:
       PGADMIN_DEFAULT_EMAIL: oz@oz.com
       PGADMIN_DEFAULT_PASSWORD: oz
-    restart: unless-stopped
 
   rabbitmq:
     image: rabbitmq:3.9-management-alpine
@@ -30,6 +26,3 @@ services:
     ports:
       - 5672:5672
       - 15672:15672
-
-volumes:
-  postgres-data:

@@ -15,6 +15,7 @@ import (
 	"github.com/sksmith/go-micro-example/api"
 	"github.com/sksmith/go-micro-example/core"
 	"github.com/sksmith/go-micro-example/core/inventory"
+	"github.com/sksmith/go-micro-example/testutil"
 )
 
 func TestReservationSubscribe(t *testing.T) {
@@ -57,7 +58,7 @@ func TestReservationSubscribe(t *testing.T) {
 	curRes := getTestReservations()
 	for i := 0; i < 3; i++ {
 		got := &inventory.Reservation{}
-		readWs(conn, got, t)
+		testutil.ReadWs(conn, got, t)
 
 		reflect.DeepEqual(got, curRes[i])
 	}
@@ -126,14 +127,14 @@ func TestReservationGet(t *testing.T) {
 
 		if test.wantErr == nil {
 			got := api.ReservationResponse{}
-			unmarshal(res, &got, t)
+			testutil.Unmarshal(res, &got, t)
 
 			if !reflect.DeepEqual(got, *test.wantResponse) {
 				t.Errorf("reservation\n got=%+v\nwant=%+v", got, *test.wantResponse)
 			}
 		} else {
 			got := &api.ErrResponse{}
-			unmarshal(res, got, t)
+			testutil.Unmarshal(res, got, t)
 
 			if got.StatusText != test.wantErr.StatusText {
 				t.Errorf("status text got=%s want=%s", got.StatusText, test.wantErr.StatusText)
@@ -189,7 +190,7 @@ func TestReservationCreate(t *testing.T) {
 		mockResSvc.ReserveFunc = test.reserveFunc
 
 		url := ts.URL
-		res := put(url, test.request, t)
+		res := testutil.Put(url, test.request, t)
 
 		if res.StatusCode != test.wantStatusCode {
 			t.Errorf("status code got=%d want=%d", res.StatusCode, test.wantStatusCode)
@@ -197,14 +198,14 @@ func TestReservationCreate(t *testing.T) {
 
 		if test.wantErr == nil {
 			got := api.ReservationResponse{}
-			unmarshal(res, &got, t)
+			testutil.Unmarshal(res, &got, t)
 
 			if !reflect.DeepEqual(got, *test.wantResponse) {
 				t.Errorf("reservation\n got=%+v\nwant=%+v", got, *test.wantResponse)
 			}
 		} else {
 			got := &api.ErrResponse{}
-			unmarshal(res, got, t)
+			testutil.Unmarshal(res, got, t)
 
 			if got.StatusText != test.wantErr.StatusText {
 				t.Errorf("status text got=%s want=%s", got.StatusText, test.wantErr.StatusText)
@@ -327,7 +328,7 @@ func TestReservationList(t *testing.T) {
 
 			want := test.wantResponse.(*api.ErrResponse)
 			got := &api.ErrResponse{}
-			unmarshal(res, got, t)
+			testutil.Unmarshal(res, got, t)
 
 			if got.StatusText != want.StatusText {
 				t.Errorf("status text got=%s want=%s", got.StatusText, want.StatusText)
@@ -338,7 +339,7 @@ func TestReservationList(t *testing.T) {
 		} else {
 			want := test.wantResponse.([]api.ReservationResponse)
 			got := []api.ReservationResponse{}
-			unmarshal(res, &got, t)
+			testutil.Unmarshal(res, &got, t)
 
 			if !reflect.DeepEqual(got, want) {
 				t.Errorf("reservation\n got=%+v\nwant=%+v", got, want)
