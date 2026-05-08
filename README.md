@@ -170,8 +170,20 @@ Three convenient ways to supply these locally:
    `direnv`. See [.env.example](.env.example) for the shape.
 3. **`config.local.yml`** in the repo root (gitignored). Same schema as `config.yml`; merged on top at startup.
 
-In production, populate the env vars from your secret manager (Vault, AWS Secrets Manager, GCP Secret Manager) — see
-DSN-006 in the local plan/.
+In production, the env vars are populated by a **secrets provider** at process startup. Selection is via
+`GME_SECRETS_PROVIDER`:
+
+| `GME_SECRETS_PROVIDER` | Reads from | Use case |
+| --- | --- | --- |
+| unset / `env` | shell env, `.env` file | dev, CI, `go run` |
+| `file` | `GME_SECRETS_DIR` (default `/vault/secrets`) | Vault Agent injector in K8s |
+
+The application itself talks to no external secret store — the Vault Agent sidecar renders templates into a
+shared tmpfs and the app reads files. See [docs/adr/0001-secrets-management.md](docs/adr/0001-secrets-management.md)
+for the architectural decision and the rotation playbook.
+
+The required-secret list lives in [core/secrets/provider.go](core/secrets/provider.go) (`secrets.Required`); the
+provider's `Load` fails fast at startup if any are missing.
 
 #### Local stack credentials
 
