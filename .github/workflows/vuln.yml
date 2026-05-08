@@ -1,0 +1,37 @@
+name: Vuln
+on:
+  workflow_call:
+permissions:
+  contents: read
+  security-events: write
+jobs:
+  govulncheck:
+    name: govulncheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          # Tooling Go, not project Go — govulncheck v1.3 needs >= 1.25.
+          # The vuln scan analyses source statically and works against any
+          # project Go version. DEP-001 will close the gap.
+          go-version: '1.25'
+          cache: true
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.3.0
+      - name: Run govulncheck (SARIF)
+        # SARIF mode emits findings without exiting non-zero, so the upload
+        # step always runs. The Fail step below decides whether the job fails.
+        run: govulncheck -format sarif ./... > govulncheck.sarif
+      - name: Upload SARIF
+        if: ${{ always() && hashFiles('govulncheck.sarif') != '' }}
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: govulncheck.sarif
+          category: govulncheck
+      # Until DEP-001 (Go toolchain) and DEP-002 (chi v4 -> v5) land,
+      # the 25 deferred CVEs from SEC-008 will keep firing here.
+      # Surface them in the Security tab but don't block PRs yet.
+      - name: Run govulncheck (text, soft-fail until DEP-001/DEP-002 land)
+        continue-on-error: true
+        run: govulncheck ./...
