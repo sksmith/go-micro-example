@@ -1,14 +1,17 @@
 package api_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"sync"
 	"testing"
 
 	"github.com/go-chi/chi"
 	"github.com/sksmith/go-micro-example/api"
 	"github.com/sksmith/go-micro-example/config"
+	"github.com/sksmith/go-micro-example/core"
 	"github.com/sksmith/go-micro-example/core/inventory"
 	"github.com/sksmith/go-micro-example/core/user"
 	"github.com/sksmith/go-micro-example/testutil"
@@ -17,6 +20,26 @@ import (
 func TestMain(m *testing.M) {
 	testutil.ConfigLogging()
 	os.Exit(m.Run())
+}
+
+// The Metrics middleware registers global Prometheus collectors on every call
+// to ConfigureRouter, which panics on a second call within the same process.
+// Until that is addressed (out of scope for SEC-001), share a single router
+// across tests in this file.
+var (
+	sharedRouterOnce sync.Once
+	sharedRouter     chi.Router
+	sharedUserSvc    *user.MockUserService
+)
+
+func sharedTestRouter() (chi.Router, *user.MockUserService) {
+	sharedRouterOnce.Do(func() {
+		cfg := config.LoadDefaults()
+		invSvc, resSvc, usrSvc := getMocks()
+		sharedUserSvc = usrSvc
+		sharedRouter = api.ConfigureRouter(cfg, invSvc, resSvc, usrSvc)
+	})
+	return sharedRouter, sharedUserSvc
 }
 
 func TestCorsConfig(t *testing.T) {
@@ -36,7 +59,7 @@ func TestCorsConfig(t *testing.T) {
 		{origin: "https://localhostevil:3000", want: ""},
 	}
 
-	r := getRouter()
+	r, _ := sharedTestRouter()
 	ts := httptest.NewServer(r)
 	defer ts.Close()
 
@@ -62,10 +85,78 @@ func TestCorsConfig(t *testing.T) {
 	}
 }
 
-func getRouter() chi.Router {
-	cfg := config.LoadDefaults()
-	invSvc, resSvc, usrSvc := getMocks()
-	return api.ConfigureRouter(cfg, invSvc, resSvc, usrSvc)
+func TestApiRoutesRequireAuthentication(t *testing.T) {
+	r, usrSvc := sharedTestRouter()
+	usrSvc.LoginFunc = func(ctx context.Context, username, password string) (user.User, error) {
+		return user.User{}, core.ErrNotFound
+	}
+	t.Cleanup(func() {
+		usrSvc.LoginFunc = func(ctx context.Context, username, password string) (user.User, error) {
+			return user.User{}, nil
+		}
+	})
+	ts := httptest.NewServer(r)
+	defer ts.Close()
+
+	tests := []struct {
+		name string
+		path string
+	}{
+		{"inventory", api.ApiPath + api.InventoryPath},
+		{"reservation", api.ApiPath + api.ReservationPath},
+		{"user", api.ApiPath + api.UserPath},
+	}
+
+	for _, test := range tests {
+		t.Run("no-credentials/"+test.name, func(t *testing.T) {
+			req, err := http.NewRequest(http.MethodGet, ts.URL+test.path, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			res, err := http.DefaultClient.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer res.Body.Close()
+			if res.StatusCode != http.StatusUnauthorized {
+				t.Errorf("expected 401 for unauthenticated %s, got %d", test.path, res.StatusCode)
+			}
+		})
+
+		t.Run("bad-credentials/"+test.name, func(t *testing.T) {
+			req, err := http.NewRequest(http.MethodGet, ts.URL+test.path, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			req.SetBasicAuth("nobody", "wrong")
+			res, err := http.DefaultClient.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer res.Body.Close()
+			if res.StatusCode != http.StatusUnauthorized {
+				t.Errorf("expected 401 for bad-credentials %s, got %d", test.path, res.StatusCode)
+			}
+		})
+	}
+}
+
+func TestUnauthenticatedEndpointsRemainOpen(t *testing.T) {
+	r, _ := sharedTestRouter()
+	ts := httptest.NewServer(r)
+	defer ts.Close()
+
+	openPaths := []string{api.HealthEndpoint, api.MetricsEndpoint}
+	for _, p := range openPaths {
+		res, err := http.Get(ts.URL + p)
+		if err != nil {
+			t.Fatalf("GET %s: %v", p, err)
+		}
+		res.Body.Close()
+		if res.StatusCode == http.StatusUnauthorized {
+			t.Errorf("expected %s to be reachable without auth, got 401", p)
+		}
+	}
 }
 
 func getMocks() (*inventory.MockInventoryService, *inventory.MockReservationService, *user.MockUserService) {
