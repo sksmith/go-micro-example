@@ -51,10 +51,7 @@ func ConfigureRouter(cfg *config.Config, invSvc InventoryService, resSvc Reserva
 	r.Handle("/metrics", promhttp.Handler())
 	r.Route("/env", NewEnvApi(cfg).ConfigureRouter)
 
-	// TODO Enable authentication, how to handle this for websockets?
-	// r.With(Authenticate(userService)).Route("/api/v1", func(r chi.Router) {
-
-	r.Route(ApiPath, func(r chi.Router) {
+	r.With(Authenticate(userService)).Route(ApiPath, func(r chi.Router) {
 		r.Route(InventoryPath, NewInventoryApi(invSvc).ConfigureRouter)
 		r.Route(ReservationPath, NewReservationApi(resSvc).ConfigureRouter)
 		r.Route(UserPath, NewUserApi(userService).ConfigureRouter)
