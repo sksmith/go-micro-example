@@ -79,10 +79,10 @@ type ConfigSource struct {
 }
 
 type SpringConfig struct {
-	Url         StringConfig `json:"url"    yaml:"url"`
+	Url         StringConfig `json:"url"    yaml:"url"    sensitive:"true"`
 	Branch      StringConfig `json:"branch" yaml:"branch"`
-	User        StringConfig `json:"user"   yaml:"user"`
-	Pass        StringConfig `json:"pass"   yaml:"pass"`
+	User        StringConfig `json:"user"   yaml:"user"   sensitive:"true"`
+	Pass        StringConfig `json:"pass"   yaml:"pass"   sensitive:"true"`
 	Description string       `json:"description" yaml:"description"`
 }
 
@@ -94,13 +94,13 @@ type LogConfig struct {
 
 type DbConfig struct {
 	Name            StringConfig `json:"name"            yaml:"name"`
-	Host            StringConfig `json:"host"            yaml:"host"`
+	Host            StringConfig `json:"host"            yaml:"host"            sensitive:"true"`
 	Port            StringConfig `json:"port"            yaml:"port"`
 	Migrate         BoolConfig   `json:"migrate"         yaml:"migrate"`
 	MigrationFolder StringConfig `json:"migrationFolder" yaml:"migrationFolder"`
 	Clean           BoolConfig   `json:"clean"           yaml:"clean"`
-	User            StringConfig `json:"user"            yaml:"user"`
-	Pass            StringConfig `json:"pass"            yaml:"pass"`
+	User            StringConfig `json:"user"            yaml:"user"            sensitive:"true"`
+	Pass            StringConfig `json:"pass"            yaml:"pass"            sensitive:"true"`
 	Pool            DbPoolConfig `json:"pool"            yaml:"pool"`
 	LogLevel        StringConfig `json:"logLevel"        yaml:"logLevel"`
 	Description     string       `json:"description"     yaml:"description"`
@@ -116,10 +116,10 @@ type DbPoolConfig struct {
 }
 
 type QueueConfig struct {
-	Host        StringConfig           `json:"host"        yaml:"host"`
+	Host        StringConfig           `json:"host"        yaml:"host"        sensitive:"true"`
 	Port        StringConfig           `json:"port"        yaml:"port"`
-	User        StringConfig           `json:"user"        yaml:"user"`
-	Pass        StringConfig           `json:"pass"        yaml:"pass"`
+	User        StringConfig           `json:"user"        yaml:"user"        sensitive:"true"`
+	Pass        StringConfig           `json:"pass"        yaml:"pass"        sensitive:"true"`
 	Inventory   InventoryQueueConfig   `json:"inventory"   yaml:"inventory"`
 	Reservation ReservationQueueConfig `json:"reservation" yaml:"reservation"`
 	Product     ProductQueueConfig     `json:"product"     yaml:"product"`

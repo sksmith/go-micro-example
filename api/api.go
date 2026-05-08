@@ -16,13 +16,14 @@ import (
 
 const (
 	HealthEndpoint  = "/health"
-	EnvEndpoint     = "/env"
 	MetricsEndpoint = "/metrics"
 
 	ApiPath         = "/api/v1"
 	InventoryPath   = "/inventory"
 	ReservationPath = "/reservation"
 	UserPath        = "/user"
+	AdminPath       = "/admin"
+	EnvPath         = "/env"
 )
 
 // ConfigureRouter instantiates a go-chi router with middleware and routes for the server
@@ -44,17 +45,19 @@ func ConfigureRouter(cfg *config.Config, invSvc InventoryService, resSvc Reserva
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 	r.Use(Logging)
 
-	r.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+	r.HandleFunc(HealthEndpoint, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("UP"))
 	})
-	r.Handle("/metrics", promhttp.Handler())
-	r.Route("/env", NewEnvApi(cfg).ConfigureRouter)
+	r.Handle(MetricsEndpoint, promhttp.Handler())
 
 	r.With(Authenticate(userService)).Route(ApiPath, func(r chi.Router) {
 		r.Route(InventoryPath, NewInventoryApi(invSvc).ConfigureRouter)
 		r.Route(ReservationPath, NewReservationApi(resSvc).ConfigureRouter)
 		r.Route(UserPath, NewUserApi(userService).ConfigureRouter)
+		r.With(AdminOnly).Route(AdminPath, func(r chi.Router) {
+			r.Route(EnvPath, NewEnvApi(cfg).ConfigureRouter)
+		})
 	})
 
 	return r
