@@ -73,6 +73,10 @@ type UserAccess interface {
 // is never tried as Basic, even if the JWT is malformed — so a typo'd
 // JWT does not silently degrade to a 401-from-missing-Basic-creds.
 func Authenticate(ua UserAccess, signer *auth.Signer) func(http.Handler) http.Handler {
+	// Ensure the auth counters exist even if Metrics() never runs first
+	// (defensive — in normal wiring Metrics() is registered before
+	// Authenticate, but tests sometimes mount Authenticate alone).
+	metricsOnce.Do(initMetrics)
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			header := r.Header.Get("Authorization")
@@ -84,6 +88,7 @@ func Authenticate(ua UserAccess, signer *auth.Signer) func(http.Handler) http.Ha
 					authErr(w)
 					return
 				}
+				authJWTCounter.Inc()
 				ctx := context.WithValue(r.Context(), CtxKeyUser, u)
 				next.ServeHTTP(w, r.WithContext(ctx))
 			default:
@@ -102,6 +107,7 @@ func Authenticate(ua UserAccess, signer *auth.Signer) func(http.Handler) http.Ha
 					}
 					return
 				}
+				authBasicCounter.Inc()
 				ctx := context.WithValue(r.Context(), CtxKeyUser, u)
 				next.ServeHTTP(w, r.WithContext(ctx))
 			}
@@ -166,9 +172,11 @@ func Logging(next http.Handler) http.Handler {
 }
 
 var (
-	metricsOnce sync.Once
-	urlHitCount *prometheus.CounterVec
-	urlLatency  *prometheus.SummaryVec
+	metricsOnce      sync.Once
+	urlHitCount      *prometheus.CounterVec
+	urlLatency       *prometheus.SummaryVec
+	authBasicCounter prometheus.Counter
+	authJWTCounter   prometheus.Counter
 )
 
 func initMetrics() {
@@ -188,8 +196,19 @@ func initMetrics() {
 		[]string{"method", "url"},
 	)
 
+	authBasicCounter = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "auth_basic_requests_total",
+		Help: "Number of requests authenticated via HTTP Basic Auth. Tracked per SEC-002b so SEC-002c can remove the Basic Auth path when this rate drops to zero.",
+	})
+	authJWTCounter = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "auth_jwt_requests_total",
+		Help: "Number of requests authenticated via Bearer JWT.",
+	})
+
 	prometheus.MustRegister(urlHitCount)
 	prometheus.MustRegister(urlLatency)
+	prometheus.MustRegister(authBasicCounter)
+	prometheus.MustRegister(authJWTCounter)
 }
 
 func Metrics(next http.Handler) http.Handler {

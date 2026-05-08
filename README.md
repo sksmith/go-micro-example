@@ -125,6 +125,17 @@ This application outputs prometheus metrics using middleware I plugged into the 
 locally check them out at [http://localhost:8080/metrics](http://localhost:8080/metrics). Every URL automatically
 gets a hit count and a latency metric added. You can find the configurations [here](api/middleware.go).
 
+In addition to the per-URL metrics, the auth middleware exposes two counters so you can track the
+SEC-002 migration from Basic Auth to JWTs:
+
+| Metric | Meaning |
+| --- | --- |
+| `auth_basic_requests_total` | Successful HTTP Basic Auth requests. |
+| `auth_jwt_requests_total` | Successful Bearer JWT requests. |
+
+Neither counter increments on auth failure. SEC-002c will remove the Basic Auth path once
+`rate(auth_basic_requests_total[1d])` is at zero across at least one release cycle.
+
 ### Logging
 
 I ended up going with [zerolog](https://github.com/rs/zerolog) for logging in this project. I really like its API and 
