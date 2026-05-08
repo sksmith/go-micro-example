@@ -63,10 +63,39 @@ RESTful API.
 
 ### Authentication
 
-Many of the endpoints in this project are protected by using a [simple authentication middleware](api/middleware.go).
-Users are stored in the database with bcrypt-hashed passwords and locally cached using
-[golang-lru](https://github.com/hashicorp/golang-lru). In a production setting if I actually wanted caching I'd either
-use a remote cache like Redis, or a distributed local cache like groupcache to prevent stale or out of sync data.
+Endpoints under `/api/v1` are protected by the
+[Authenticate middleware](api/middleware.go), which accepts **either** an HTTP Basic credential
+**or** a Bearer JWT (SEC-002a — both modes work in parallel; SEC-002c will retire Basic Auth once
+callers have migrated). Users are stored in the database with bcrypt-hashed passwords and locally
+cached using [golang-lru](https://github.com/hashicorp/golang-lru). In a production setting if I
+actually wanted caching I'd either use a remote cache like Redis, or a distributed local cache like
+groupcache to prevent stale or out of sync data.
+
+#### Getting a JWT
+
+`POST /auth/token` with HTTP Basic credentials returns a short-lived bearer token:
+
+```sh
+curl -u alice:s3cret -X POST http://localhost:8080/auth/token
+# {"access_token":"eyJhbGciOi...","token_type":"Bearer","expires_in":900}
+
+curl -H "Authorization: Bearer eyJhbGciOi..." http://localhost:8080/api/v1/inventory
+```
+
+Issued tokens carry `sub`, `iss`, `aud`, `iat`, `exp`, `jti`, and a `roles` claim
+(`["admin"]` for admins, `[]` otherwise). bcrypt is invoked **only** at token issuance — subsequent
+requests verify the JWT signature, which is much faster than bcrypt at default cost.
+
+Signing config (env vars; see [.env.example](.env.example)):
+
+| env var | required | default | meaning |
+| --- | --- | --- | --- |
+| `GME_JWT_SIGNING_KEY` | yes in `prod` | random ephemeral key | HMAC-SHA256 signing key, minimum 32 bytes. |
+| `GME_JWT_TTL_SECONDS` | no | 900 (15 min) | Token lifetime. |
+
+In `prod` profile the application refuses to start if `GME_JWT_SIGNING_KEY` is missing or shorter
+than 32 bytes. In `local` / `dev` an ephemeral key is generated, with a loud WARN that issued
+tokens will not survive a restart.
 
 #### Bootstrap admin
 

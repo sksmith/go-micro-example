@@ -5,30 +5,28 @@ go 1.17
 require (
 	github.com/common-nighthawk/go-figure v0.0.0-20210622060536-734e95fb86be
 	github.com/go-chi/chi v4.1.2+incompatible
-	github.com/go-chi/docgen v1.0.5
+	github.com/go-chi/cors v1.2.0
 	github.com/go-chi/render v1.0.1
 	github.com/golang-migrate/migrate/v4 v4.13.0
+	github.com/google/uuid v1.3.0
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/jackc/pgconn v1.14.3
 	github.com/jackc/pgx/v4 v4.18.3
+	github.com/mitchellh/mapstructure v1.4.3
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.11.1
 	github.com/rs/zerolog v1.20.0
-	github.com/sksmith/bunnyq v0.2.2
-	github.com/sksmith/go-spring-config v0.0.1
 	github.com/streadway/amqp v1.0.0
 	golang.org/x/crypto v0.20.0
 )
 
 require (
 	github.com/fsnotify/fsnotify v1.5.1 // indirect
-	github.com/go-chi/cors v1.2.0 // indirect
 	github.com/gobwas/httphead v0.1.0 // indirect
 	github.com/gobwas/pool v0.2.1 // indirect
-	github.com/google/uuid v1.3.0 // indirect
+	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/magiconair/properties v1.8.5 // indirect
-	github.com/mitchellh/mapstructure v1.4.3 // indirect
 	github.com/pelletier/go-toml v1.9.4 // indirect
 	github.com/spf13/afero v1.6.0 // indirect
 	github.com/spf13/cast v1.4.1 // indirect
@@ -60,7 +58,6 @@ require (
 	github.com/spf13/viper v1.10.1
 	golang.org/x/sys v0.17.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
-	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	google.golang.org/protobuf v1.27.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )

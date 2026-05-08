@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/core"
+	"github.com/sksmith/go-micro-example/core/auth"
 	"github.com/sksmith/go-micro-example/core/user"
 )
 
@@ -61,31 +63,64 @@ type UserAccess interface {
 	Login(ctx context.Context, username, password string) (user.User, error)
 }
 
-func Authenticate(ua UserAccess) func(http.Handler) http.Handler {
+// Authenticate accepts either an HTTP Basic credential or a Bearer JWT
+// (SEC-002a). Both modes populate CtxKeyUser. SEC-002c will remove the
+// Basic Auth path once usage is at zero.
+//
+// signer may be nil, in which case only Basic Auth is accepted.
+//
+// The header decides which path runs: a request that says "Bearer ..."
+// is never tried as Basic, even if the JWT is malformed — so a typo'd
+// JWT does not silently degrade to a 401-from-missing-Basic-creds.
+func Authenticate(ua UserAccess, signer *auth.Signer) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			username, password, ok := r.BasicAuth()
-
-			if !ok {
-				authErr(w)
-				return
-			}
-
-			u, err := ua.Login(r.Context(), username, password)
-			if err != nil {
-				if errors.Is(err, core.ErrNotFound) {
+			header := r.Header.Get("Authorization")
+			switch {
+			case signer != nil && strings.HasPrefix(header, "Bearer "):
+				u, err := authenticateBearer(strings.TrimPrefix(header, "Bearer "), signer)
+				if err != nil {
+					log.Debug().Err(err).Msg("bearer token rejected")
 					authErr(w)
-				} else {
-					log.Error().Err(err).Str("username", username).Msg("error acquiring user")
-					Render(w, r, ErrInternalServer)
+					return
 				}
-				return
+				ctx := context.WithValue(r.Context(), CtxKeyUser, u)
+				next.ServeHTTP(w, r.WithContext(ctx))
+			default:
+				username, password, ok := r.BasicAuth()
+				if !ok {
+					authErr(w)
+					return
+				}
+				u, err := ua.Login(r.Context(), username, password)
+				if err != nil {
+					if errors.Is(err, core.ErrNotFound) {
+						authErr(w)
+					} else {
+						log.Error().Err(err).Str("username", username).Msg("error acquiring user")
+						Render(w, r, ErrInternalServer)
+					}
+					return
+				}
+				ctx := context.WithValue(r.Context(), CtxKeyUser, u)
+				next.ServeHTTP(w, r.WithContext(ctx))
 			}
-
-			ctx := context.WithValue(r.Context(), CtxKeyUser, u)
-			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+func authenticateBearer(token string, signer *auth.Signer) (user.User, error) {
+	claims, err := signer.Parse(token)
+	if err != nil {
+		return user.User{}, err
+	}
+	u := user.User{Username: claims.Subject}
+	for _, role := range claims.Roles {
+		if role == "admin" {
+			u.IsAdmin = true
+		}
+	}
+	return u, nil
 }
 
 func AdminOnly(next http.Handler) http.Handler {
