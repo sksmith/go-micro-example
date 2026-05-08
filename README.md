@@ -63,11 +63,32 @@ RESTful API.
 
 ### Authentication
 
-Many of the endpoints in this project are protected by using a [simple authentication middleware](api/middleware.go). If 
-you're interested in hitting them you can use basic auth admin:admin. Users are stored in the database along with their 
-hashed password. Users are locally cached using [golang-lru](https://github.com/hashicorp/golang-lru). In a production 
-setting if I actually wanted caching I'd either use a remote cache like Redis, or a distributed local cache like 
-groupcache to prevent stale or out of sync data.
+Many of the endpoints in this project are protected by using a [simple authentication middleware](api/middleware.go).
+Users are stored in the database with bcrypt-hashed passwords and locally cached using
+[golang-lru](https://github.com/hashicorp/golang-lru). In a production setting if I actually wanted caching I'd either
+use a remote cache like Redis, or a distributed local cache like groupcache to prevent stale or out of sync data.
+
+#### Bootstrap admin
+
+On startup the application ensures an `admin` user exists. Behavior depends on the running profile:
+
+- **`local` / `dev` (default):** if no admin exists, one is created. If `BOOTSTRAP_ADMIN_PASSWORD` is set, that
+  password is used; otherwise a 32-character random password is generated and printed to the log **once** with a
+  warning. Capture it on first run — it will not be shown again.
+- **`prod`:** the application refuses to start if no admin exists and `BOOTSTRAP_ADMIN_PASSWORD` is unset. Set the
+  env var (typically via your secret manager) and start.
+
+Older databases that ran the seed `admin:admin` migration are detected and replaced on startup. Newly-created
+databases never carry the seed credential.
+
+```sh
+# local: pick your own password
+BOOTSTRAP_ADMIN_PASSWORD=please-change-me go run ./cmd
+
+# local: let it generate one and watch the logs
+go run ./cmd
+# {"level":"warn","username":"admin","password":"<base64 token>","message":"bootstrap admin user created with auto-generated password..."}
+```
 
 ### Metrics
 

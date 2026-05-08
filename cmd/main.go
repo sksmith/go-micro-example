@@ -44,6 +44,10 @@ func main() {
 
 	userService := user.NewService(ur)
 
+	if err := user.Bootstrap(ctx, ur, cfg.Profile.Value, os.Getenv("BOOTSTRAP_ADMIN_PASSWORD")); err != nil {
+		log.Fatal().Err(err).Msg("admin bootstrap failed")
+	}
+
 	r := api.ConfigureRouter(cfg, invService, invService, userService)
 
 	_ = queue.NewProductQueue(ctx, cfg, invService)
