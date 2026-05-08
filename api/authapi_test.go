@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/sksmith/go-micro-example/api"
@@ -128,10 +129,18 @@ func TestProtectedRouteAcceptsBearerJWT(t *testing.T) {
 func TestProtectedRouteRejectsTamperedBearer(t *testing.T) {
 	r, _, signer := newTestRouterWithSigner()
 	tok, _, _ := signer.Issue(user.User{Username: "alice"})
-	tampered := tok[:len(tok)-1] + "A"
-	if tampered == tok {
-		tampered = tok[:len(tok)-1] + "B"
+	// Tamper a byte inside the signature segment (not at the
+	// base64-url padding boundary, where flipping a char can decode
+	// to the same signature byte).
+	parts := strings.Split(tok, ".")
+	if len(parts) != 3 {
+		t.Fatalf("malformed token: %s", tok)
 	}
+	swap := byte('A')
+	if parts[2][0] == 'A' {
+		swap = 'B'
+	}
+	tampered := parts[0] + "." + parts[1] + "." + string(swap) + parts[2][1:]
 	ts := httptest.NewServer(r)
 	defer ts.Close()
 

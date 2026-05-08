@@ -106,18 +106,21 @@ func TestParseRejectsExpired(t *testing.T) {
 func TestParseRejectsTampered(t *testing.T) {
 	s, _ := auth.NewSigner([]byte(validKey), 0, true)
 	tok, _, _ := s.Issue(user.User{Username: "alice"})
-	// flip the last character of the signature segment
 	parts := strings.Split(tok, ".")
 	if len(parts) != 3 {
 		t.Fatalf("malformed token: %s", tok)
 	}
-	last := parts[2]
-	tampered := tok[:len(tok)-1]
-	if last[len(last)-1] == 'A' {
-		tampered += "B"
-	} else {
-		tampered += "A"
+	// Tamper the *first* signature byte — base64-url's last char often
+	// only encodes padding bits, so flipping it can decode to the same
+	// signature (test was flaky). The first char always carries real
+	// bits.
+	sig := parts[2]
+	first := sig[0]
+	swap := byte('A')
+	if first == 'A' {
+		swap = 'B'
 	}
+	tampered := parts[0] + "." + parts[1] + "." + string(swap) + sig[1:]
 	if _, err := s.Parse(tampered); err == nil {
 		t.Error("expected error on tampered signature")
 	}
