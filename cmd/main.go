@@ -16,6 +16,7 @@ import (
 	"github.com/sksmith/go-micro-example/config"
 	"github.com/sksmith/go-micro-example/core/auth"
 	"github.com/sksmith/go-micro-example/core/inventory"
+	"github.com/sksmith/go-micro-example/core/secrets"
 	"github.com/sksmith/go-micro-example/core/user"
 	"github.com/sksmith/go-micro-example/db"
 	"github.com/sksmith/go-micro-example/db/invrepo"
@@ -28,6 +29,14 @@ import (
 func main() {
 	start := time.Now()
 	ctx := context.Background()
+
+	// Resolve secrets from the configured provider before viper reads
+	// the env (DSN-006). The provider populates GME_* env vars so the
+	// existing viper.BindEnv plumbing keeps working unchanged.
+	if err := secrets.LoadFromEnv(); err != nil {
+		log.Fatal().Err(err).Msg("secrets provider failed; refusing to start")
+	}
+
 	cfg := config.Load("config")
 
 	configLogging(cfg)
