@@ -1,0 +1,22 @@
+name: Scheduled scans
+# Re-runs every scanner against master once a week so new advisories
+# land in the Security tab without waiting for a PR.
+on:
+  schedule:
+    # Mondays 06:00 UTC
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+permissions:
+  contents: read
+  security-events: write
+jobs:
+  lint:
+    uses: ./.github/workflows/lint.yml
+  security:
+    uses: ./.github/workflows/sec.yml
+  vuln:
+    uses: ./.github/workflows/vuln.yml
+  secret:
+    uses: ./.github/workflows/secret.yml
+  trivy:
+    uses: ./.github/workflows/trivy.yml

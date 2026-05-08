@@ -1,18 +1,30 @@
 name: Sec
 on:
   workflow_call:
-    secrets:
-      webhook:
-        required: true
+permissions:
+  contents: read
+  security-events: write
 jobs:
-  tests:
+  gosec:
+    name: gosec
     runs-on: ubuntu-latest
-    env:
-      GO111MODULE: on
     steps:
-      - name: Checkout Source
-        uses: actions/checkout@v2
-      - name: Run Gosec Security Scanner
-        uses: securego/gosec@master
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
         with:
-          args: ./...
+          # Tooling Go, not project Go. gosec analyses Go source against
+          # its own ruleset — DEP-001 will move project Go to a newer line.
+          go-version: '1.22'
+          cache: true
+      - name: Run gosec
+        uses: securego/gosec@v2.21.4
+        with:
+          # SARIF for the Security tab; -severity high gates the exit code
+          # so the job fails only on High/Critical findings.
+          args: '-fmt sarif -out gosec.sarif -severity high ./...'
+      - name: Upload SARIF
+        if: ${{ always() && hashFiles('gosec.sarif') != '' }}
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: gosec.sarif
+          category: gosec

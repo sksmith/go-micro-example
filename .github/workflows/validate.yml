@@ -3,16 +3,25 @@ on:
   pull_request:
     branches:
       - master
+permissions:
+  contents: read
+  security-events: write
 jobs:
   lint:
-    uses: sksmith/note-server/.github/workflows/lint.yml@master
+    uses: ./.github/workflows/lint.yml
   security:
-    uses: sksmith/note-server/.github/workflows/sec.yml@master
+    uses: ./.github/workflows/sec.yml
+  vuln:
+    uses: ./.github/workflows/vuln.yml
+  secret:
+    uses: ./.github/workflows/secret.yml
+  trivy:
+    uses: ./.github/workflows/trivy.yml
   test:
-    uses: sksmith/note-server/.github/workflows/test.yml@master
+    uses: ./.github/workflows/test.yml
   notify:
     name: Notification
-    needs: [lint, security, test]
+    needs: [lint, security, vuln, secret, trivy, test]
     runs-on: ubuntu-latest
     steps:
       - uses: sarisia/actions-status-discord@v1
