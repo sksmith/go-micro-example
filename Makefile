@@ -1,16 +1,31 @@
 VER := $(shell git describe --tag)
 SHA1 := $(shell git rev-parse HEAD)
 NOW := $(shell date -u +'%Y-%m-%d_%TZ')
+GOBIN := $(shell go env GOPATH)/bin
 
-check:
-	@echo Linting
-	golangci-lint run
+.PHONY: fmt vet lint sec test-race verify
+fmt:
+	@echo "==> gofmt"
+	@out=$$(gofmt -l .); if [ -n "$$out" ]; then echo "$$out"; echo "files need gofmt"; exit 1; fi
 
-	@echo Security scanning
-	gosec ./...
+vet:
+	@echo "==> go vet"
+	go vet ./...
 
-	@echo Testing
-	go test ./...
+lint:
+	@echo "==> golangci-lint"
+	@command -v golangci-lint >/dev/null 2>&1 && golangci-lint run || $(GOBIN)/golangci-lint run
+
+sec:
+	@echo "==> gosec"
+	@command -v gosec >/dev/null 2>&1 && gosec ./... || $(GOBIN)/gosec ./...
+
+test-race:
+	@echo "==> go test -race"
+	go test -race -count=1 -timeout 60s ./...
+
+verify: fmt vet lint sec test-race
+	@echo "==> verify OK"
 
 build:
 	@echo Building the binary
@@ -33,5 +48,5 @@ docker:
 		--build-arg SHA1=$(SHA1) .
 
 tools:
-	go install github.com/securego/gosec/v2/cmd/gosec
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.43.0
+	go install github.com/securego/gosec/v2/cmd/gosec@latest
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest

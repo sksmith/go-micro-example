@@ -2,6 +2,7 @@ package inventory
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -32,6 +33,7 @@ type GetReservationsOptions struct {
 type service struct {
 	repo            Repository
 	queue           InventoryQueue
+	subsMu          sync.Mutex
 	inventorySubs   map[InventorySubID]chan<- ProductInventory
 	reservationSubs map[ReservationsSubID]chan<- Reservation
 }
@@ -291,28 +293,40 @@ func (s *service) GetReservations(ctx context.Context, options GetReservationsOp
 
 func (s *service) SubscribeInventory(ch chan<- ProductInventory) (id InventorySubID) {
 	id = InventorySubID(uuid.NewString())
+	s.subsMu.Lock()
 	s.inventorySubs[id] = ch
+	s.subsMu.Unlock()
 	log.Debug().Interface("clientId", id).Msg("subscribing to inventory")
 	return id
 }
 
 func (s *service) UnsubscribeInventory(id InventorySubID) {
 	log.Debug().Interface("clientId", id).Msg("unsubscribing from inventory")
-	close(s.inventorySubs[id])
-	delete(s.inventorySubs, id)
+	s.subsMu.Lock()
+	if ch, ok := s.inventorySubs[id]; ok {
+		close(ch)
+		delete(s.inventorySubs, id)
+	}
+	s.subsMu.Unlock()
 }
 
 func (s *service) SubscribeReservations(ch chan<- Reservation) (id ReservationsSubID) {
 	id = ReservationsSubID(uuid.NewString())
+	s.subsMu.Lock()
 	s.reservationSubs[id] = ch
+	s.subsMu.Unlock()
 	log.Debug().Interface("clientId", id).Msg("subscribing to reservations")
 	return id
 }
 
 func (s *service) UnsubscribeReservations(id ReservationsSubID) {
 	log.Debug().Interface("clientId", id).Msg("unsubscribing from reservations")
-	close(s.reservationSubs[id])
-	delete(s.reservationSubs, id)
+	s.subsMu.Lock()
+	if ch, ok := s.reservationSubs[id]; ok {
+		close(ch)
+		delete(s.reservationSubs, id)
+	}
+	s.subsMu.Unlock()
 }
 
 func (s *service) FillReserves(ctx context.Context, product Product) error {
@@ -437,14 +451,28 @@ func (s *service) publishReservation(ctx context.Context, r Reservation) error {
 }
 
 func (s *service) notifyInventorySubscribers(pi ProductInventory) {
+	s.subsMu.Lock()
+	subs := make(map[InventorySubID]chan<- ProductInventory, len(s.inventorySubs))
 	for id, ch := range s.inventorySubs {
+		subs[id] = ch
+	}
+	s.subsMu.Unlock()
+
+	for id, ch := range subs {
 		log.Debug().Interface("clientId", id).Interface("productInventory", pi).Msg("notifying subscriber of inventory update")
 		ch <- pi
 	}
 }
 
 func (s *service) notifyReservationSubscribers(r Reservation) {
+	s.subsMu.Lock()
+	subs := make(map[ReservationsSubID]chan<- Reservation, len(s.reservationSubs))
 	for id, ch := range s.reservationSubs {
+		subs[id] = ch
+	}
+	s.subsMu.Unlock()
+
+	for id, ch := range subs {
 		log.Debug().Interface("clientId", id).Interface("productInventory", r).Msg("notifying subscriber of reservation update")
 		ch <- r
 	}

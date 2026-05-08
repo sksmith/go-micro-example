@@ -96,6 +96,42 @@ The testing in this project is pretty bare-bones and mostly just proof-of-concep
 though, they're in [api](api). I personally prefer more integration tests that test an application front-to-back for 
 features rather than tons and tons of tightly-coupled unit tests.
 
+The default `go test ./...` runs the unit tests only. To run the full local
+check matrix in one go, use `make verify`. See [Make targets](#make-targets)
+below for what each step does.
+
+The integration tests in [cmd/integration_test.go](cmd/integration_test.go)
+require Postgres and RabbitMQ (see [docker-compose.yml](docker-compose.yml))
+and are gated behind the `integration` build tag. Run them with:
+
+```shell
+docker-compose up -d
+go test -tags=integration ./cmd/...
+```
+
+### Make targets
+
+`make verify` is the entry point most contributors want — it chains every
+local check and fails fast on the first one. The individual targets are also
+exposed so you can run a single step in isolation:
+
+| Target | What it does |
+| --- | --- |
+| `make tools` | Installs `golangci-lint` and `gosec` into `$(go env GOPATH)/bin`. Run once before `make verify`, and re-run when bumping versions. |
+| `make fmt` | Runs `gofmt -l .` and exits non-zero if any file needs formatting. Does not modify files — fix with `gofmt -w <file>`. |
+| `make vet` | Runs `go vet ./...`. |
+| `make lint` | Runs `golangci-lint run` with the project defaults. |
+| `make sec` | Runs `gosec ./...` (CWE-tagged static analysis). |
+| `make test-race` | Runs `go test -race -count=1 -timeout 60s ./...`. |
+| `make verify` | Runs `fmt`, `vet`, `lint`, `sec`, and `test-race` in order. |
+| `make test` | Runs `go test -cover ./...` without race detection — quick smoke check. |
+| `make build` | Builds the binary into `./bin/go-micro-example` with version metadata baked in. |
+| `make run` | Runs the application via `go run ./cmd/.`. Requires Postgres and RabbitMQ. |
+| `make docker` | Builds the Docker image. |
+
+If `make tools` has not been run yet, `lint` and `sec` will fail with
+`command not found`; install the tools first.
+
 ### Database Migrations
 
 I'm using the [migrate](https://github.com/golang-migrate/migrate) project to manage database migrations.

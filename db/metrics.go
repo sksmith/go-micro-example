@@ -34,7 +34,7 @@ var (
 
 type Metric struct {
 	funcName string
-	start time.Time
+	start    time.Time
 }
 
 func StartMetric(funcName string) *Metric {

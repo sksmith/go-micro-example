@@ -21,12 +21,12 @@ import (
 func TestReservationSubscribe(t *testing.T) {
 	mockSvc := inventory.NewMockReservationService()
 
-	subscribeCalled := false
+	subscribed := make(chan struct{}, 1)
+	unsubscribed := make(chan struct{}, 1)
 	expectedSubId := inventory.ReservationsSubID("subid1")
-	unsubscribeCalled := false
 
 	mockSvc.SubscribeReservationsFunc = func(ch chan<- inventory.Reservation) (id inventory.ReservationsSubID) {
-		subscribeCalled = true
+		subscribed <- struct{}{}
 		go func() {
 			res := getTestReservations()
 			for i := 0; i < 3; i++ {
@@ -39,7 +39,7 @@ func TestReservationSubscribe(t *testing.T) {
 	}
 
 	mockSvc.UnsubscribeReservationsFunc = func(id inventory.ReservationsSubID) {
-		unsubscribeCalled = true
+		unsubscribed <- struct{}{}
 	}
 
 	resApi := api.NewReservationApi(mockSvc)
@@ -63,11 +63,15 @@ func TestReservationSubscribe(t *testing.T) {
 		reflect.DeepEqual(got, curRes[i])
 	}
 
-	if !subscribeCalled {
+	select {
+	case <-subscribed:
+	case <-time.After(time.Second):
 		t.Errorf("subscribe never called")
 	}
 
-	if !unsubscribeCalled {
+	select {
+	case <-unsubscribed:
+	case <-time.After(time.Second):
 		t.Errorf("unsubscribe never called")
 	}
 }

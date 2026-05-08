@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"sync"
 	"testing"
 
 	"github.com/go-chi/chi"
@@ -22,24 +21,10 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-// The Metrics middleware registers global Prometheus collectors on every call
-// to ConfigureRouter, which panics on a second call within the same process.
-// Until that is addressed (out of scope for SEC-001), share a single router
-// across tests in this file.
-var (
-	sharedRouterOnce sync.Once
-	sharedRouter     chi.Router
-	sharedUserSvc    *user.MockUserService
-)
-
-func sharedTestRouter() (chi.Router, *user.MockUserService) {
-	sharedRouterOnce.Do(func() {
-		cfg := config.LoadDefaults()
-		invSvc, resSvc, usrSvc := getMocks()
-		sharedUserSvc = usrSvc
-		sharedRouter = api.ConfigureRouter(cfg, invSvc, resSvc, usrSvc)
-	})
-	return sharedRouter, sharedUserSvc
+func newTestRouter() (chi.Router, *user.MockUserService) {
+	cfg := config.LoadDefaults()
+	invSvc, resSvc, usrSvc := getMocks()
+	return api.ConfigureRouter(cfg, invSvc, resSvc, usrSvc), usrSvc
 }
 
 func TestCorsConfig(t *testing.T) {
@@ -59,7 +44,7 @@ func TestCorsConfig(t *testing.T) {
 		{origin: "https://localhostevil:3000", want: ""},
 	}
 
-	r, _ := sharedTestRouter()
+	r, _ := newTestRouter()
 	ts := httptest.NewServer(r)
 	defer ts.Close()
 
@@ -86,15 +71,10 @@ func TestCorsConfig(t *testing.T) {
 }
 
 func TestApiRoutesRequireAuthentication(t *testing.T) {
-	r, usrSvc := sharedTestRouter()
+	r, usrSvc := newTestRouter()
 	usrSvc.LoginFunc = func(ctx context.Context, username, password string) (user.User, error) {
 		return user.User{}, core.ErrNotFound
 	}
-	t.Cleanup(func() {
-		usrSvc.LoginFunc = func(ctx context.Context, username, password string) (user.User, error) {
-			return user.User{}, nil
-		}
-	})
 	ts := httptest.NewServer(r)
 	defer ts.Close()
 
@@ -142,7 +122,7 @@ func TestApiRoutesRequireAuthentication(t *testing.T) {
 }
 
 func TestUnauthenticatedEndpointsRemainOpen(t *testing.T) {
-	r, _ := sharedTestRouter()
+	r, _ := newTestRouter()
 	ts := httptest.NewServer(r)
 	defer ts.Close()
 
