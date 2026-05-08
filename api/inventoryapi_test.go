@@ -25,6 +25,7 @@ func TestInventorySubscribe(t *testing.T) {
 
 	subscribed := make(chan struct{}, 1)
 	unsubscribed := make(chan struct{}, 1)
+	releaseSubscribe := make(chan struct{})
 	expectedSubId := inventory.InventorySubID("subid1")
 
 	mockSvc.SubscribeInventoryFunc = func(ch chan<- inventory.ProductInventory) (id inventory.InventorySubID) {
@@ -34,6 +35,11 @@ func TestInventorySubscribe(t *testing.T) {
 			for i := 0; i < 3; i++ {
 				ch <- inv[i]
 			}
+			// Hold the channel open until the test has read all
+			// items off the websocket; otherwise the handler's
+			// defer conn.Close() can race ahead and the client
+			// sees EOF mid-read.
+			<-releaseSubscribe
 			close(ch)
 		}()
 
@@ -66,6 +72,7 @@ func TestInventorySubscribe(t *testing.T) {
 			t.Errorf("unexpected ws response[%d] got=[%s] want=[%s]", i, got.Name, curInv[i].Name)
 		}
 	}
+	close(releaseSubscribe)
 
 	select {
 	case <-subscribed:

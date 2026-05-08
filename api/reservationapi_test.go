@@ -23,6 +23,7 @@ func TestReservationSubscribe(t *testing.T) {
 
 	subscribed := make(chan struct{}, 1)
 	unsubscribed := make(chan struct{}, 1)
+	releaseSubscribe := make(chan struct{})
 	expectedSubId := inventory.ReservationsSubID("subid1")
 
 	mockSvc.SubscribeReservationsFunc = func(ch chan<- inventory.Reservation) (id inventory.ReservationsSubID) {
@@ -32,6 +33,11 @@ func TestReservationSubscribe(t *testing.T) {
 			for i := 0; i < 3; i++ {
 				ch <- res[i]
 			}
+			// Hold the channel open until the test has read all
+			// items off the websocket; otherwise the handler's
+			// defer conn.Close() can race ahead and the client
+			// sees EOF mid-read.
+			<-releaseSubscribe
 			close(ch)
 		}()
 
@@ -62,6 +68,7 @@ func TestReservationSubscribe(t *testing.T) {
 
 		reflect.DeepEqual(got, curRes[i])
 	}
+	close(releaseSubscribe)
 
 	select {
 	case <-subscribed:

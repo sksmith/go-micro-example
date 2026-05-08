@@ -16,7 +16,7 @@ jobs:
           go-version-file: go.mod
           cache: true
       - name: Run gosec
-        uses: securego/gosec@v2.21.4
+        uses: securego/gosec@v2.26.1
         with:
           # SARIF for the Security tab; -severity high gates the exit code
           # so the job fails only on High/Critical findings.
