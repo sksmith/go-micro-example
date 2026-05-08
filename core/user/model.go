@@ -9,8 +9,8 @@ type CreateUserRequest struct {
 }
 
 type User struct {
-	Username string
+	Username       string
 	HashedPassword string
-	IsAdmin bool
-	Created time.Time
+	IsAdmin        bool
+	Created        time.Time
 }

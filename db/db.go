@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/golang-migrate/migrate/v4"
@@ -10,6 +11,7 @@ import (
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/config"
@@ -52,6 +54,13 @@ func newDbConfig() dbconfig {
 	}
 }
 
+func poolSizeToInt32(v int64, name string) (int32, error) {
+	if v < 0 || v > math.MaxInt32 {
+		return 0, errors.Errorf("%s out of range for int32: %d", name, v)
+	}
+	return int32(v), nil
+}
+
 func formatOption(url, option string, value interface{}) string {
 	return url + " " + option + "=" + fmt.Sprintf("%v", value)
 }
@@ -91,7 +100,15 @@ func ConnectDb(ctx context.Context, cfg *config.Config) (*pgxpool.Pool, error) {
 
 	var pool *pgxpool.Pool
 
-	url := addOptionsToConnStr(connStr, MinPoolConns(int32(cfg.Db.Pool.MinSize.Value)), MaxPoolConns(int32(cfg.Db.Pool.MaxSize.Value)))
+	minConns, err := poolSizeToInt32(cfg.Db.Pool.MinSize.Value, "db.pool.minSize")
+	if err != nil {
+		return nil, err
+	}
+	maxConns, err := poolSizeToInt32(cfg.Db.Pool.MaxSize.Value, "db.pool.maxSize")
+	if err != nil {
+		return nil, err
+	}
+	url := addOptionsToConnStr(connStr, MinPoolConns(minConns), MaxPoolConns(maxConns))
 	poolConfig, err := pgxpool.ParseConfig(url)
 	if err != nil {
 		return nil, err

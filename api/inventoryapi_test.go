@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gobwas/ws"
 	"github.com/sksmith/go-micro-example/api"
@@ -22,12 +23,12 @@ import (
 func TestInventorySubscribe(t *testing.T) {
 	mockSvc := inventory.NewMockInventoryService()
 
-	subscribeCalled := false
+	subscribed := make(chan struct{}, 1)
+	unsubscribed := make(chan struct{}, 1)
 	expectedSubId := inventory.InventorySubID("subid1")
-	unsubscribeCalled := false
 
 	mockSvc.SubscribeInventoryFunc = func(ch chan<- inventory.ProductInventory) (id inventory.InventorySubID) {
-		subscribeCalled = true
+		subscribed <- struct{}{}
 		go func() {
 			inv := getTestProductInventory()
 			for i := 0; i < 3; i++ {
@@ -40,7 +41,7 @@ func TestInventorySubscribe(t *testing.T) {
 	}
 
 	mockSvc.UnsubscribeInventoryFunc = func(id inventory.InventorySubID) {
-		unsubscribeCalled = true
+		unsubscribed <- struct{}{}
 	}
 
 	invApi := api.NewInventoryApi(mockSvc)
@@ -66,11 +67,15 @@ func TestInventorySubscribe(t *testing.T) {
 		}
 	}
 
-	if !subscribeCalled {
+	select {
+	case <-subscribed:
+	case <-time.After(time.Second):
 		t.Errorf("subscribe never called")
 	}
 
-	if !unsubscribeCalled {
+	select {
+	case <-unsubscribed:
+	case <-time.After(time.Second):
 		t.Errorf("unsubscribe never called")
 	}
 }

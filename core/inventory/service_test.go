@@ -1156,7 +1156,7 @@ func TestSubscribeInventory(t *testing.T) {
 	id := service.SubscribeInventory(ch)
 
 	go func() {
-		service.Produce(context.Background(), getProductInventory()[2].Product, inventory.ProductionRequest{RequestID: "request1", Quantity: 1})
+		_ = service.Produce(context.Background(), getProductInventory()[2].Product, inventory.ProductionRequest{RequestID: "request1", Quantity: 1})
 	}()
 
 	want := getProductInventory()[2]
@@ -1201,7 +1201,7 @@ func TestSubscribeReservations(t *testing.T) {
 	id := service.SubscribeReservations(ch)
 
 	go func() {
-		service.Produce(context.Background(), getProductInventory()[2].Product, inventory.ProductionRequest{RequestID: "request1", Quantity: 10})
+		_ = service.Produce(context.Background(), getProductInventory()[2].Product, inventory.ProductionRequest{RequestID: "request1", Quantity: 10})
 	}()
 
 	want := getReservations()[3]

@@ -49,7 +49,15 @@ func main() {
 	_ = queue.NewProductQueue(ctx, cfg, invService)
 
 	log.Info().Str("port", cfg.Port.Value).Int64("startTimeMs", time.Since(start).Milliseconds()).Msg("listening")
-	log.Fatal().Err(http.ListenAndServe(":"+cfg.Port.Value, r))
+	srv := &http.Server{
+		Addr:              ":" + cfg.Port.Value,
+		Handler:           r,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
+	log.Fatal().Err(srv.ListenAndServe())
 }
 
 func printLogHeader(cfg *config.Config) {

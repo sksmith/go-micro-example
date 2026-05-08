@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/go-chi/chi"
@@ -129,15 +130,21 @@ func Logging(next http.Handler) http.Handler {
 	return http.HandlerFunc(fn)
 }
 
-func Metrics(next http.Handler) http.Handler {
-	urlHitCount := prometheus.NewCounterVec(
+var (
+	metricsOnce sync.Once
+	urlHitCount *prometheus.CounterVec
+	urlLatency  *prometheus.SummaryVec
+)
+
+func initMetrics() {
+	urlHitCount = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "url_hit_count",
 			Help: "Number of times the given url was hit",
 		},
 		[]string{"method", "url"},
 	)
-	urlLatency := prometheus.NewSummaryVec(
+	urlLatency = prometheus.NewSummaryVec(
 		prometheus.SummaryOpts{
 			Name:       "url_latency",
 			Help:       "The latency quantiles for the given URL",
@@ -148,6 +155,10 @@ func Metrics(next http.Handler) http.Handler {
 
 	prometheus.MustRegister(urlHitCount)
 	prometheus.MustRegister(urlLatency)
+}
+
+func Metrics(next http.Handler) http.Handler {
+	metricsOnce.Do(initMetrics)
 
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
