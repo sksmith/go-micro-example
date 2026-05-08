@@ -104,7 +104,40 @@ their benchmarks look really great too! You can get structured logging or nice h
 
 ### Configuration
 
-This project uses [viper](https://github.com/spf13/viper) for handling externalized configurations. At the moment it only reads from the local config.yml but the plan is to make it compatible with [Spring Cloud Config](https://cloud.spring.io/spring-cloud-config), and [etcd](https://etcd.io).
+This project uses [viper](https://github.com/spf13/viper) for handling externalized configurations. At the moment it
+only reads from the local config.yml but the plan is to make it compatible with
+[Spring Cloud Config](https://cloud.spring.io/spring-cloud-config), and [etcd](https://etcd.io).
+
+#### Secrets and credentials
+
+Credentials never live in tracked files. The four sensitive viper keys — `db.user`, `db.pass`, `rabbitmq.user`,
+`rabbitmq.pass` — are blank in `config.yml` and read from env vars at startup. Names are upper-snake with the `GME_`
+prefix:
+
+| viper key | env var |
+| --- | --- |
+| `db.user` | `GME_DB_USER` |
+| `db.pass` | `GME_DB_PASS` |
+| `rabbitmq.user` | `GME_RABBITMQ_USER` |
+| `rabbitmq.pass` | `GME_RABBITMQ_PASS` |
+
+Additionally, `BOOTSTRAP_ADMIN_PASSWORD` (no prefix) seeds the admin user — see [Bootstrap admin](#bootstrap-admin).
+
+Three convenient ways to supply these locally:
+
+1. **Inline:** `GME_DB_PASS=postgres go run ./cmd`
+2. **`.env` file** in the repo root (gitignored). Sourced manually (`set -a; source .env; set +a`) or via tools like
+   `direnv`. See [.env.example](.env.example) for the shape.
+3. **`config.local.yml`** in the repo root (gitignored). Same schema as `config.yml`; merged on top at startup.
+
+In production, populate the env vars from your secret manager (Vault, AWS Secrets Manager, GCP Secret Manager) — see
+DSN-006 in the local plan/.
+
+#### Local stack credentials
+
+[docker-compose.yml](docker-compose.yml) parameterises the Postgres / pgAdmin / RabbitMQ admin credentials with the
+`${VAR:-default}` pattern, so the literal passwords no longer live in tracked YAML. Defaults remain dev-friendly
+(`postgres`, `guest`, `admin`) so `docker-compose up -d` still works out of the box for new contributors.
 
 ### Testing
 

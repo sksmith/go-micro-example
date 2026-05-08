@@ -1,4 +1,7 @@
 version: '3'
+# Local-development stack only. Credentials default to dev values for
+# convenience but accept overrides via env vars (or a gitignored .env
+# file in this directory). Do not run this compose file in production.
 services:
   postgres:
     image: postgres
@@ -6,9 +9,9 @@ services:
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: go-micro-example-db
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-go-micro-example-db}
 
   pgadmin:
     image: dpage/pgadmin4
@@ -17,8 +20,8 @@ services:
     ports:
       - "9090:80"
     environment:
-      PGADMIN_DEFAULT_EMAIL: oz@oz.com
-      PGADMIN_DEFAULT_PASSWORD: oz
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@example.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin}
 
   rabbitmq:
     image: rabbitmq:3.9-management-alpine
@@ -26,3 +29,6 @@ services:
     ports:
       - 5672:5672
       - 15672:15672
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-guest}

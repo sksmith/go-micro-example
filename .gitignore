@@ -18,3 +18,12 @@ vendor/
 
 # IDE Configurations
 .idea
+
+# Local review/planning artifacts
+plan/
+
+# Local secrets / config overrides (SEC-004)
+.env
+.env.local
+config.local.yml
+

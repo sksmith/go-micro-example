@@ -13,8 +13,8 @@ db:
   name: go-micro-example-db
   host: localhost
   port: 5432
-  user: postgres
-  pass: postgres
+  # user / pass intentionally unset; supply via env vars
+  # GME_DB_USER and GME_DB_PASS or via config.local.yml (gitignored).
   clean: false
   logLevel: warn
   pool:
@@ -24,8 +24,8 @@ db:
 rabbitmq:
   host: localhost
   port: 5672
-  user: guest
-  pass: guest
+  # user / pass intentionally unset; supply via env vars
+  # GME_RABBITMQ_USER and GME_RABBITMQ_PASS or via config.local.yml.
   inventory:
     exchange: inventory.exchange
   reservation:
