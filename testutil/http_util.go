@@ -3,7 +3,7 @@ package testutil
 import (
 	"bytes"
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"testing"
@@ -12,7 +12,7 @@ import (
 )
 
 func Unmarshal(res *http.Response, v interface{}, t *testing.T) {
-	body, err := ioutil.ReadAll(res.Body)
+	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		t.Fatal(err)
 	}

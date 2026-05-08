@@ -1,4 +1,9 @@
-FROM golang:alpine as builder
+# DEP-001: pin Go to a major.minor (currently 1.24, matching go.mod and
+# test.yml). Builds will pick up the latest 1.24.x patch on rebuild,
+# which is intentional — patches close stdlib CVEs that govulncheck
+# tracks in SEC-008. OPS-002 will tighten this to a digest pin once
+# the image supply-chain story lands.
+FROM golang:1.24-alpine AS builder
 
 WORKDIR /app
 
