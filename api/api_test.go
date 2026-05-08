@@ -85,6 +85,7 @@ func TestApiRoutesRequireAuthentication(t *testing.T) {
 		{"inventory", api.ApiPath + api.InventoryPath},
 		{"reservation", api.ApiPath + api.ReservationPath},
 		{"user", api.ApiPath + api.UserPath},
+		{"admin/env", api.ApiPath + api.AdminPath + api.EnvPath},
 	}
 
 	for _, test := range tests {
