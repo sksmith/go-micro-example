@@ -13,8 +13,7 @@ db:
   name: go-micro-example-db
   host: localhost
   port: 5432
-  user: postgres
-  pass: postgres
+  # user / pass: integration tests must supply GME_DB_USER, GME_DB_PASS.
   migrate: true
   migrationFolder: ../db/migrations
   clean: true
@@ -26,8 +25,7 @@ db:
 rabbitmq:
   host: localhost
   port: 5672
-  user: guest
-  pass: guest
+  # user / pass: integration tests must supply GME_RABBITMQ_USER, GME_RABBITMQ_PASS.
   inventory:
     exchange: inventory.exchange
   reservation:

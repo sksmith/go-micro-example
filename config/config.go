@@ -5,6 +5,7 @@ import (
 	"flag"
 	"reflect"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/mitchellh/mapstructure"
@@ -193,6 +194,27 @@ func init() {
 	viper.SetDefault("rabbitmq.reservation.exchange", def.RabbitMQ.Reservation.Exchange.Default)
 	viper.SetDefault("rabbitmq.product.queue", def.RabbitMQ.Product.Queue.Default)
 	viper.SetDefault("rabbitmq.product.dlt.exchange", def.RabbitMQ.Product.Dlt.Exchange.Default)
+
+	bindSensitiveEnv()
+}
+
+// bindSensitiveEnv wires the credential-bearing config keys to env-var
+// fallbacks so secrets can stay out of tracked files (SEC-004). Env vars
+// use the GME_ prefix and replace dotted keys with underscores —
+// `db.pass` becomes `GME_DB_PASS`, etc.
+func bindSensitiveEnv() {
+	viper.SetEnvPrefix("GME")
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	for _, key := range []string{
+		"db.user",
+		"db.pass",
+		"rabbitmq.user",
+		"rabbitmq.pass",
+	} {
+		// Errors here would mean a programming error in the key list —
+		// viper.BindEnv only fails on empty input.
+		_ = viper.BindEnv(key)
+	}
 }
 
 func LoadDefaults() *Config {
@@ -241,6 +263,19 @@ func loadLocalConfigs(filename string, config *Config) error {
 	err := viper.ReadInConfig()
 	if err != nil {
 		return err
+	}
+
+	// Merge an optional gitignored config.local.yml on top of the base
+	// file so a developer can keep their own GME_* credentials out of
+	// the env if they prefer (SEC-004).
+	viper.SetConfigName(filename + ".local")
+	if mergeErr := viper.MergeInConfig(); mergeErr != nil {
+		var notFound viper.ConfigFileNotFoundError
+		if !errors.As(mergeErr, &notFound) {
+			return mergeErr
+		}
+	} else {
+		log.Info().Str("file", filename+".local").Msg("merged local override file")
 	}
 
 	err = viper.Unmarshal(config, viper.DecodeHook(mapstructure.ComposeDecodeHookFunc(
@@ -469,8 +504,8 @@ func setupDefaults(config *Config) {
 	config.Db.Migrate = BoolConfig{Value: true, Default: true, Description: "Whether or not database migrations should be executed on startup."}
 	config.Db.MigrationFolder = StringConfig{Value: "db/migrations", Default: "db/migrations", Description: "Location of migration files to be executed on startup."}
 	config.Db.Clean = BoolConfig{Value: false, Default: false, Description: "WARNING: THIS WILL DELETE ALL DATA FROM THE DB. Used only during migration. If clean is true, all 'down' migrations are executed."}
-	config.Db.User = StringConfig{Value: "postgres", Default: "postgres", Description: "User the application will use to connect to the database."}
-	config.Db.Pass = StringConfig{Value: "postgres", Default: "postgres", Description: "Password the application will use for connecting to the database."}
+	config.Db.User = StringConfig{Value: "", Default: "", Description: "User the application will use to connect to the database. Supply via GME_DB_USER."}
+	config.Db.Pass = StringConfig{Value: "", Default: "", Description: "Password the application will use for connecting to the database. Supply via GME_DB_PASS."}
 	config.Db.Pool.MinSize = IntConfig{Value: 1, Default: 1, Description: "The minimum size of the pool."}
 	config.Db.Pool.MaxSize = IntConfig{Value: 3, Default: 3, Description: "The maximum size of the pool."}
 	config.Db.Pool.MaxConnLife = IntConfig{Value: time.Hour.Milliseconds(), Default: time.Hour.Milliseconds(), Description: "The maximum time a connection can live in the pool in milliseconds."}
@@ -480,8 +515,8 @@ func setupDefaults(config *Config) {
 	config.RabbitMQ.Description = "Rabbit MQ congfigurations."
 	config.RabbitMQ.Host = StringConfig{Value: "localhost", Default: "localhost", Description: "RabbitMQ's broker host."}
 	config.RabbitMQ.Port = StringConfig{Value: "5432", Default: "5432", Description: "RabbitMQ's broker host port."}
-	config.RabbitMQ.User = StringConfig{Value: "guest", Default: "guest", Description: "User the application will use to connect to RabbitMQ."}
-	config.RabbitMQ.Pass = StringConfig{Value: "guest", Default: "guest", Description: "Password the application will use to connect to RabbitMQ."}
+	config.RabbitMQ.User = StringConfig{Value: "", Default: "", Description: "User the application will use to connect to RabbitMQ. Supply via GME_RABBITMQ_USER."}
+	config.RabbitMQ.Pass = StringConfig{Value: "", Default: "", Description: "Password the application will use to connect to RabbitMQ. Supply via GME_RABBITMQ_PASS."}
 
 	config.RabbitMQ.Inventory.Description = "RabbitMQ settings for inventory related updates."
 	config.RabbitMQ.Inventory.Exchange = StringConfig{Value: "inventory.exchange", Default: "inventory.exchange", Description: "RabbitMQ exchang}}e to use for posting inventory updates."}
