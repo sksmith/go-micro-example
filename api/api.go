@@ -12,6 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/config"
+	"github.com/sksmith/go-micro-example/core/auth"
 )
 
 const (
@@ -24,10 +25,12 @@ const (
 	UserPath        = "/user"
 	AdminPath       = "/admin"
 	EnvPath         = "/env"
+	AuthPath        = "/auth"
+	TokenPath       = "/token"
 )
 
 // ConfigureRouter instantiates a go-chi router with middleware and routes for the server
-func ConfigureRouter(cfg *config.Config, invSvc InventoryService, resSvc ReservationService, userService UserService) chi.Router {
+func ConfigureRouter(cfg *config.Config, invSvc InventoryService, resSvc ReservationService, userService UserService, signer *auth.Signer) chi.Router {
 	log.Info().Msg("configuring router...")
 	r := chi.NewRouter()
 
@@ -51,7 +54,11 @@ func ConfigureRouter(cfg *config.Config, invSvc InventoryService, resSvc Reserva
 	})
 	r.Handle(MetricsEndpoint, promhttp.Handler())
 
-	r.With(Authenticate(userService)).Route(ApiPath, func(r chi.Router) {
+	if signer != nil {
+		r.Route(AuthPath, NewAuthApi(userService, signer).ConfigureRouter)
+	}
+
+	r.With(Authenticate(userService, signer)).Route(ApiPath, func(r chi.Router) {
 		r.Route(InventoryPath, NewInventoryApi(invSvc).ConfigureRouter)
 		r.Route(ReservationPath, NewReservationApi(resSvc).ConfigureRouter)
 		r.Route(UserPath, NewUserApi(userService).ConfigureRouter)

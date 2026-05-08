@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v4/pgxpool"
@@ -13,6 +14,7 @@ import (
 	"github.com/rs/zerolog/pkgerrors"
 	"github.com/sksmith/go-micro-example/api"
 	"github.com/sksmith/go-micro-example/config"
+	"github.com/sksmith/go-micro-example/core/auth"
 	"github.com/sksmith/go-micro-example/core/inventory"
 	"github.com/sksmith/go-micro-example/core/user"
 	"github.com/sksmith/go-micro-example/db"
@@ -48,7 +50,9 @@ func main() {
 		log.Fatal().Err(err).Msg("admin bootstrap failed")
 	}
 
-	r := api.ConfigureRouter(cfg, invService, invService, userService)
+	signer := configureSigner(cfg.Profile.Value)
+
+	r := api.ConfigureRouter(cfg, invService, invService, userService, signer)
 
 	_ = queue.NewProductQueue(ctx, cfg, invService)
 
@@ -97,6 +101,32 @@ func configDatabase(ctx context.Context, cfg *config.Config) *pgxpool.Pool {
 	}
 
 	return dbPool
+}
+
+func configureSigner(profile string) *auth.Signer {
+	key := []byte(os.Getenv("GME_JWT_SIGNING_KEY"))
+	ttl := time.Duration(0)
+	if raw := os.Getenv("GME_JWT_TTL_SECONDS"); raw != "" {
+		seconds, err := strconv.Atoi(raw)
+		if err != nil || seconds <= 0 {
+			log.Fatal().Str("GME_JWT_TTL_SECONDS", raw).Msg("invalid jwt ttl; expected positive integer seconds")
+		}
+		ttl = time.Duration(seconds) * time.Second
+	}
+
+	strict := profile == "prod"
+	signer, err := auth.NewSigner(key, ttl, strict)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to construct jwt signer")
+	}
+	if signer.Ephemeral() {
+		log.Warn().
+			Dur("ttl", signer.TTL()).
+			Msg("GME_JWT_SIGNING_KEY missing or shorter than 32 bytes; using ephemeral key. Tokens will not survive a restart. Set the env var for stable issuance.")
+	} else {
+		log.Info().Dur("ttl", signer.TTL()).Msg("jwt signer ready")
+	}
+	return signer
 }
 
 func configLogging(cfg *config.Config) {

@@ -11,6 +11,7 @@ import (
 	"github.com/sksmith/go-micro-example/api"
 	"github.com/sksmith/go-micro-example/config"
 	"github.com/sksmith/go-micro-example/core"
+	"github.com/sksmith/go-micro-example/core/auth"
 	"github.com/sksmith/go-micro-example/core/inventory"
 	"github.com/sksmith/go-micro-example/core/user"
 	"github.com/sksmith/go-micro-example/testutil"
@@ -22,9 +23,18 @@ func TestMain(m *testing.M) {
 }
 
 func newTestRouter() (chi.Router, *user.MockUserService) {
+	r, usrSvc, _ := newTestRouterWithSigner()
+	return r, usrSvc
+}
+
+func newTestRouterWithSigner() (chi.Router, *user.MockUserService, *auth.Signer) {
 	cfg := config.LoadDefaults()
 	invSvc, resSvc, usrSvc := getMocks()
-	return api.ConfigureRouter(cfg, invSvc, resSvc, usrSvc), usrSvc
+	signer, err := auth.NewSigner(nil, 0, false)
+	if err != nil {
+		panic(err)
+	}
+	return api.ConfigureRouter(cfg, invSvc, resSvc, usrSvc, signer), usrSvc, signer
 }
 
 func TestCorsConfig(t *testing.T) {
