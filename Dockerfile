@@ -3,7 +3,7 @@
 # which is intentional — patches close stdlib CVEs that govulncheck
 # tracks in SEC-008. OPS-002 will tighten this to a digest pin once
 # the image supply-chain story lands.
-FROM golang:1.25-alpine AS builder
+FROM golang:1.26-alpine AS builder
 
 WORKDIR /app
 
