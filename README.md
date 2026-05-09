@@ -142,6 +142,13 @@ I ended up going with [zerolog](https://github.com/rs/zerolog) for logging in th
 their benchmarks look really great too! You can get structured logging or nice human-readable logging by
 [changing some configs](config.yml#L10)
 
+Every request flows through `api.CorrelationLogger`, which honours an inbound `X-Request-Id`
+(generates one if absent) and binds `request_id` — plus `trace_id` / `span_id` when an OTel span
+is recording — onto a child logger attached to the request context. Downstream code uses
+`log.Ctx(ctx)` to pick up the correlated logger; the AMQP layer ferries `request_id` across
+queue boundaries via the `x-request-id` header. See [docs/observability.md](docs/observability.md)
+for the full picture.
+
 ### Configuration
 
 This project uses [viper](https://github.com/spf13/viper) for handling externalized configurations. At the moment it

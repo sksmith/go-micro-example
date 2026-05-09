@@ -61,11 +61,11 @@ func (a *InventoryApi) ConfigureRouter(r chi.Router) {
 // would need to be able to scale. If it were scaled, clients would only get updates
 // that occurred in their connected instance.
 func (a *InventoryApi) Subscribe(w http.ResponseWriter, r *http.Request) {
-	log.Info().Msg("client requesting subscription")
+	log.Ctx(r.Context()).Info().Msg("client requesting subscription")
 
 	conn, _, _, err := ws.UpgradeHTTP(r, w)
 	if err != nil {
-		log.Error().Err(err).Msg("failed to establish inventory subscription connection")
+		log.Ctx(r.Context()).Error().Err(err).Msg("failed to establish inventory subscription connection")
 		Render(w, r, ErrInternalServer)
 		return
 	}
@@ -103,7 +103,7 @@ func (a *InventoryApi) List(w http.ResponseWriter, r *http.Request) {
 
 	products, err := a.service.GetAllProductInventory(r.Context(), limit, offset)
 	if err != nil {
-		log.Error().Err(err).Int("limit", limit).Int("offset", offset).Msg("failed to list product inventory")
+		log.Ctx(r.Context()).Error().Err(err).Int("limit", limit).Int("offset", offset).Msg("failed to list product inventory")
 		Render(w, r, ErrInternalServer)
 		return
 	}
@@ -123,7 +123,7 @@ func (a *InventoryApi) CreateProduct(w http.ResponseWriter, r *http.Request) {
 			Render(w, r, BadRequestResponse(err))
 			return
 		}
-		log.Error().Err(err).Str("sku", data.Product.Sku).Msg("failed to create product")
+		log.Ctx(r.Context()).Error().Err(err).Str("sku", data.Product.Sku).Msg("failed to create product")
 		Render(w, r, ErrInternalServer)
 		return
 	}
@@ -149,7 +149,7 @@ func (a *InventoryApi) ProductCtx(next http.Handler) http.Handler {
 			if errors.Is(err, core.ErrNotFound) {
 				Render(w, r, ErrNotFound)
 			} else {
-				log.Error().Err(err).Str("sku", sku).Msg("error acquiring product")
+				log.Ctx(r.Context()).Error().Err(err).Str("sku", sku).Msg("error acquiring product")
 				Render(w, r, ErrInternalServer)
 			}
 			return
@@ -174,7 +174,7 @@ func (a *InventoryApi) CreateProductionEvent(w http.ResponseWriter, r *http.Requ
 			Render(w, r, BadRequestResponse(err))
 			return
 		}
-		log.Error().Err(err).Str("sku", product.Sku).Str("requestId", data.ProductionRequest.RequestID).Msg("failed to record production event")
+		log.Ctx(r.Context()).Error().Err(err).Str("sku", product.Sku).Str("requestId", data.ProductionRequest.RequestID).Msg("failed to record production event")
 		Render(w, r, ErrInternalServer)
 		return
 	}
@@ -192,7 +192,7 @@ func (a *InventoryApi) GetProductInventory(w http.ResponseWriter, r *http.Reques
 		if errors.Is(err, core.ErrNotFound) {
 			Render(w, r, ErrNotFound)
 		} else {
-			log.Error().Err(err).Str("sku", product.Sku).Msg("failed to get product inventory")
+			log.Ctx(r.Context()).Error().Err(err).Str("sku", product.Sku).Msg("failed to get product inventory")
 			Render(w, r, ErrInternalServer)
 		}
 		return

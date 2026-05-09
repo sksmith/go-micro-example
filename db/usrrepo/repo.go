@@ -59,7 +59,7 @@ func (r *dbRepo) Get(ctx context.Context, username string, txs ...core.QueryOpti
 
 	query := `SELECT username, password, is_admin, created_at FROM users WHERE username = $1 ` + forUpdate
 
-	log.Debug().Str("query", query).Str("username", username).Msg("getting user")
+	log.Ctx(ctx).Debug().Str("query", query).Str("username", username).Msg("getting user")
 
 	err := tx.QueryRow(ctx, query, username).
 		Scan(&u.Username, &u.HashedPassword, &u.IsAdmin, &u.Created)

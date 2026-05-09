@@ -18,7 +18,7 @@ func rollback(ctx context.Context, tx core.Transaction, trigger error) {
 		return
 	}
 	if rbErr := tx.Rollback(ctx); rbErr != nil {
-		log.Warn().Err(rbErr).AnErr("trigger", trigger).Msg("failed to rollback")
+		log.Ctx(ctx).Warn().Err(rbErr).AnErr("trigger", trigger).Msg("failed to rollback")
 	}
 }
 

@@ -16,8 +16,32 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/core/auth"
+	"github.com/sksmith/go-micro-example/core/observability"
 	"github.com/sksmith/go-micro-example/core/user"
+	"go.opentelemetry.io/otel/trace"
 )
+
+// CorrelationLogger installs a request-scoped zerolog logger into the
+// request context so downstream code can call log.Ctx(ctx) and pick up
+// request_id (and trace_id/span_id when an OTel span is recording)
+// without threading those values manually. Mount AFTER chi's RequestID
+// and otelchi middleware so both IDs are available.
+func CorrelationLogger(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		reqID := middleware.GetReqID(ctx)
+		ctx = observability.ContextWithRequestID(ctx, reqID)
+
+		zctx := log.With().Str("request_id", reqID)
+		if sc := trace.SpanContextFromContext(ctx); sc.IsValid() {
+			zctx = zctx.
+				Str("trace_id", sc.TraceID().String()).
+				Str("span_id", sc.SpanID().String())
+		}
+		logger := zctx.Logger()
+		next.ServeHTTP(w, r.WithContext(logger.WithContext(ctx)))
+	})
+}
 
 const DefaultPageLimit = 50
 
@@ -83,7 +107,7 @@ func Authenticate(ua UserAccess, signer *auth.Signer) func(http.Handler) http.Ha
 			case signer != nil && strings.HasPrefix(header, "Bearer "):
 				u, err := authenticateBearer(strings.TrimPrefix(header, "Bearer "), signer)
 				if err != nil {
-					log.Debug().Err(err).Msg("bearer token rejected")
+					log.Ctx(r.Context()).Debug().Err(err).Msg("bearer token rejected")
 					authErr(w)
 					return
 				}
@@ -101,7 +125,7 @@ func Authenticate(ua UserAccess, signer *auth.Signer) func(http.Handler) http.Ha
 					if errors.Is(err, user.ErrInvalidCredentials) {
 						authErr(w)
 					} else {
-						log.Error().Err(err).Str("username", username).Msg("error acquiring user")
+						log.Ctx(r.Context()).Error().Err(err).Str("username", username).Msg("error acquiring user")
 						Render(w, r, ErrInternalServer)
 					}
 					return
@@ -154,7 +178,7 @@ func Logging(next http.Handler) http.Handler {
 		defer func() {
 			dur := fmt.Sprintf("%dms", time.Duration(time.Since(start).Milliseconds()))
 
-			log.Trace().
+			log.Ctx(r.Context()).Trace().
 				Str("method", r.Method).
 				Str("host", r.Host).
 				Str("uri", r.RequestURI).

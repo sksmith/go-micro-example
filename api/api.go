@@ -55,6 +55,10 @@ func ConfigureRouter(cfg *config.Config, invSvc InventoryService, resSvc Reserva
 	// is the span name, which is what you want for grouping —
 	// not the literal URL with the sku interpolated.
 	r.Use(otelchi.Middleware(cfg.AppName.Value, otelchi.WithChiRoutes(r)))
+	// CorrelationLogger must mount after RequestID + otelchi (so it can
+	// read the request and trace IDs they set) and before everything
+	// that emits logs, so log.Ctx(ctx) carries the correlation fields.
+	r.Use(CorrelationLogger)
 	r.Use(Metrics)
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 	r.Use(Logging)
@@ -81,12 +85,12 @@ func ConfigureRouter(cfg *config.Config, invSvc InventoryService, resSvc Reserva
 
 func Render(w http.ResponseWriter, r *http.Request, rnd render.Renderer) {
 	if err := render.Render(w, r, rnd); err != nil {
-		log.Warn().Err(err).Msg("failed to render")
+		log.Ctx(r.Context()).Warn().Err(err).Msg("failed to render")
 	}
 }
 
 func RenderList(w http.ResponseWriter, r *http.Request, l []render.Renderer) {
 	if err := render.RenderList(w, r, l); err != nil {
-		log.Warn().Err(err).Msg("failed to render")
+		log.Ctx(r.Context()).Warn().Err(err).Msg("failed to render")
 	}
 }
