@@ -2,13 +2,26 @@ package user
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
 
-	"errors"
 	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/core"
 	"golang.org/x/crypto/bcrypt"
 )
+
+// ErrInvalidCredentials is returned by Login when the username does
+// not exist or the supplied password does not match. The two cases
+// are merged into a single sentinel deliberately, both to give the
+// API layer a clean 401 mapping and to avoid leaking
+// "user exists but password is wrong" timing/error divergence.
+var ErrInvalidCredentials = errors.New("invalid credentials")
+
+// ErrInvalidInput is the sentinel for validation failures from this
+// package's service methods. The API layer maps anything wrapping
+// this sentinel to HTTP 400 via errors.Is.
+var ErrInvalidInput = errors.New("invalid input")
 
 func NewService(repo Repository) *service {
 	log.Info().Msg("creating user service...")
@@ -26,10 +39,10 @@ func (s *service) Get(ctx context.Context, username string) (User, error) {
 
 func (s *service) Create(ctx context.Context, req CreateUserRequest) (User, error) {
 	if !usernameIsValid(req.Username) {
-		return User{}, errors.New("invalid username")
+		return User{}, fmt.Errorf("invalid username: %w", ErrInvalidInput)
 	}
 	if !passwordIsValid(req.PlainTextPassword) {
-		return User{}, errors.New("invalid password")
+		return User{}, fmt.Errorf("invalid password: %w", ErrInvalidInput)
 	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(req.PlainTextPassword), bcrypt.DefaultCost)
 	if err != nil {
@@ -62,12 +75,23 @@ func (s *service) Delete(ctx context.Context, username string) error {
 func (s *service) Login(ctx context.Context, username, password string) (User, error) {
 	u, err := s.repo.Get(ctx, username)
 	if err != nil {
+		if errors.Is(err, core.ErrNotFound) {
+			return User{}, ErrInvalidCredentials
+		}
 		return User{}, err
 	}
 
-	err = bcrypt.CompareHashAndPassword([]byte(u.HashedPassword), []byte(password))
-	if err != nil {
-		return User{}, err
+	if err := bcrypt.CompareHashAndPassword([]byte(u.HashedPassword), []byte(password)); err != nil {
+		// Don't leak the bcrypt error class to callers — both
+		// ErrMismatchedHashAndPassword (wrong password) and
+		// ErrHashTooShort (corrupt stored hash) collapse here.
+		// A corrupt hash is a real server-side problem worth
+		// logging at the boundary, but it must not produce a
+		// different HTTP response than a wrong password.
+		if !errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
+			log.Error().Err(err).Str("username", username).Msg("bcrypt comparison failed for non-mismatch reason")
+		}
+		return User{}, ErrInvalidCredentials
 	}
 
 	return u, nil

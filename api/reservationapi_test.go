@@ -159,6 +159,33 @@ func TestReservationGet(t *testing.T) {
 	}
 }
 
+// TestReservationGetBadID is the regression test for ERR-001 B3.
+// A non-numeric reservation id used to render 400 *and then fall
+// through* to call GetReservation with ID=0. The fix added the
+// missing return; this test asserts both halves: 400 status, and
+// the service mock is never called.
+func TestReservationGetBadID(t *testing.T) {
+	ts, mockResSvc := setupReservationTestServer()
+	defer ts.Close()
+	mockResSvc.GetReservationFunc = func(ctx context.Context, ID uint64) (inventory.Reservation, error) {
+		t.Fatalf("GetReservation should not be called for a bad ID, got ID=%d", ID)
+		return inventory.Reservation{}, nil
+	}
+
+	res, err := http.Get(ts.URL + "/notanumber")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusBadRequest {
+		t.Errorf("status code got=%d want=%d", res.StatusCode, http.StatusBadRequest)
+	}
+	if mockResSvc.GetReservationCalls != 0 {
+		t.Errorf("GetReservation should not have been called, got %d calls", mockResSvc.GetReservationCalls)
+	}
+}
+
 func TestReservationCreate(t *testing.T) {
 	ts, mockResSvc := setupReservationTestServer()
 	defer ts.Close()
@@ -294,7 +321,7 @@ func TestReservationList(t *testing.T) {
 		{
 			getReservationsFunc: nil,
 			url:                 ts.URL + "?state=SomeInvalidState",
-			wantResponse:        api.ErrInvalidRequest(errors.New("invalid state")),
+			wantResponse:        api.BadRequestResponse(errors.New("invalid state")),
 			wantStatusCode:      http.StatusBadRequest,
 		},
 		{

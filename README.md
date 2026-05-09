@@ -320,6 +320,12 @@ automatic parsing.
 
 Database migration is automated in the project using [migrate](https://github.com/golang-migrate/migrate).
 
+## Contributing
+
+- [Error handling conventions](docs/errors.md) — sentinels, wrapping
+  with `%w`, `errors.Is`/`errors.As`, log shape. Enforced by
+  `errorlint` and `errname` in CI.
+
 ## TODO
 
 - [ ] Recreate architecture diagram

@@ -15,7 +15,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/rs/zerolog/log"
-	"github.com/sksmith/go-micro-example/core"
 	"github.com/sksmith/go-micro-example/core/auth"
 	"github.com/sksmith/go-micro-example/core/user"
 )
@@ -99,7 +98,7 @@ func Authenticate(ua UserAccess, signer *auth.Signer) func(http.Handler) http.Ha
 				}
 				u, err := ua.Login(r.Context(), username, password)
 				if err != nil {
-					if errors.Is(err, core.ErrNotFound) {
+					if errors.Is(err, user.ErrInvalidCredentials) {
 						authErr(w)
 					} else {
 						log.Error().Err(err).Str("username", username).Msg("error acquiring user")

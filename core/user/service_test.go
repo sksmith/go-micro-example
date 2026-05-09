@@ -169,6 +169,8 @@ func TestDelete(t *testing.T) {
 
 func TestLogin(t *testing.T) {
 	usr := user.User{Username: "someuser", HashedPassword: "$2a$10$t67eB.bOkZGovKD8wqqppO7q.SqWwTS8FUrUx3GAW57GMhkD2Zcwy", IsAdmin: false, Created: time.Now()}
+	unexpected := errors.New("some unexpected error")
+
 	tests := []struct {
 		name     string
 		username string
@@ -177,7 +179,12 @@ func TestLogin(t *testing.T) {
 		getFunc func(ctx context.Context, username string, options ...core.QueryOptions) (user.User, error)
 
 		wantUsername string
-		wantErr      bool
+		// wantErr is the sentinel the caller should see. nil means
+		// no error. ERR-001 B1: both "user not found" and "wrong
+		// password" must collapse to ErrInvalidCredentials so the
+		// API layer can render 401 without leaking which one
+		// happened.
+		wantErr error
 	}{
 		{
 			name:     "correct password",
@@ -191,7 +198,7 @@ func TestLogin(t *testing.T) {
 			wantUsername: "someuser",
 		},
 		{
-			name:     "wrong password",
+			name:     "wrong password collapses to ErrInvalidCredentials",
 			username: "someuser",
 			password: "wrongpw",
 
@@ -199,20 +206,29 @@ func TestLogin(t *testing.T) {
 				return usr, nil
 			},
 
-			wantErr:      true,
-			wantUsername: "",
+			wantErr: user.ErrInvalidCredentials,
 		},
 		{
-			name:     "unexpected error getting user",
+			name:     "user not found collapses to ErrInvalidCredentials",
+			username: "missing",
+			password: "anything",
+
+			getFunc: func(ctx context.Context, username string, options ...core.QueryOptions) (user.User, error) {
+				return user.User{}, core.ErrNotFound
+			},
+
+			wantErr: user.ErrInvalidCredentials,
+		},
+		{
+			name:     "unexpected repo error propagates as-is (not collapsed)",
 			username: "someuser",
 			password: "wrongpw",
 
 			getFunc: func(ctx context.Context, username string, options ...core.QueryOptions) (user.User, error) {
-				return user.User{}, errors.New("some unexpected error")
+				return user.User{}, unexpected
 			},
 
-			wantErr:      true,
-			wantUsername: "",
+			wantErr: unexpected,
 		},
 	}
 
@@ -226,10 +242,11 @@ func TestLogin(t *testing.T) {
 
 		t.Run(test.name, func(t *testing.T) {
 			got, err := service.Login(context.Background(), test.username, test.password)
-			if test.wantErr && err == nil {
-				t.Errorf("expected error, got none")
-			} else if !test.wantErr && err != nil {
+			switch {
+			case test.wantErr == nil && err != nil:
 				t.Errorf("did not want error, got=%v", err)
+			case test.wantErr != nil && !errors.Is(err, test.wantErr):
+				t.Errorf("expected errors.Is(err, %v), got %v", test.wantErr, err)
 			}
 
 			if got.Username != test.wantUsername {

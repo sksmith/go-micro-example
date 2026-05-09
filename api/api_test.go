@@ -10,7 +10,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/sksmith/go-micro-example/api"
 	"github.com/sksmith/go-micro-example/config"
-	"github.com/sksmith/go-micro-example/core"
 	"github.com/sksmith/go-micro-example/core/auth"
 	"github.com/sksmith/go-micro-example/core/inventory"
 	"github.com/sksmith/go-micro-example/core/user"
@@ -83,7 +82,7 @@ func TestCorsConfig(t *testing.T) {
 func TestApiRoutesRequireAuthentication(t *testing.T) {
 	r, usrSvc := newTestRouter()
 	usrSvc.LoginFunc = func(ctx context.Context, username, password string) (user.User, error) {
-		return user.User{}, core.ErrNotFound
+		return user.User{}, user.ErrInvalidCredentials
 	}
 	ts := httptest.NewServer(r)
 	defer ts.Close()

@@ -3,9 +3,8 @@
 package inventory
 
 import (
+	"fmt"
 	"time"
-
-	"errors"
 )
 
 // ProductionRequest is a value object. A request to produce inventory.
@@ -53,7 +52,7 @@ func ParseReserveState(v string) (ReserveState, error) {
 	case string(None):
 		return None, nil
 	default:
-		return None, errors.New("invalid reserve state")
+		return None, fmt.Errorf("invalid reserve state %q: %w", v, ErrInvalidInput)
 	}
 }
 

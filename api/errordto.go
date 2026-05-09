@@ -10,11 +10,9 @@ import (
 // Error response payloads & renderers
 //--
 
-// ErrResponse renderer type for handling all sorts of errors.
-//
-// In the best case scenario, the excellent github.com/pkg/errors package
-// helps reveal information on the error, setting it on Err, and in the Render()
-// method, using it to set the application-specific error code in AppCode.
+// ErrResponse is the JSON envelope every API error path renders. The
+// underlying error is captured on Err for logging / debugging but is
+// not serialized; clients see StatusText, AppCode, and ErrorText.
 type ErrResponse struct {
 	Err            error `json:"-"` // low-level runtime error
 	HTTPStatusCode int   `json:"-"` // http response status code
@@ -29,7 +27,7 @@ func (e *ErrResponse) Render(_ http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-func ErrInvalidRequest(err error) *ErrResponse {
+func BadRequestResponse(err error) *ErrResponse {
 	return &ErrResponse{
 		Err:            err,
 		HTTPStatusCode: http.StatusBadRequest,
