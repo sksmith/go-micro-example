@@ -77,14 +77,14 @@ func TestCreate(t *testing.T) {
 		createFunc func(ctx context.Context, user *user.User, tx ...core.UpdateOptions) error
 
 		wantUsername    string
-		wantRepoCallCnt map[string]int
+		wantCreateCalls int
 		wantErr         bool
 	}{
 		{
 			name:    "user is returned",
 			request: user.CreateUserRequest{Username: "someuser", IsAdmin: false, PlainTextPassword: "plaintextpw"},
 
-			wantRepoCallCnt: map[string]int{"Create": 1},
+			wantCreateCalls: 1,
 			wantUsername:    "someuser",
 		},
 	}
@@ -109,8 +109,8 @@ func TestCreate(t *testing.T) {
 				t.Errorf("unexpected username got=%+v want=%+v", got.Username, test.wantUsername)
 			}
 
-			for f, c := range test.wantRepoCallCnt {
-				mockRepo.VerifyCount(f, c, t)
+			if mockRepo.CreateCalls != test.wantCreateCalls {
+				t.Errorf("Create calls got=%d want=%d", mockRepo.CreateCalls, test.wantCreateCalls)
 			}
 		})
 	}
@@ -123,13 +123,13 @@ func TestDelete(t *testing.T) {
 
 		deleteFunc func(ctx context.Context, username string, tx ...core.UpdateOptions) error
 
-		wantRepoCallCnt map[string]int
+		wantDeleteCalls int
 		wantErr         bool
 	}{
 		{
 			name:            "user is deleted",
 			username:        "someuser",
-			wantRepoCallCnt: map[string]int{"Delete": 1},
+			wantDeleteCalls: 1,
 		},
 		{
 			name:     "error is returned",
@@ -139,7 +139,7 @@ func TestDelete(t *testing.T) {
 				return errors.New("some unexpected error")
 			},
 
-			wantRepoCallCnt: map[string]int{"Delete": 1},
+			wantDeleteCalls: 1,
 			wantErr:         true,
 		},
 	}
@@ -160,8 +160,8 @@ func TestDelete(t *testing.T) {
 				t.Errorf("did not want error, got=%v", err)
 			}
 
-			for f, c := range test.wantRepoCallCnt {
-				mockRepo.VerifyCount(f, c, t)
+			if mockRepo.DeleteCalls != test.wantDeleteCalls {
+				t.Errorf("Delete calls got=%d want=%d", mockRepo.DeleteCalls, test.wantDeleteCalls)
 			}
 		})
 	}

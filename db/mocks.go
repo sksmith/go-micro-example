@@ -5,7 +5,6 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/sksmith/go-micro-example/testutil"
 )
 
 type MockConn struct {
@@ -13,7 +12,11 @@ type MockConn struct {
 	QueryRowFunc func(ctx context.Context, sql string, args ...interface{}) pgx.Row
 	ExecFunc     func(ctx context.Context, sql string, args ...interface{}) (pgconn.CommandTag, error)
 	BeginFunc    func(ctx context.Context) (pgx.Tx, error)
-	*testutil.CallWatcher
+
+	QueryCalls    int
+	QueryRowCalls int
+	ExecCalls     int
+	BeginCalls    int
 }
 
 func NewMockConn() MockConn {
@@ -23,28 +26,27 @@ func NewMockConn() MockConn {
 		ExecFunc: func(ctx context.Context, sql string, args ...interface{}) (pgconn.CommandTag, error) {
 			return pgconn.CommandTag{}, nil
 		},
-		BeginFunc:   func(ctx context.Context) (pgx.Tx, error) { return NewMockPgxTx(), nil },
-		CallWatcher: testutil.NewCallWatcher(),
+		BeginFunc: func(ctx context.Context) (pgx.Tx, error) { return NewMockPgxTx(), nil },
 	}
 }
 
 func (c *MockConn) Query(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error) {
-	c.AddCall(ctx, sql, args)
+	c.QueryCalls++
 	return c.QueryFunc(ctx, sql, args)
 }
 
 func (c *MockConn) QueryRow(ctx context.Context, sql string, args ...interface{}) pgx.Row {
-	c.AddCall(ctx, sql, args)
+	c.QueryRowCalls++
 	return c.QueryRowFunc(ctx, sql, args)
 }
 
 func (c *MockConn) Exec(ctx context.Context, sql string, args ...interface{}) (pgconn.CommandTag, error) {
-	c.AddCall(ctx, sql, args)
+	c.ExecCalls++
 	return c.ExecFunc(ctx, sql, args)
 }
 
 func (c *MockConn) Begin(ctx context.Context) (pgx.Tx, error) {
-	c.AddCall(ctx)
+	c.BeginCalls++
 	return c.BeginFunc(ctx)
 }
 
@@ -53,7 +55,9 @@ type MockTransaction struct {
 	RollbackFunc func(ctx context.Context) error
 
 	MockConn
-	*testutil.CallWatcher
+
+	CommitCalls   int
+	RollbackCalls int
 }
 
 func NewMockTransaction() *MockTransaction {
@@ -61,81 +65,86 @@ func NewMockTransaction() *MockTransaction {
 		MockConn:     NewMockConn(),
 		CommitFunc:   func(ctx context.Context) error { return nil },
 		RollbackFunc: func(ctx context.Context) error { return nil },
-		CallWatcher:  testutil.NewCallWatcher(),
 	}
 }
 
 func (t *MockTransaction) Commit(ctx context.Context) error {
-	t.AddCall(ctx)
+	t.CommitCalls++
 	return t.CommitFunc(ctx)
 }
 
 func (t *MockTransaction) Rollback(ctx context.Context) error {
-	t.AddCall(ctx)
+	t.RollbackCalls++
 	return t.RollbackFunc(ctx)
 }
 
 type MockPgxTx struct {
-	*testutil.CallWatcher
+	BeginCalls        int
+	CommitCalls       int
+	RollbackCalls     int
+	CopyFromCalls     int
+	SendBatchCalls    int
+	LargeObjectsCalls int
+	PrepareCalls      int
+	ExecCalls         int
+	QueryCalls        int
+	QueryRowCalls     int
+	ConnCalls         int
 }
 
-func NewMockPgxTx() *MockPgxTx {
-	return &MockPgxTx{
-		CallWatcher: testutil.NewCallWatcher(),
-	}
-}
+func NewMockPgxTx() *MockPgxTx { return &MockPgxTx{} }
 
 func (m *MockPgxTx) Begin(ctx context.Context) (pgx.Tx, error) {
-	m.AddCall(ctx)
+	m.BeginCalls++
 	return nil, nil
 }
 
 func (m *MockPgxTx) Commit(ctx context.Context) error {
-	m.AddCall(ctx)
+	m.CommitCalls++
 	return nil
 }
 
 func (m *MockPgxTx) Rollback(ctx context.Context) error {
-	m.AddCall(ctx)
+	m.RollbackCalls++
 	return nil
 }
 
 func (m *MockPgxTx) CopyFrom(ctx context.Context, tableName pgx.Identifier, columnNames []string, rowSrc pgx.CopyFromSource) (int64, error) {
-	m.AddCall(ctx, tableName, columnNames, rowSrc)
+	m.CopyFromCalls++
 	return 0, nil
 }
 
 func (m *MockPgxTx) SendBatch(ctx context.Context, b *pgx.Batch) pgx.BatchResults {
-	m.AddCall(ctx, b)
+	m.SendBatchCalls++
 	return nil
 }
 
 func (m *MockPgxTx) LargeObjects() pgx.LargeObjects {
-	m.AddCall()
+	m.LargeObjectsCalls++
 	return pgx.LargeObjects{}
 }
 
 func (m *MockPgxTx) Prepare(ctx context.Context, name, sql string) (*pgconn.StatementDescription, error) {
-	m.AddCall(ctx, name, sql)
+	m.PrepareCalls++
 	return nil, nil
 }
 
 func (m *MockPgxTx) Exec(ctx context.Context, sql string, arguments ...interface{}) (commandTag pgconn.CommandTag, err error) {
-	m.AddCall(ctx, sql, arguments)
+	m.ExecCalls++
 	return pgconn.CommandTag{}, nil
 }
 
 func (m *MockPgxTx) Query(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error) {
-	m.AddCall(ctx, sql, args)
+	m.QueryCalls++
 	return nil, nil
 }
 
 func (m *MockPgxTx) QueryRow(ctx context.Context, sql string, args ...interface{}) pgx.Row {
-	m.AddCall(ctx, sql, args)
+	m.QueryRowCalls++
 	return nil
 }
 
 func (m *MockPgxTx) Conn() *pgx.Conn {
-	m.AddCall()
+	m.ConnCalls++
 	return nil
 }
