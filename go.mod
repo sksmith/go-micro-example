@@ -13,11 +13,12 @@ require (
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/mitchellh/mapstructure v1.4.3
+	github.com/pashagolub/pgxmock/v4 v4.9.0
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.11.1
 	github.com/rs/zerolog v1.20.0
 	github.com/streadway/amqp v1.0.0
-	golang.org/x/crypto v0.20.0
+	golang.org/x/crypto v0.37.0
 )
 
 require (
@@ -53,7 +54,7 @@ require (
 	github.com/prometheus/common v0.26.0 // indirect
 	github.com/prometheus/procfs v0.6.0 // indirect
 	github.com/spf13/viper v1.10.1
-	golang.org/x/sys v0.26.0 // indirect
+	golang.org/x/sys v0.32.0 // indirect
 	golang.org/x/text v0.29.0 // indirect
 	google.golang.org/protobuf v1.27.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
