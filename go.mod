@@ -14,7 +14,6 @@ require (
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/mitchellh/mapstructure v1.4.3
 	github.com/pashagolub/pgxmock/v4 v4.9.0
-	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.11.1
 	github.com/rabbitmq/amqp091-go v1.11.0
 	github.com/rs/zerolog v1.20.0

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/pkg/errors"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/config"
@@ -53,7 +52,7 @@ func getUrl(cfg *config.Config) string {
 func (i *InventoryQueue) PublishInventory(ctx context.Context, productInventory inventory.ProductInventory) error {
 	body, err := json.Marshal(productInventory)
 	if err != nil {
-		return errors.WithMessage(err, "failed to serialize message for queue")
+		return fmt.Errorf("failed to serialize message for queue: %w", err)
 	}
 	i.inventory <- message(body)
 	return nil
@@ -62,7 +61,7 @@ func (i *InventoryQueue) PublishInventory(ctx context.Context, productInventory 
 func (i *InventoryQueue) PublishReservation(ctx context.Context, reservation inventory.Reservation) error {
 	body, err := json.Marshal(reservation)
 	if err != nil {
-		return errors.WithMessage(err, "error marshalling reservation to send to queue")
+		return fmt.Errorf("error marshalling reservation to send to queue: %w", err)
 	}
 	i.reservation <- message(body)
 	return nil

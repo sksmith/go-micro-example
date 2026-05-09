@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/pkg/errors"
+	"errors"
 	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/core"
 	"golang.org/x/crypto/bcrypt"

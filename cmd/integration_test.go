@@ -12,7 +12,6 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"github.com/rs/zerolog/pkgerrors"
 	"github.com/sksmith/go-micro-example/api"
 	"github.com/sksmith/go-micro-example/config"
 	"github.com/sksmith/go-micro-example/core/inventory"
@@ -40,7 +39,6 @@ func TestMain(m *testing.M) {
 		log.Fatal().Err(err)
 	}
 	zerolog.SetGlobalLevel(level)
-	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
 
 	cfg.Print()
 

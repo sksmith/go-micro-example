@@ -5,7 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 
-	"github.com/pkg/errors"
+	"errors"
 	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/core"
 	"golang.org/x/crypto/bcrypt"
@@ -49,7 +49,7 @@ func Bootstrap(ctx context.Context, repo Repository, profile, bootstrapPassword 
 	case errors.Is(getErr, core.ErrNotFound):
 		// fall through; create below
 	case getErr != nil:
-		return errors.WithStack(getErr)
+		return getErr
 	case hasSeedAdmin:
 		log.Warn().Str("username", AdminUsername).Msg("seed admin password detected; replacing")
 	default:
@@ -64,12 +64,12 @@ func Bootstrap(ctx context.Context, repo Repository, profile, bootstrapPassword 
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
-		return errors.WithStack(err)
+		return err
 	}
 
 	if hasSeedAdmin {
 		if err := repo.Delete(ctx, AdminUsername); err != nil {
-			return errors.WithStack(err)
+			return err
 		}
 	}
 
@@ -79,7 +79,7 @@ func Bootstrap(ctx context.Context, repo Repository, profile, bootstrapPassword 
 		IsAdmin:        true,
 	}
 	if err := repo.Create(ctx, u); err != nil {
-		return errors.WithStack(err)
+		return err
 	}
 
 	if generated {
@@ -102,7 +102,7 @@ func resolveBootstrapPassword(profile, supplied string) (password string, genera
 	}
 	gen, err := generatePassword()
 	if err != nil {
-		return "", false, errors.WithStack(err)
+		return "", false, err
 	}
 	return gen, true, nil
 }

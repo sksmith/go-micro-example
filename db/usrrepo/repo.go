@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/core"
 	"github.com/sksmith/go-micro-example/core/user"
@@ -66,9 +65,9 @@ func (r *dbRepo) Get(ctx context.Context, username string, txs ...core.QueryOpti
 	if err != nil {
 		m.Complete(err)
 		if err == pgx.ErrNoRows {
-			return user.User{}, errors.WithStack(core.ErrNotFound)
+			return user.User{}, core.ErrNotFound
 		}
-		return user.User{}, errors.WithStack(err)
+		return user.User{}, err
 	}
 
 	r.cache(u)
@@ -85,9 +84,9 @@ func (r *dbRepo) Delete(ctx context.Context, username string, txs ...core.Update
 	if err != nil {
 		m.Complete(err)
 		if err == pgx.ErrNoRows {
-			return errors.WithStack(core.ErrNotFound)
+			return core.ErrNotFound
 		}
-		return errors.WithStack(err)
+		return err
 	}
 
 	r.uncache(username)

@@ -5,7 +5,7 @@ package inventory
 import (
 	"time"
 
-	"github.com/pkg/errors"
+	"errors"
 )
 
 // ProductionRequest is a value object. A request to produce inventory.
