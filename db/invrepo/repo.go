@@ -5,7 +5,6 @@ import (
 	"strconv"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/core"
 	"github.com/sksmith/go-micro-example/core/inventory"
@@ -34,7 +33,7 @@ func (d *dbRepo) SaveProduct(ctx context.Context, product inventory.Product, opt
 		product.Sku, product.Upc, product.Name)
 	if err != nil {
 		m.Complete(nil)
-		return errors.WithStack(err)
+		return err
 	}
 	if ct.RowsAffected() == 0 {
 		_, err := tx.Exec(ctx, `
@@ -61,7 +60,7 @@ func (d *dbRepo) SaveProductInventory(ctx context.Context, productInventory inve
 		productInventory.Sku, productInventory.Available)
 	if err != nil {
 		m.Complete(nil)
-		return errors.WithStack(err)
+		return err
 	}
 	if ct.RowsAffected() == 0 {
 		insert := `INSERT INTO product_inventory (sku, available)
@@ -87,9 +86,9 @@ func (d *dbRepo) GetProduct(ctx context.Context, sku string, options ...core.Que
 	if err != nil {
 		m.Complete(err)
 		if err == pgx.ErrNoRows {
-			return product, errors.WithStack(core.ErrNotFound)
+			return product, core.ErrNotFound
 		}
-		return product, errors.WithStack(err)
+		return product, err
 	}
 
 	m.Complete(nil)
@@ -107,9 +106,9 @@ func (d *dbRepo) GetProductInventory(ctx context.Context, sku string, options ..
 	if err != nil {
 		m.Complete(err)
 		if err == pgx.ErrNoRows {
-			return productInventory, errors.WithStack(core.ErrNotFound)
+			return productInventory, core.ErrNotFound
 		}
-		return productInventory, errors.WithStack(err)
+		return productInventory, err
 	}
 
 	m.Complete(nil)
@@ -127,9 +126,9 @@ func (d *dbRepo) GetAllProductInventory(ctx context.Context, limit int, offset i
 	if err != nil {
 		m.Complete(err)
 		if err == pgx.ErrNoRows {
-			return products, errors.WithStack(core.ErrNotFound)
+			return products, core.ErrNotFound
 		}
-		return nil, errors.WithStack(err)
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -139,9 +138,9 @@ func (d *dbRepo) GetAllProductInventory(ctx context.Context, limit int, offset i
 		if err != nil {
 			m.Complete(err)
 			if err == pgx.ErrNoRows {
-				return nil, errors.WithStack(core.ErrNotFound)
+				return nil, core.ErrNotFound
 			}
-			return nil, errors.WithStack(err)
+			return nil, err
 		}
 		products = append(products, product)
 	}
@@ -161,9 +160,9 @@ func (d *dbRepo) GetProductionEventByRequestID(ctx context.Context, requestID st
 	if err != nil {
 		m.Complete(err)
 		if err == pgx.ErrNoRows {
-			return pe, errors.WithStack(core.ErrNotFound)
+			return pe, core.ErrNotFound
 		}
-		return pe, errors.WithStack(err)
+		return pe, err
 	}
 
 	m.Complete(nil)
@@ -181,9 +180,9 @@ func (d *dbRepo) SaveProductionEvent(ctx context.Context, event *inventory.Produ
 	if err != nil {
 		m.Complete(err)
 		if err == pgx.ErrNoRows {
-			return errors.WithStack(core.ErrNotFound)
+			return core.ErrNotFound
 		}
-		return errors.WithStack(err)
+		return err
 	}
 	m.Complete(nil)
 	return nil
@@ -199,9 +198,9 @@ func (d *dbRepo) SaveReservation(ctx context.Context, r *inventory.Reservation, 
 	if err != nil {
 		m.Complete(err)
 		if err == pgx.ErrNoRows {
-			return errors.WithStack(core.ErrNotFound)
+			return core.ErrNotFound
 		}
-		return errors.WithStack(err)
+		return err
 	}
 	m.Complete(nil)
 	return nil
@@ -215,7 +214,7 @@ func (d *dbRepo) UpdateReservation(ctx context.Context, ID uint64, state invento
 	_, err := tx.Exec(ctx, update, ID, state, qty)
 	m.Complete(err)
 	if err != nil {
-		return errors.WithStack(err)
+		return err
 	}
 	m.Complete(nil)
 	return nil
@@ -263,9 +262,9 @@ func (d *dbRepo) GetReservations(ctx context.Context, resOptions inventory.GetRe
 	if err != nil {
 		m.Complete(err)
 		if err == pgx.ErrNoRows {
-			return reservations, errors.WithStack(core.ErrNotFound)
+			return reservations, core.ErrNotFound
 		}
-		return nil, errors.WithStack(err)
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -294,9 +293,9 @@ func (d *dbRepo) GetReservationByRequestID(ctx context.Context, requestId string
 	if err != nil {
 		m.Complete(err)
 		if err == pgx.ErrNoRows {
-			return r, errors.WithStack(core.ErrNotFound)
+			return r, core.ErrNotFound
 		}
-		return r, errors.WithStack(err)
+		return r, err
 	}
 
 	m.Complete(nil)
@@ -314,9 +313,9 @@ func (d *dbRepo) GetReservation(ctx context.Context, ID uint64, options ...core.
 	if err != nil {
 		m.Complete(err)
 		if err == pgx.ErrNoRows {
-			return r, errors.WithStack(core.ErrNotFound)
+			return r, core.ErrNotFound
 		}
-		return r, errors.WithStack(err)
+		return r, err
 	}
 
 	m.Complete(nil)

@@ -2,12 +2,13 @@ package inventory
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/core"
 )
@@ -43,7 +44,7 @@ func (s *service) CreateProduct(ctx context.Context, product Product) error {
 
 	dbProduct, err := s.repo.GetProduct(ctx, product.Sku)
 	if err != nil != errors.Is(err, core.ErrNotFound) {
-		return errors.WithStack(err)
+		return err
 	}
 	if err == nil {
 		log.Debug().Str("func", funcName).Str("sku", dbProduct.Sku).Msg("product already exists")
@@ -52,7 +53,7 @@ func (s *service) CreateProduct(ctx context.Context, product Product) error {
 
 	tx, err := s.repo.BeginTransaction(ctx)
 	if err != nil {
-		return errors.WithStack(err)
+		return err
 	}
 	defer func() {
 		if err != nil {
@@ -62,18 +63,18 @@ func (s *service) CreateProduct(ctx context.Context, product Product) error {
 
 	log.Debug().Str("func", funcName).Str("sku", product.Sku).Msg("creating product")
 	if err = s.repo.SaveProduct(ctx, product, core.UpdateOptions{Tx: tx}); err != nil {
-		return errors.WithStack(err)
+		return err
 	}
 
 	log.Debug().Str("func", funcName).Str("sku", product.Sku).Msg("creating product inventory")
 	pi := ProductInventory{Product: product}
 
 	if err = s.repo.SaveProductInventory(ctx, pi, core.UpdateOptions{Tx: tx}); err != nil {
-		return errors.WithStack(err)
+		return err
 	}
 
 	if err = tx.Commit(ctx); err != nil {
-		return errors.WithStack(err)
+		return err
 	}
 
 	return nil
@@ -98,7 +99,7 @@ func (s *service) Produce(ctx context.Context, product Product, pr ProductionReq
 
 	event, err := s.repo.GetProductionEventByRequestID(ctx, pr.RequestID)
 	if err != nil && !errors.Is(err, core.ErrNotFound) {
-		return errors.WithStack(err)
+		return err
 	}
 
 	if event.RequestID != "" {
@@ -115,7 +116,7 @@ func (s *service) Produce(ctx context.Context, product Product, pr ProductionReq
 
 	tx, err := s.repo.BeginTransaction(ctx)
 	if err != nil {
-		return errors.WithStack(err)
+		return err
 	}
 	defer func() {
 		if err != nil {
@@ -124,30 +125,30 @@ func (s *service) Produce(ctx context.Context, product Product, pr ProductionReq
 	}()
 
 	if err = s.repo.SaveProductionEvent(ctx, &event, core.UpdateOptions{Tx: tx}); err != nil {
-		return errors.WithMessage(err, "failed to save production event")
+		return fmt.Errorf("failed to save production event: %w", err)
 	}
 
 	productInventory, err := s.repo.GetProductInventory(ctx, product.Sku, core.QueryOptions{Tx: tx, ForUpdate: true})
 	if err != nil {
-		return errors.WithMessage(err, "failed to get product inventory")
+		return fmt.Errorf("failed to get product inventory: %w", err)
 	}
 
 	productInventory.Available += event.Quantity
 	if err = s.repo.SaveProductInventory(ctx, productInventory, core.UpdateOptions{Tx: tx}); err != nil {
-		return errors.WithMessage(err, "failed to add production to product")
+		return fmt.Errorf("failed to add production to product: %w", err)
 	}
 
 	if err = tx.Commit(ctx); err != nil {
-		return errors.WithMessage(err, "failed to commit production transaction")
+		return fmt.Errorf("failed to commit production transaction: %w", err)
 	}
 
 	err = s.publishInventory(ctx, productInventory)
 	if err != nil {
-		return errors.WithMessage(err, "failed to publish inventory")
+		return fmt.Errorf("failed to publish inventory: %w", err)
 	}
 
 	if err = s.FillReserves(ctx, product); err != nil {
-		return errors.WithMessage(err, "failed to fill reserves after production")
+		return fmt.Errorf("failed to fill reserves after production: %w", err)
 	}
 
 	return nil
@@ -181,13 +182,13 @@ func (s *service) Reserve(ctx context.Context, rr ReservationRequest) (Reservati
 	pr, err := s.repo.GetProduct(ctx, rr.Sku, core.QueryOptions{Tx: tx, ForUpdate: true})
 	if err != nil {
 		log.Error().Err(err).Str("requestId", rr.RequestID).Msg("failed to get product")
-		return Reservation{}, errors.WithStack(err)
+		return Reservation{}, err
 	}
 
 	res, err := s.repo.GetReservationByRequestID(ctx, rr.RequestID, core.QueryOptions{Tx: tx, ForUpdate: true})
 	if err != nil && !errors.Is(err, core.ErrNotFound) {
 		log.Error().Err(err).Str("requestId", rr.RequestID).Msg("failed to get reservation request")
-		return Reservation{}, errors.WithStack(err)
+		return Reservation{}, err
 	}
 	if res.RequestID != "" {
 		log.Debug().Str("func", funcName).Str("requestId", rr.RequestID).Msg("reservation already exists, returning it")
@@ -205,15 +206,15 @@ func (s *service) Reserve(ctx context.Context, rr ReservationRequest) (Reservati
 	}
 
 	if err = s.repo.SaveReservation(ctx, &res, core.UpdateOptions{Tx: tx}); err != nil {
-		return Reservation{}, errors.WithStack(err)
+		return Reservation{}, err
 	}
 
 	if err = tx.Commit(ctx); err != nil {
-		return Reservation{}, errors.WithStack(err)
+		return Reservation{}, err
 	}
 
 	if err = s.FillReserves(ctx, pr); err != nil {
-		return Reservation{}, errors.WithStack(err)
+		return Reservation{}, err
 	}
 
 	return res, nil
@@ -246,7 +247,7 @@ func (s *service) GetProduct(ctx context.Context, sku string) (Product, error) {
 
 	product, err := s.repo.GetProduct(ctx, sku)
 	if err != nil {
-		return product, errors.WithStack(err)
+		return product, err
 	}
 	return product, nil
 }
@@ -258,7 +259,7 @@ func (s *service) GetProductInventory(ctx context.Context, sku string) (ProductI
 
 	product, err := s.repo.GetProductInventory(ctx, sku)
 	if err != nil {
-		return product, errors.WithStack(err)
+		return product, err
 	}
 	return product, nil
 }
@@ -270,7 +271,7 @@ func (s *service) GetReservation(ctx context.Context, ID uint64) (Reservation, e
 
 	rsv, err := s.repo.GetReservation(ctx, ID)
 	if err != nil {
-		return rsv, errors.WithStack(err)
+		return rsv, err
 	}
 	return rsv, nil
 }
@@ -286,7 +287,7 @@ func (s *service) GetReservations(ctx context.Context, options GetReservationsOp
 
 	rsv, err := s.repo.GetReservations(ctx, options, limit, offset)
 	if err != nil {
-		return rsv, errors.WithStack(err)
+		return rsv, err
 	}
 	return rsv, nil
 }
@@ -339,17 +340,17 @@ func (s *service) FillReserves(ctx context.Context, product Product) error {
 		}
 	}()
 	if err != nil {
-		return errors.WithStack(err)
+		return err
 	}
 
 	openReservations, err := s.repo.GetReservations(ctx, GetReservationsOptions{Sku: product.Sku, State: Open}, 100, 0, core.QueryOptions{Tx: tx, ForUpdate: true})
 	if err != nil {
-		return errors.WithStack(err)
+		return err
 	}
 
 	productInventory, err := s.repo.GetProductInventory(ctx, product.Sku, core.QueryOptions{Tx: tx, ForUpdate: true})
 	if err != nil {
-		return errors.WithStack(err)
+		return err
 	}
 
 	for _, reservation := range openReservations {
@@ -395,7 +396,7 @@ func (s *service) FillReserves(ctx context.Context, product Product) error {
 
 		err = s.repo.SaveProductInventory(ctx, productInventory, core.UpdateOptions{Tx: tx})
 		if err != nil {
-			return errors.WithStack(err)
+			return err
 		}
 
 		log.Debug().
@@ -407,26 +408,26 @@ func (s *service) FillReserves(ctx context.Context, product Product) error {
 
 		err = s.repo.UpdateReservation(ctx, reservation.ID, reservation.State, reservation.ReservedQuantity, core.UpdateOptions{Tx: tx})
 		if err != nil {
-			return errors.WithStack(err)
+			return err
 		}
 
 		if err = subtx.Commit(ctx); err != nil {
-			return errors.WithStack(err)
+			return err
 		}
 
 		err = s.publishInventory(ctx, productInventory)
 		if err != nil {
-			return errors.WithStack(err)
+			return err
 		}
 
 		err = s.publishReservation(ctx, reservation)
 		if err != nil {
-			return errors.WithStack(err)
+			return err
 		}
 	}
 
 	if err = tx.Commit(ctx); err != nil {
-		return errors.WithStack(err)
+		return err
 	}
 
 	return nil
@@ -435,7 +436,7 @@ func (s *service) FillReserves(ctx context.Context, product Product) error {
 func (s *service) publishInventory(ctx context.Context, pi ProductInventory) error {
 	err := s.queue.PublishInventory(ctx, pi)
 	if err != nil {
-		return errors.WithMessage(err, "failed to publish inventory to queue")
+		return fmt.Errorf("failed to publish inventory to queue: %w", err)
 	}
 	go s.notifyInventorySubscribers(pi)
 	return nil
@@ -444,7 +445,7 @@ func (s *service) publishInventory(ctx context.Context, pi ProductInventory) err
 func (s *service) publishReservation(ctx context.Context, r Reservation) error {
 	err := s.queue.PublishReservation(ctx, r)
 	if err != nil {
-		return errors.WithMessage(err, "failed to publish reservation to queue")
+		return fmt.Errorf("failed to publish reservation to queue: %w", err)
 	}
 	go s.notifyReservationSubscribers(r)
 	return nil

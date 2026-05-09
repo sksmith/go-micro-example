@@ -11,7 +11,6 @@ import (
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/tracelog"
-	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/config"
@@ -56,7 +55,7 @@ func newDbConfig() dbconfig {
 
 func poolSizeToInt32(v int64, name string) (int32, error) {
 	if v < 0 || v > math.MaxInt32 {
-		return 0, errors.Errorf("%s out of range for int32: %d", name, v)
+		return 0, fmt.Errorf("%s out of range for int32: %d", name, v)
 	}
 	return int32(v), nil
 }
