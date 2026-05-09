@@ -67,9 +67,35 @@ Automated coverage lives in
   deadline expires.
 - `TestResolveShutdownTimeout` — env-var parsing branches.
 
+## Health probes (DSN-002)
+
+The router exposes two endpoints for orchestrators to poll:
+
+| Endpoint  | Status | Purpose |
+|-----------|--------|---------|
+| `/live`  | always 200 | **Liveness.** The process is up enough to handle a request. Failing this means kubelet should restart the pod. Does not depend on any external system. |
+| `/ready` | 200 if every registered `Pinger` returns nil within 1s, 503 otherwise | **Readiness.** The pod is ready to accept traffic. Currently checks the pgx pool. AMQP is intentionally absent — the queue subsystem doesn't yet expose a non-blocking connectivity check (see follow-up). |
+
+Each `/ready` dep gets its own per-check 1s deadline so a wedged
+backend can't hang the probe past kubelet's `timeoutSeconds`.
+Failures are listed in the response body, one `name: reason` per
+line.
+
+### Configuring `/ready` deps
+
+`api.ConfigureRouter` takes a `map[string]api.Pinger` parameter.
+[cmd/main.go](../cmd/main.go) currently passes `{"db": dbPool}`;
+add new keys here as new external dependencies arrive (cache,
+search, etc.).
+
+`Pinger` is the minimal `Ping(ctx context.Context) error`
+interface — `*pgxpool.Pool` satisfies it directly.
+
 ## Known gaps
 
 - Queue consumer drain (see TST-003).
 - No structured "shutdown phase" metric. If you're debugging a
   slow shutdown, the four `log.Info` lines emitted by
   `shutdown` / `shutdownHTTP` are your timeline.
+- AMQP readiness — the queue's redial loop doesn't surface
+  connection state. Tracked alongside TST-003.

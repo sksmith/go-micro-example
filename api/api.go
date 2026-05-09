@@ -16,8 +16,9 @@ import (
 )
 
 const (
-	HealthEndpoint  = "/health"
-	MetricsEndpoint = "/metrics"
+	LivenessEndpoint  = "/live"
+	ReadinessEndpoint = "/ready"
+	MetricsEndpoint   = "/metrics"
 
 	ApiPath         = "/api/v1"
 	InventoryPath   = "/inventory"
@@ -29,8 +30,12 @@ const (
 	TokenPath       = "/token"
 )
 
-// ConfigureRouter instantiates a go-chi router with middleware and routes for the server
-func ConfigureRouter(cfg *config.Config, invSvc InventoryService, resSvc ReservationService, userService UserService, signer *auth.Signer) chi.Router {
+// ConfigureRouter instantiates a go-chi router with middleware and routes for the server.
+//
+// readinessDeps is the map of name → Pinger that /ready checks
+// on every probe. Callers pass at minimum {"db": pgPool}; pass
+// nil for an empty map (legacy tests).
+func ConfigureRouter(cfg *config.Config, invSvc InventoryService, resSvc ReservationService, userService UserService, signer *auth.Signer, readinessDeps map[string]Pinger) chi.Router {
 	log.Info().Msg("configuring router...")
 	r := chi.NewRouter()
 
@@ -48,10 +53,8 @@ func ConfigureRouter(cfg *config.Config, invSvc InventoryService, resSvc Reserva
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 	r.Use(Logging)
 
-	r.HandleFunc(HealthEndpoint, func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("UP"))
-	})
+	r.Handle(LivenessEndpoint, LivenessHandler())
+	r.Handle(ReadinessEndpoint, ReadinessHandler(readinessDeps))
 	r.Handle(MetricsEndpoint, promhttp.Handler())
 
 	if signer != nil {

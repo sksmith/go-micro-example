@@ -77,7 +77,12 @@ func main() {
 
 	signer := configureSigner(cfg.Profile.Value)
 
-	r := api.ConfigureRouter(cfg, invService, invService, userService, signer)
+	// /ready pings every dep in this map on every probe.
+	// Pass at minimum the pgx pool. AMQP readiness is deliberately
+	// absent — the queue subsystem doesn't yet expose a non-blocking
+	// connectivity check; tracked alongside TST-003.
+	readinessDeps := map[string]api.Pinger{"db": dbPool}
+	r := api.ConfigureRouter(cfg, invService, invService, userService, signer, readinessDeps)
 
 	_ = queue.NewProductQueue(ctx, cfg, invService)
 
