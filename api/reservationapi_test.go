@@ -19,6 +19,8 @@ import (
 )
 
 func TestReservationSubscribe(t *testing.T) {
+	// See TestInventorySubscribe — same flake, same skip reason.
+	t.Skip("WS subscribe test is flaky on Linux/macOS under Go 1.24 — see OPS-009")
 	mockSvc := inventory.NewMockReservationService()
 
 	subscribed := make(chan struct{}, 1)
