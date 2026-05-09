@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -80,6 +81,9 @@ func TestFileProviderReportsMissing(t *testing.T) {
 }
 
 func TestFileProviderReportsUnreadable(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows file ACLs don't honor 0o000 the way POSIX permissions do")
+	}
 	if os.Getuid() == 0 {
 		t.Skip("running as root; permission errors don't apply")
 	}
