@@ -9,7 +9,13 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/config"
 	"github.com/sksmith/go-micro-example/core/inventory"
+	"github.com/sksmith/go-micro-example/core/observability"
 )
+
+// AMQPRequestIDHeader is the AMQP message header that carries the
+// inbound HTTP request ID across the queue boundary so consumer logs
+// can be correlated back to the producing request (DSN-005).
+const AMQPRequestIDHeader = "x-request-id"
 
 type InventoryQueue struct {
 	cfg         *config.Config
@@ -54,7 +60,7 @@ func (i *InventoryQueue) PublishInventory(ctx context.Context, productInventory 
 	if err != nil {
 		return fmt.Errorf("failed to serialize message for queue: %w", err)
 	}
-	i.inventory <- message(body)
+	i.inventory <- newMessage(ctx, body)
 	return nil
 }
 
@@ -63,8 +69,14 @@ func (i *InventoryQueue) PublishReservation(ctx context.Context, reservation inv
 	if err != nil {
 		return fmt.Errorf("error marshalling reservation to send to queue: %w", err)
 	}
-	i.reservation <- message(body)
+	i.reservation <- newMessage(ctx, body)
 	return nil
+}
+
+// newMessage snapshots the correlation fields off ctx so the publisher
+// goroutine has what it needs after the request scope has ended.
+func newMessage(ctx context.Context, body []byte) message {
+	return message{body: body, requestID: observability.RequestIDFromContext(ctx)}
 }
 
 type ProductQueue struct {
@@ -88,18 +100,26 @@ func NewProductQueue(ctx context.Context, cfg *config.Config, handler ProductHan
 	url := getUrl(cfg)
 
 	go func() {
-		for message := range prodChan {
+		for msg := range prodChan {
+			// Per-message correlation: derive a context bearing the
+			// inbound request_id so handler logs (and any outbound
+			// calls the handler makes) tie back to the producing
+			// request, even though we're miles from the HTTP scope.
+			msgCtx := observability.ContextWithRequestID(ctx, msg.requestID)
+			logger := log.With().Str("request_id", msg.requestID).Logger()
+			msgCtx = logger.WithContext(msgCtx)
+
 			product := inventory.Product{}
-			err := json.Unmarshal(message, &product)
+			err := json.Unmarshal(msg.body, &product)
 			if err != nil {
-				log.Error().Err(err).Msg("error unmarshalling product, writing to dlt")
-				pq.sendToDlt(ctx, message)
+				log.Ctx(msgCtx).Error().Err(err).Msg("error unmarshalling product, writing to dlt")
+				pq.sendToDlt(msgCtx, msg.body)
 			}
 
-			err = handler.CreateProduct(ctx, product)
+			err = handler.CreateProduct(msgCtx, product)
 			if err != nil {
-				log.Error().Err(err).Msg("failed to create product, sending to dlt")
-				pq.productDlt <- message
+				log.Ctx(msgCtx).Error().Err(err).Msg("failed to create product, sending to dlt")
+				pq.productDlt <- msg
 			}
 		}
 	}()
@@ -124,16 +144,20 @@ type ProductHandler interface {
 }
 
 func (p *ProductQueue) sendToDlt(ctx context.Context, body []byte) {
-	p.productDlt <- message(body)
+	p.productDlt <- newMessage(ctx, body)
 }
 
 // TODO We should be using one exchange per domain object here.
 // exchange binds the publishers to the subscribers
 // const exchange = "pubsub"
 
-// message is the application type for a message.  This can contain identity,
-// or a reference to the recevier chan for further demuxing.
-type message []byte
+// message is the application type for a message — the body plus any
+// correlation metadata the publisher should ferry into AMQP headers
+// (and the consumer should pull back out into context).
+type message struct {
+	body      []byte
+	requestID string
+}
 
 // session composes an amqp.Connection with an amqp.Channel
 type session struct {
@@ -219,14 +243,19 @@ func publish(sessions chan chan session, exchange string, messages <-chan messag
 					break Publish
 				}
 				if !confirmed.Ack {
-					log.Info().Uint64("message", confirmed.DeliveryTag).Str("body", string(body)).Msg("nack")
+					log.Info().Uint64("message", confirmed.DeliveryTag).Str("body", string(body.body)).Msg("nack")
 				}
 				reading = messages
 
 			case body = <-pending:
 				routingKey := "ignored for fanout exchanges, application dependent for other exchanges"
+				headers := amqp.Table{}
+				if body.requestID != "" {
+					headers[AMQPRequestIDHeader] = body.requestID
+				}
 				err := pub.Publish(exchange, routingKey, false, false, amqp.Publishing{
-					Body: body,
+					Headers: headers,
+					Body:    body.body,
 				})
 				// Retry failed delivery on the next session
 				if err != nil {
@@ -262,7 +291,11 @@ func subscribe(sessions chan chan session, queue string, messages chan<- message
 		log.Info().Str("queue", queue).Msg("listening for messages")
 
 		for msg := range deliveries {
-			messages <- message(msg.Body)
+			reqID := ""
+			if v, ok := msg.Headers[AMQPRequestIDHeader].(string); ok {
+				reqID = v
+			}
+			messages <- message{body: msg.Body, requestID: reqID}
 			err = sub.Ack(msg.DeliveryTag, false)
 			if err != nil {
 				log.Error().Err(err).Str("queue", queue).Msg("failed to acknowledge to queue")

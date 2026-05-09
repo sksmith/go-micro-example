@@ -89,7 +89,7 @@ func (s *service) Login(ctx context.Context, username, password string) (User, e
 		// logging at the boundary, but it must not produce a
 		// different HTTP response than a wrong password.
 		if !errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
-			log.Error().Err(err).Str("username", username).Msg("bcrypt comparison failed for non-mismatch reason")
+			log.Ctx(ctx).Error().Err(err).Str("username", username).Msg("bcrypt comparison failed for non-mismatch reason")
 		}
 		return User{}, ErrInvalidCredentials
 	}

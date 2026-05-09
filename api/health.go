@@ -65,7 +65,7 @@ func ReadinessHandler(deps map[string]Pinger) http.HandlerFunc {
 		}
 
 		if len(failures) > 0 {
-			log.Warn().Strs("failures", failures).Msg("readiness check failed")
+			log.Ctx(r.Context()).Warn().Strs("failures", failures).Msg("readiness check failed")
 			w.WriteHeader(http.StatusServiceUnavailable)
 			for _, f := range failures {
 				_, _ = fmt.Fprintln(w, f)

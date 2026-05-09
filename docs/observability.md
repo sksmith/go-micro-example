@@ -86,3 +86,48 @@ If you're debugging a missing-trace issue locally, check that:
    internally; check its logs).
 3. The trace was sampled — try `OTEL_TRACES_SAMPLER_ARG=1.0`
    in the dev environment to remove sampling as a variable.
+
+## Correlation IDs (DSN-005)
+
+Every request that enters the service flows through
+[`api.CorrelationLogger`](../api/middleware.go), which:
+
+1. Reads `X-Request-Id` from the inbound headers (chi's
+   `RequestID` middleware honours that header; if absent it
+   generates one).
+2. Reads the active OTel span from context (`otelchi` runs
+   first) and pulls out `trace_id` / `span_id`.
+3. Builds a child zerolog logger with `request_id` (and
+   `trace_id` / `span_id` when a span is recording) bound, and
+   attaches it to the request context.
+
+Downstream code uses `log.Ctx(ctx)` instead of the global
+`log.Logger`. That returns the per-request logger when one is
+attached, or the global logger as a fallback (the
+`zerolog.DefaultContextLogger` pin in
+[`core/observability/correlation.go`](../core/observability/correlation.go)
+makes the fallback work).
+
+### AMQP propagation
+
+For the queue boundary, the request ID is also stashed on a
+private context key by `CorrelationLogger`. The producer reads it
+back via `observability.RequestIDFromContext` and writes it to
+the AMQP message under the `x-request-id` header. The consumer
+reads the header, derives a per-message context with a logger
+that carries `request_id`, and invokes the handler with that
+context — so logs emitted while processing a queued message tie
+back to the original HTTP request that produced it.
+
+### What's not (yet) propagated
+
+- **Trace context across AMQP** — propagating W3C `traceparent`
+  through AMQP headers belongs to DSN-004a (AMQP tracing).
+  Once that lands, consumer-side spans will become children of
+  the producing request's span automatically; until then, only
+  `request_id` ferries across the queue.
+- **Outbound HTTP** — there is no outbound HTTP client in the
+  service today. When one is added, use `otelhttp.Transport`
+  for trace propagation; `request_id` can ride along in an
+  `X-Request-Id` header lifted from
+  `observability.RequestIDFromContext(ctx)`.

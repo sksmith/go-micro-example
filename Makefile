@@ -3,7 +3,7 @@ SHA1 := $(shell git rev-parse HEAD)
 NOW := $(shell date -u +'%Y-%m-%d_%TZ')
 GOBIN := $(shell go env GOPATH)/bin
 
-.PHONY: fmt vet lint sec test-race verify
+.PHONY: fmt vet lint sec test-race verify cover
 fmt:
 	@echo "==> gofmt"
 	@out=$$(gofmt -l .); if [ -n "$$out" ]; then echo "$$out"; echo "files need gofmt"; exit 1; fi
@@ -26,6 +26,12 @@ test-race:
 
 verify: fmt vet lint sec test-race
 	@echo "==> verify OK"
+
+cover:
+	@echo "==> coverage"
+	go test ./... -race -coverprofile=cover.out
+	@echo "--- uncovered lines ---"
+	@go tool cover -func=cover.out | grep -v '100.0%' || true
 
 build:
 	@echo Building the binary

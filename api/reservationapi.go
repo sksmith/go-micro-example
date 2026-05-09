@@ -54,11 +54,11 @@ func (ra *ReservationApi) ConfigureRouter(r chi.Router) {
 }
 
 func (a *ReservationApi) Subscribe(w http.ResponseWriter, r *http.Request) {
-	log.Info().Msg("client requesting subscription")
+	log.Ctx(r.Context()).Info().Msg("client requesting subscription")
 
 	conn, _, _, err := ws.UpgradeHTTP(r, w)
 	if err != nil {
-		log.Error().Err(err).Msg("failed to establish reservation subscription connection")
+		log.Ctx(r.Context()).Error().Err(err).Msg("failed to establish reservation subscription connection")
 		Render(w, r, ErrInternalServer)
 		return
 	}
@@ -115,7 +115,7 @@ func (a *ReservationApi) Create(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, inventory.ErrInvalidInput):
 			Render(w, r, BadRequestResponse(err))
 		default:
-			log.Error().Err(err).Interface("reservationRequest", data).Msg("failed to reserve")
+			log.Ctx(r.Context()).Error().Err(err).Interface("reservationRequest", data).Msg("failed to reserve")
 			Render(w, r, ErrInternalServer)
 		}
 		return
@@ -142,7 +142,7 @@ func (a *ReservationApi) ReservationCtx(next http.Handler) http.Handler {
 
 		ID, err := strconv.ParseUint(IDStr, 10, 64)
 		if err != nil {
-			log.Error().Err(err).Str("ID", IDStr).Msg("invalid reservation id")
+			log.Ctx(r.Context()).Error().Err(err).Str("ID", IDStr).Msg("invalid reservation id")
 			Render(w, r, BadRequestResponse(errors.New("invalid reservation id")))
 			return
 		}
@@ -153,7 +153,7 @@ func (a *ReservationApi) ReservationCtx(next http.Handler) http.Handler {
 			if errors.Is(err, core.ErrNotFound) {
 				Render(w, r, ErrNotFound)
 			} else {
-				log.Error().Err(err).Str("id", IDStr).Msg("error acquiring product")
+				log.Ctx(r.Context()).Error().Err(err).Str("id", IDStr).Msg("error acquiring product")
 				Render(w, r, ErrInternalServer)
 			}
 			return
@@ -182,7 +182,7 @@ func (a *ReservationApi) List(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, core.ErrNotFound) {
 			Render(w, r, ErrNotFound)
 		} else {
-			log.Error().Err(err).Str("sku", sku).Str("state", string(state)).Msg("failed to list reservations")
+			log.Ctx(r.Context()).Error().Err(err).Str("sku", sku).Str("state", string(state)).Msg("failed to list reservations")
 			Render(w, r, ErrInternalServer)
 		}
 		return

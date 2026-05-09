@@ -28,11 +28,15 @@ func TestRollbackLogsRollbackError(t *testing.T) {
 	mockTx.RollbackFunc = func(ctx context.Context) error { return rollbackErr }
 
 	var buf bytes.Buffer
+	testLogger := zerolog.New(&buf)
 	original := log.Logger
-	log.Logger = zerolog.New(&buf)
+	log.Logger = testLogger
 	t.Cleanup(func() { log.Logger = original })
 
-	rollback(context.Background(), mockTx, triggerErr)
+	// rollback uses log.Ctx(ctx); attach the buffer-backed logger to
+	// ctx so the test exercises the same code path production hits.
+	ctx := testLogger.WithContext(context.Background())
+	rollback(ctx, mockTx, triggerErr)
 
 	if buf.Len() == 0 {
 		t.Fatal("expected a log entry, got none")
