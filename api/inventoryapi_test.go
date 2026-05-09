@@ -17,7 +17,7 @@ import (
 	"github.com/sksmith/go-micro-example/core/inventory"
 	"github.com/sksmith/go-micro-example/testutil"
 
-	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/v5"
 )
 
 func TestInventorySubscribe(t *testing.T) {
