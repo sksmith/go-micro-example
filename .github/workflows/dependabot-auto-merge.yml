@@ -1,0 +1,44 @@
+# DEP-009: enable auto-merge on Dependabot PRs that pass CI when
+# the update is a patch bump. Minor and major bumps are left for
+# human review — that's where API drift hides.
+#
+# This workflow only *enables* auto-merge; it does not force it.
+# GitHub still waits for required status checks (the test /
+# lint / sec / vuln / trivy / secret matrix in main.yml) before
+# the PR actually merges. If a check goes red, the PR sits with
+# auto-merge enabled until the failure is resolved or the PR is
+# closed.
+#
+# Prerequisites in repo settings (one-time, by repo admin):
+# - Settings → General → Pull Requests → "Allow auto-merge" ON
+# - Branch protection on master requires the relevant CI checks
+#
+# Permissions: contents:write so the merge can land; pull-requests:
+# write to call gh pr merge --auto and gh pr review --approve.
+
+name: Dependabot auto-merge
+on: pull_request_target
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Approve and enable auto-merge for patch updates
+        if: steps.metadata.outputs.update-type == 'version-update:semver-patch'
+        run: |
+          gh pr review --approve "$PR_URL"
+          gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
