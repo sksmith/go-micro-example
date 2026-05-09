@@ -16,7 +16,7 @@ require (
 	github.com/pashagolub/pgxmock/v4 v4.9.0
 	github.com/prometheus/client_golang v1.11.1
 	github.com/rabbitmq/amqp091-go v1.11.0
-	github.com/rs/zerolog v1.20.0
+	github.com/rs/zerolog v1.35.1
 	golang.org/x/crypto v0.37.0
 )
 
@@ -27,6 +27,8 @@ require (
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/magiconair/properties v1.8.5 // indirect
+	github.com/mattn/go-colorable v0.1.14 // indirect
+	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/pelletier/go-toml v1.9.4 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/spf13/afero v1.6.0 // indirect
