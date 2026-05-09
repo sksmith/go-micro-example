@@ -5,7 +5,6 @@ import (
 
 	"github.com/sksmith/go-micro-example/core"
 	"github.com/sksmith/go-micro-example/core/user"
-	"github.com/sksmith/go-micro-example/testutil"
 )
 
 type MockRepo struct {
@@ -13,7 +12,11 @@ type MockRepo struct {
 	GetFunc    func(ctx context.Context, username string, options ...core.QueryOptions) (user.User, error)
 	UpdateFunc func(ctx context.Context, user *user.User, options ...core.UpdateOptions) error
 	DeleteFunc func(ctx context.Context, username string, options ...core.UpdateOptions) error
-	*testutil.CallWatcher
+
+	CreateCalls int
+	GetCalls    int
+	UpdateCalls int
+	DeleteCalls int
 }
 
 func NewMockRepo() *MockRepo {
@@ -22,28 +25,27 @@ func NewMockRepo() *MockRepo {
 		GetFunc: func(ctx context.Context, username string, options ...core.QueryOptions) (user.User, error) {
 			return user.User{}, nil
 		},
-		UpdateFunc:  func(ctx context.Context, user *user.User, options ...core.UpdateOptions) error { return nil },
-		DeleteFunc:  func(ctx context.Context, username string, options ...core.UpdateOptions) error { return nil },
-		CallWatcher: testutil.NewCallWatcher(),
+		UpdateFunc: func(ctx context.Context, user *user.User, options ...core.UpdateOptions) error { return nil },
+		DeleteFunc: func(ctx context.Context, username string, options ...core.UpdateOptions) error { return nil },
 	}
 }
 
 func (r *MockRepo) Create(ctx context.Context, user *user.User, options ...core.UpdateOptions) error {
-	r.AddCall(ctx, user, options)
+	r.CreateCalls++
 	return r.CreateFunc(ctx, user, options...)
 }
 
 func (r *MockRepo) Get(ctx context.Context, username string, options ...core.QueryOptions) (user.User, error) {
-	r.AddCall(ctx, username, options)
+	r.GetCalls++
 	return r.GetFunc(ctx, username, options...)
 }
 
 func (r *MockRepo) Update(ctx context.Context, user *user.User, options ...core.UpdateOptions) error {
-	r.AddCall(ctx, user, options)
+	r.UpdateCalls++
 	return r.UpdateFunc(ctx, user, options...)
 }
 
 func (r *MockRepo) Delete(ctx context.Context, username string, options ...core.UpdateOptions) error {
-	r.AddCall(ctx, username, options)
+	r.DeleteCalls++
 	return r.DeleteFunc(ctx, username, options...)
 }

@@ -23,6 +23,76 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+// repoCounts is the expected call count for each invrepo.MockRepo
+// method exercised by the service tests. Adding a new field is the
+// way to add a new assertion — typoed names won't compile.
+type repoCounts struct {
+	SaveProduct          int
+	SaveProductInventory int
+	SaveProductionEvent  int
+	SaveReservation      int
+}
+
+type txCounts struct {
+	Commit   int
+	Rollback int
+}
+
+type queueCounts struct {
+	PublishInventory   int
+	PublishReservation int
+}
+
+func verifyRepoCalls(t *testing.T, m *invrepo.MockRepo, want repoCounts) {
+	t.Helper()
+	if m.SaveProductCalls != want.SaveProduct {
+		t.Errorf("SaveProduct calls got=%d want=%d", m.SaveProductCalls, want.SaveProduct)
+	}
+	if m.SaveProductInventoryCalls != want.SaveProductInventory {
+		t.Errorf("SaveProductInventory calls got=%d want=%d", m.SaveProductInventoryCalls, want.SaveProductInventory)
+	}
+	if m.SaveProductionEventCalls != want.SaveProductionEvent {
+		t.Errorf("SaveProductionEvent calls got=%d want=%d", m.SaveProductionEventCalls, want.SaveProductionEvent)
+	}
+	if m.SaveReservationCalls != want.SaveReservation {
+		t.Errorf("SaveReservation calls got=%d want=%d", m.SaveReservationCalls, want.SaveReservation)
+	}
+}
+
+func verifyTxCalls(t *testing.T, m *db.MockTransaction, want txCounts) {
+	t.Helper()
+	if m.CommitCalls != want.Commit {
+		t.Errorf("Commit calls got=%d want=%d", m.CommitCalls, want.Commit)
+	}
+	if m.RollbackCalls != want.Rollback {
+		t.Errorf("Rollback calls got=%d want=%d", m.RollbackCalls, want.Rollback)
+	}
+}
+
+// verifySubTxCalls mirrors verifyTxCalls but for the sub-transaction
+// mock used in TestFillReserves, which is a *db.MockPgxTx (the
+// pgx.Tx-shaped mock returned from a transaction's own Begin call)
+// rather than a *db.MockTransaction.
+func verifySubTxCalls(t *testing.T, m *db.MockPgxTx, want txCounts) {
+	t.Helper()
+	if m.CommitCalls != want.Commit {
+		t.Errorf("sub-tx Commit calls got=%d want=%d", m.CommitCalls, want.Commit)
+	}
+	if m.RollbackCalls != want.Rollback {
+		t.Errorf("sub-tx Rollback calls got=%d want=%d", m.RollbackCalls, want.Rollback)
+	}
+}
+
+func verifyQueueCalls(t *testing.T, m *queue.MockQueue, want queueCounts) {
+	t.Helper()
+	if m.PublishInventoryCalls != want.PublishInventory {
+		t.Errorf("PublishInventory calls got=%d want=%d", m.PublishInventoryCalls, want.PublishInventory)
+	}
+	if m.PublishReservationCalls != want.PublishReservation {
+		t.Errorf("PublishReservation calls got=%d want=%d", m.PublishReservationCalls, want.PublishReservation)
+	}
+}
+
 func TestCreateProduct(t *testing.T) {
 	tests := []struct {
 		name string
@@ -36,17 +106,17 @@ func TestCreateProduct(t *testing.T) {
 		beginTransactionFunc func(ctx context.Context) (core.Transaction, error)
 		commitFunc           func(ctx context.Context) error
 
-		wantRepoCallCnt map[string]int
-		wantTxCallCnt   map[string]int
-		wantErr         bool
+		wantRepoCalls repoCounts
+		wantTxCalls   txCounts
+		wantErr       bool
 	}{
 		{
 			name:    "new product and inventory are saved",
 			product: inventory.Product{Name: "productname", Sku: "productsku", Upc: "productupc"},
 
-			wantRepoCallCnt: map[string]int{"SaveProduct": 1, "SaveProductInventory": 1},
-			wantTxCallCnt:   map[string]int{"Commit": 1, "Rollback": 0},
-			wantErr:         false,
+			wantRepoCalls: repoCounts{SaveProduct: 1, SaveProductInventory: 1},
+			wantTxCalls:   txCounts{Commit: 1, Rollback: 0},
+			wantErr:       false,
 		},
 		{
 			name:    "product already exists",
@@ -56,9 +126,9 @@ func TestCreateProduct(t *testing.T) {
 				return inventory.Product{Name: "productname", Sku: "productsku", Upc: "productupc"}, nil
 			},
 
-			wantRepoCallCnt: map[string]int{"SaveProduct": 0, "SaveProductInventory": 0},
-			wantTxCallCnt:   map[string]int{"Commit": 0, "Rollback": 0},
-			wantErr:         false,
+			wantRepoCalls: repoCounts{SaveProduct: 0, SaveProductInventory: 0},
+			wantTxCalls:   txCounts{Commit: 0, Rollback: 0},
+			wantErr:       false,
 		},
 		{
 			name:    "unexpected error getting product",
@@ -68,9 +138,9 @@ func TestCreateProduct(t *testing.T) {
 				return inventory.Product{}, errors.New("some unexpected error")
 			},
 
-			wantRepoCallCnt: map[string]int{"SaveProduct": 0, "SaveProductInventory": 0},
-			wantTxCallCnt:   map[string]int{"Commit": 0, "Rollback": 0},
-			wantErr:         true,
+			wantRepoCalls: repoCounts{SaveProduct: 0, SaveProductInventory: 0},
+			wantTxCalls:   txCounts{Commit: 0, Rollback: 0},
+			wantErr:       true,
 		},
 		{
 			name:    "unexpected error saving product",
@@ -80,9 +150,9 @@ func TestCreateProduct(t *testing.T) {
 				return errors.New("some unexpected error")
 			},
 
-			wantRepoCallCnt: map[string]int{"SaveProduct": 1, "SaveProductInventory": 0},
-			wantTxCallCnt:   map[string]int{"Commit": 0, "Rollback": 1},
-			wantErr:         true,
+			wantRepoCalls: repoCounts{SaveProduct: 1, SaveProductInventory: 0},
+			wantTxCalls:   txCounts{Commit: 0, Rollback: 1},
+			wantErr:       true,
 		},
 		{
 			name:    "unexpected error saving product inventory",
@@ -92,9 +162,9 @@ func TestCreateProduct(t *testing.T) {
 				return errors.New("some unexpected error")
 			},
 
-			wantRepoCallCnt: map[string]int{"SaveProduct": 1, "SaveProductInventory": 1},
-			wantTxCallCnt:   map[string]int{"Commit": 0, "Rollback": 1},
-			wantErr:         true,
+			wantRepoCalls: repoCounts{SaveProduct: 1, SaveProductInventory: 1},
+			wantTxCalls:   txCounts{Commit: 0, Rollback: 1},
+			wantErr:       true,
 		},
 		{
 			name:    "unexpected error beginning transaction",
@@ -102,9 +172,9 @@ func TestCreateProduct(t *testing.T) {
 
 			beginTransactionFunc: func(ctx context.Context) (core.Transaction, error) { return nil, errors.New("some unexpected error") },
 
-			wantRepoCallCnt: map[string]int{"SaveProduct": 0, "SaveProductInventory": 0},
-			wantTxCallCnt:   map[string]int{"Commit": 0, "Rollback": 0},
-			wantErr:         true,
+			wantRepoCalls: repoCounts{SaveProduct: 0, SaveProductInventory: 0},
+			wantTxCalls:   txCounts{Commit: 0, Rollback: 0},
+			wantErr:       true,
 		},
 		{
 			name:    "unexpected error comitting",
@@ -112,9 +182,9 @@ func TestCreateProduct(t *testing.T) {
 
 			commitFunc: func(ctx context.Context) error { return errors.New("some unexpected error") },
 
-			wantRepoCallCnt: map[string]int{"SaveProduct": 1, "SaveProductInventory": 1},
-			wantTxCallCnt:   map[string]int{"Commit": 1, "Rollback": 1},
-			wantErr:         true,
+			wantRepoCalls: repoCounts{SaveProduct: 1, SaveProductInventory: 1},
+			wantTxCalls:   txCounts{Commit: 1, Rollback: 1},
+			wantErr:       true,
 		},
 	}
 
@@ -158,13 +228,8 @@ func TestCreateProduct(t *testing.T) {
 			} else if !test.wantErr && err != nil {
 				t.Errorf("did not want error, got=%v", err)
 			}
-
-			for f, c := range test.wantRepoCallCnt {
-				mockRepo.VerifyCount(f, c, t)
-			}
-			for f, c := range test.wantTxCallCnt {
-				mockTx.VerifyCount(f, c, t)
-			}
+			verifyRepoCalls(t, mockRepo, test.wantRepoCalls)
+			verifyTxCalls(t, mockTx, test.wantTxCalls)
 		})
 	}
 }
@@ -188,50 +253,50 @@ func TestProduce(t *testing.T) {
 		beginTransactionFunc func(ctx context.Context) (core.Transaction, error)
 		commitFunc           func(ctx context.Context) error
 
-		wantRepoCallCnt  map[string]int
-		wantQueueCallCnt map[string]int
-		wantTxCallCnt    map[string]int
-		wantAvailable    int64
-		wantErr          bool
+		wantRepoCalls  repoCounts
+		wantQueueCalls queueCounts
+		wantTxCalls    txCounts
+		wantAvailable  int64
+		wantErr        bool
 	}{
 		{
 			name:    "inventory is incremented",
 			request: inventory.ProductionRequest{RequestID: "somerequestid", Quantity: 1},
 
-			wantRepoCallCnt:  map[string]int{"SaveProductionEvent": 1, "SaveProductInventory": 1},
-			wantQueueCallCnt: map[string]int{"PublishInventory": 1, "PublishReservation": 0},
-			wantTxCallCnt:    map[string]int{"Commit": 2, "Rollback": 0},
-			wantAvailable:    2,
+			wantRepoCalls:  repoCounts{SaveProductionEvent: 1, SaveProductInventory: 1},
+			wantQueueCalls: queueCounts{PublishInventory: 1, PublishReservation: 0},
+			wantTxCalls:    txCounts{Commit: 2, Rollback: 0},
+			wantAvailable:  2,
 		},
 		{
 			name:    "cannot produce zero",
 			request: inventory.ProductionRequest{RequestID: "somerequestid", Quantity: 0},
 
-			wantRepoCallCnt:  map[string]int{"SaveProductionEvent": 0, "SaveProductInventory": 0},
-			wantQueueCallCnt: map[string]int{"PublishInventory": 0, "PublishReservation": 0},
-			wantTxCallCnt:    map[string]int{"Commit": 0, "Rollback": 0},
-			wantAvailable:    1,
-			wantErr:          true,
+			wantRepoCalls:  repoCounts{SaveProductionEvent: 0, SaveProductInventory: 0},
+			wantQueueCalls: queueCounts{PublishInventory: 0, PublishReservation: 0},
+			wantTxCalls:    txCounts{Commit: 0, Rollback: 0},
+			wantAvailable:  1,
+			wantErr:        true,
 		},
 		{
 			name:    "cannot produce negative",
 			request: inventory.ProductionRequest{RequestID: "somerequestid", Quantity: -1},
 
-			wantRepoCallCnt:  map[string]int{"SaveProductionEvent": 0, "SaveProductInventory": 0},
-			wantQueueCallCnt: map[string]int{"PublishInventory": 0, "PublishReservation": 0},
-			wantTxCallCnt:    map[string]int{"Commit": 0, "Rollback": 0},
-			wantAvailable:    1,
-			wantErr:          true,
+			wantRepoCalls:  repoCounts{SaveProductionEvent: 0, SaveProductInventory: 0},
+			wantQueueCalls: queueCounts{PublishInventory: 0, PublishReservation: 0},
+			wantTxCalls:    txCounts{Commit: 0, Rollback: 0},
+			wantAvailable:  1,
+			wantErr:        true,
 		},
 		{
 			name:    "request id is required",
 			request: inventory.ProductionRequest{RequestID: "", Quantity: 1},
 
-			wantRepoCallCnt:  map[string]int{"SaveProductionEvent": 0, "SaveProductInventory": 0},
-			wantQueueCallCnt: map[string]int{"PublishInventory": 0, "PublishReservation": 0},
-			wantTxCallCnt:    map[string]int{"Commit": 0, "Rollback": 0},
-			wantAvailable:    1,
-			wantErr:          true,
+			wantRepoCalls:  repoCounts{SaveProductionEvent: 0, SaveProductInventory: 0},
+			wantQueueCalls: queueCounts{PublishInventory: 0, PublishReservation: 0},
+			wantTxCalls:    txCounts{Commit: 0, Rollback: 0},
+			wantAvailable:  1,
+			wantErr:        true,
 		},
 		{
 			name:    "production event already exists",
@@ -241,10 +306,10 @@ func TestProduce(t *testing.T) {
 				return inventory.ProductionEvent{RequestID: "somerequestid", Quantity: 1}, nil
 			},
 
-			wantRepoCallCnt:  map[string]int{"SaveProductionEvent": 0, "SaveProductInventory": 0},
-			wantQueueCallCnt: map[string]int{"PublishInventory": 0, "PublishReservation": 0},
-			wantTxCallCnt:    map[string]int{"Commit": 0, "Rollback": 0},
-			wantAvailable:    1,
+			wantRepoCalls:  repoCounts{SaveProductionEvent: 0, SaveProductInventory: 0},
+			wantQueueCalls: queueCounts{PublishInventory: 0, PublishReservation: 0},
+			wantTxCalls:    txCounts{Commit: 0, Rollback: 0},
+			wantAvailable:  1,
 		},
 		{
 			name:    "unexpected error getting production event",
@@ -254,11 +319,11 @@ func TestProduce(t *testing.T) {
 				return inventory.ProductionEvent{}, errors.New("some unexpected error")
 			},
 
-			wantRepoCallCnt:  map[string]int{"SaveProductionEvent": 0, "SaveProductInventory": 0},
-			wantQueueCallCnt: map[string]int{"PublishInventory": 0, "PublishReservation": 0},
-			wantTxCallCnt:    map[string]int{"Commit": 0, "Rollback": 0},
-			wantAvailable:    1,
-			wantErr:          true,
+			wantRepoCalls:  repoCounts{SaveProductionEvent: 0, SaveProductInventory: 0},
+			wantQueueCalls: queueCounts{PublishInventory: 0, PublishReservation: 0},
+			wantTxCalls:    txCounts{Commit: 0, Rollback: 0},
+			wantAvailable:  1,
+			wantErr:        true,
 		},
 		{
 			name:    "unexpected error beginning transaction",
@@ -268,11 +333,11 @@ func TestProduce(t *testing.T) {
 				return nil, errors.New("some unexpected error")
 			},
 
-			wantRepoCallCnt:  map[string]int{"SaveProductionEvent": 0, "SaveProductInventory": 0},
-			wantQueueCallCnt: map[string]int{"PublishInventory": 0, "PublishReservation": 0},
-			wantTxCallCnt:    map[string]int{"Commit": 0, "Rollback": 0},
-			wantAvailable:    1,
-			wantErr:          true,
+			wantRepoCalls:  repoCounts{SaveProductionEvent: 0, SaveProductInventory: 0},
+			wantQueueCalls: queueCounts{PublishInventory: 0, PublishReservation: 0},
+			wantTxCalls:    txCounts{Commit: 0, Rollback: 0},
+			wantAvailable:  1,
+			wantErr:        true,
 		},
 		{
 			name:    "unexpected error saving production event",
@@ -282,11 +347,11 @@ func TestProduce(t *testing.T) {
 				return errors.New("some unexpected error")
 			},
 
-			wantRepoCallCnt:  map[string]int{"SaveProductionEvent": 1, "SaveProductInventory": 0},
-			wantQueueCallCnt: map[string]int{"PublishInventory": 0, "PublishReservation": 0},
-			wantTxCallCnt:    map[string]int{"Commit": 0, "Rollback": 1},
-			wantAvailable:    1,
-			wantErr:          true,
+			wantRepoCalls:  repoCounts{SaveProductionEvent: 1, SaveProductInventory: 0},
+			wantQueueCalls: queueCounts{PublishInventory: 0, PublishReservation: 0},
+			wantTxCalls:    txCounts{Commit: 0, Rollback: 1},
+			wantAvailable:  1,
+			wantErr:        true,
 		},
 		{
 			name:    "unexpected error saving product inventory",
@@ -296,11 +361,11 @@ func TestProduce(t *testing.T) {
 				return errors.New("some unexpected error")
 			},
 
-			wantRepoCallCnt:  map[string]int{"SaveProductionEvent": 1, "SaveProductInventory": 1},
-			wantQueueCallCnt: map[string]int{"PublishInventory": 0, "PublishReservation": 0},
-			wantTxCallCnt:    map[string]int{"Commit": 0, "Rollback": 1},
-			wantAvailable:    1,
-			wantErr:          true,
+			wantRepoCalls:  repoCounts{SaveProductionEvent: 1, SaveProductInventory: 1},
+			wantQueueCalls: queueCounts{PublishInventory: 0, PublishReservation: 0},
+			wantTxCalls:    txCounts{Commit: 0, Rollback: 1},
+			wantAvailable:  1,
+			wantErr:        true,
 		},
 		{
 			name:    "unexpected error comitting",
@@ -310,11 +375,11 @@ func TestProduce(t *testing.T) {
 				return errors.New("some unexpected error")
 			},
 
-			wantRepoCallCnt:  map[string]int{"SaveProductionEvent": 1, "SaveProductInventory": 1},
-			wantQueueCallCnt: map[string]int{"PublishInventory": 0, "PublishReservation": 0},
-			wantTxCallCnt:    map[string]int{"Commit": 1, "Rollback": 1},
-			wantAvailable:    2,
-			wantErr:          true,
+			wantRepoCalls:  repoCounts{SaveProductionEvent: 1, SaveProductInventory: 1},
+			wantQueueCalls: queueCounts{PublishInventory: 0, PublishReservation: 0},
+			wantTxCalls:    txCounts{Commit: 1, Rollback: 1},
+			wantAvailable:  2,
+			wantErr:        true,
 		},
 	}
 
@@ -377,16 +442,9 @@ func TestProduce(t *testing.T) {
 			if productInventory.Available != test.wantAvailable {
 				t.Errorf("unexpected available got=%d want=%d", productInventory.Available, test.wantAvailable)
 			}
-
-			for f, c := range test.wantRepoCallCnt {
-				mockRepo.VerifyCount(f, c, t)
-			}
-			for f, c := range test.wantQueueCallCnt {
-				mockQueue.VerifyCount(f, c, t)
-			}
-			for f, c := range test.wantTxCallCnt {
-				mockTx.VerifyCount(f, c, t)
-			}
+			verifyRepoCalls(t, mockRepo, test.wantRepoCalls)
+			verifyQueueCalls(t, mockQueue, test.wantQueueCalls)
+			verifyTxCalls(t, mockTx, test.wantTxCalls)
 		})
 	}
 }
@@ -403,50 +461,50 @@ func TestReserve(t *testing.T) {
 		beginTransactionFunc func(ctx context.Context) (core.Transaction, error)
 		commitFunc           func(ctx context.Context) error
 
-		wantRepoCallCnt  map[string]int
-		wantQueueCallCnt map[string]int
-		wantTxCallCnt    map[string]int
-		wantState        inventory.ReserveState
-		wantErr          bool
+		wantRepoCalls  repoCounts
+		wantQueueCalls queueCounts
+		wantTxCalls    txCounts
+		wantState      inventory.ReserveState
+		wantErr        bool
 	}{
 		{
 			name:    "reservation is created",
 			request: inventory.ReservationRequest{RequestID: "somerequestid", Sku: "somesku", Requester: "somerequester", Quantity: 1},
 
-			wantRepoCallCnt:  map[string]int{"SaveReservation": 1},
-			wantQueueCallCnt: map[string]int{"PublishInventory": 0, "PublishReservation": 0},
-			wantTxCallCnt:    map[string]int{"Commit": 2, "Rollback": 0},
-			wantState:        inventory.Open,
+			wantRepoCalls:  repoCounts{SaveReservation: 1},
+			wantQueueCalls: queueCounts{PublishInventory: 0, PublishReservation: 0},
+			wantTxCalls:    txCounts{Commit: 2, Rollback: 0},
+			wantState:      inventory.Open,
 		},
 		{
-			name:            "reservation request id is required",
-			request:         inventory.ReservationRequest{Sku: "somesku", Requester: "somerequester", Quantity: 1},
-			wantRepoCallCnt: map[string]int{"SaveReservation": 0},
-			wantErr:         true,
+			name:          "reservation request id is required",
+			request:       inventory.ReservationRequest{Sku: "somesku", Requester: "somerequester", Quantity: 1},
+			wantRepoCalls: repoCounts{SaveReservation: 0},
+			wantErr:       true,
 		},
 		{
-			name:            "reservation sku is required",
-			request:         inventory.ReservationRequest{RequestID: "somerequestid", Requester: "somerequester", Quantity: 1},
-			wantRepoCallCnt: map[string]int{"SaveReservation": 0},
-			wantErr:         true,
+			name:          "reservation sku is required",
+			request:       inventory.ReservationRequest{RequestID: "somerequestid", Requester: "somerequester", Quantity: 1},
+			wantRepoCalls: repoCounts{SaveReservation: 0},
+			wantErr:       true,
 		},
 		{
-			name:            "reservation requester is required",
-			request:         inventory.ReservationRequest{RequestID: "somerequestid", Sku: "somesku", Quantity: 1},
-			wantRepoCallCnt: map[string]int{"SaveReservation": 0},
-			wantErr:         true,
+			name:          "reservation requester is required",
+			request:       inventory.ReservationRequest{RequestID: "somerequestid", Sku: "somesku", Quantity: 1},
+			wantRepoCalls: repoCounts{SaveReservation: 0},
+			wantErr:       true,
 		},
 		{
-			name:            "reservation quantity must be greater than zero",
-			request:         inventory.ReservationRequest{RequestID: "somerequestid", Sku: "somesku", Requester: "somerequester", Quantity: 0},
-			wantRepoCallCnt: map[string]int{"SaveReservation": 0},
-			wantErr:         true,
+			name:          "reservation quantity must be greater than zero",
+			request:       inventory.ReservationRequest{RequestID: "somerequestid", Sku: "somesku", Requester: "somerequester", Quantity: 0},
+			wantRepoCalls: repoCounts{SaveReservation: 0},
+			wantErr:       true,
 		},
 		{
-			name:            "reservation quantity must not be negative",
-			request:         inventory.ReservationRequest{RequestID: "somerequestid", Sku: "somesku", Requester: "somerequester", Quantity: -1},
-			wantRepoCallCnt: map[string]int{"SaveReservation": 0},
-			wantErr:         true,
+			name:          "reservation quantity must not be negative",
+			request:       inventory.ReservationRequest{RequestID: "somerequestid", Sku: "somesku", Requester: "somerequester", Quantity: -1},
+			wantRepoCalls: repoCounts{SaveReservation: 0},
+			wantErr:       true,
 		},
 		{
 			name:    "unexpected error beginning transaction",
@@ -456,10 +514,10 @@ func TestReserve(t *testing.T) {
 				return nil, errors.New("some unexpected error")
 			},
 
-			wantRepoCallCnt:  map[string]int{"SaveReservation": 0},
-			wantQueueCallCnt: map[string]int{"PublishInventory": 0, "PublishReservation": 0},
-			wantTxCallCnt:    map[string]int{"Commit": 0, "Rollback": 0},
-			wantErr:          true,
+			wantRepoCalls:  repoCounts{SaveReservation: 0},
+			wantQueueCalls: queueCounts{PublishInventory: 0, PublishReservation: 0},
+			wantTxCalls:    txCounts{Commit: 0, Rollback: 0},
+			wantErr:        true,
 		},
 		{
 			name:    "unexpected error getting product",
@@ -469,10 +527,10 @@ func TestReserve(t *testing.T) {
 				return inventory.Product{}, errors.New("unexpected error")
 			},
 
-			wantRepoCallCnt:  map[string]int{"SaveReservation": 0},
-			wantQueueCallCnt: map[string]int{"PublishInventory": 0, "PublishReservation": 0},
-			wantTxCallCnt:    map[string]int{"Commit": 0, "Rollback": 1},
-			wantErr:          true,
+			wantRepoCalls:  repoCounts{SaveReservation: 0},
+			wantQueueCalls: queueCounts{PublishInventory: 0, PublishReservation: 0},
+			wantTxCalls:    txCounts{Commit: 0, Rollback: 1},
+			wantErr:        true,
 		},
 		{
 			name:    "reservation request has already been processed",
@@ -482,10 +540,10 @@ func TestReserve(t *testing.T) {
 				return inventory.Reservation{RequestID: "somerequestid"}, nil
 			},
 
-			wantRepoCallCnt:  map[string]int{"SaveReservation": 0},
-			wantQueueCallCnt: map[string]int{"PublishInventory": 0, "PublishReservation": 0},
-			wantTxCallCnt:    map[string]int{"Commit": 0, "Rollback": 1},
-			wantErr:          false,
+			wantRepoCalls:  repoCounts{SaveReservation: 0},
+			wantQueueCalls: queueCounts{PublishInventory: 0, PublishReservation: 0},
+			wantTxCalls:    txCounts{Commit: 0, Rollback: 1},
+			wantErr:        false,
 		},
 		{
 			name:    "unexpected error saving reservation",
@@ -495,10 +553,10 @@ func TestReserve(t *testing.T) {
 				return errors.New("some unexpected error")
 			},
 
-			wantRepoCallCnt:  map[string]int{"SaveReservation": 1},
-			wantQueueCallCnt: map[string]int{"PublishInventory": 0, "PublishReservation": 0},
-			wantTxCallCnt:    map[string]int{"Commit": 0, "Rollback": 1},
-			wantErr:          true,
+			wantRepoCalls:  repoCounts{SaveReservation: 1},
+			wantQueueCalls: queueCounts{PublishInventory: 0, PublishReservation: 0},
+			wantTxCalls:    txCounts{Commit: 0, Rollback: 1},
+			wantErr:        true,
 		},
 		{
 			name:    "unexpected error comitting",
@@ -508,10 +566,10 @@ func TestReserve(t *testing.T) {
 				return errors.New("some unexpected error")
 			},
 
-			wantRepoCallCnt:  map[string]int{"SaveReservation": 1},
-			wantQueueCallCnt: map[string]int{"PublishInventory": 0, "PublishReservation": 0},
-			wantTxCallCnt:    map[string]int{"Commit": 1, "Rollback": 1},
-			wantErr:          true,
+			wantRepoCalls:  repoCounts{SaveReservation: 1},
+			wantQueueCalls: queueCounts{PublishInventory: 0, PublishReservation: 0},
+			wantTxCalls:    txCounts{Commit: 1, Rollback: 1},
+			wantErr:        true,
 		},
 	}
 
@@ -558,16 +616,9 @@ func TestReserve(t *testing.T) {
 			if res.State != test.wantState {
 				t.Errorf("unexpected state got=%s want=%s", res.State, test.wantState)
 			}
-
-			for f, c := range test.wantRepoCallCnt {
-				mockRepo.VerifyCount(f, c, t)
-			}
-			for f, c := range test.wantQueueCallCnt {
-				mockQueue.VerifyCount(f, c, t)
-			}
-			for f, c := range test.wantTxCallCnt {
-				mockTx.VerifyCount(f, c, t)
-			}
+			verifyRepoCalls(t, mockRepo, test.wantRepoCalls)
+			verifyQueueCalls(t, mockQueue, test.wantQueueCalls)
+			verifyTxCalls(t, mockTx, test.wantTxCalls)
 		})
 	}
 }
@@ -866,10 +917,10 @@ func TestFillReserves(t *testing.T) {
 		beginTransactionFunc func(ctx context.Context) (core.Transaction, error)
 		commitFunc           func(ctx context.Context) error
 
-		wantRepoCallCnt      map[string]int
-		wantQueueCallCnt     map[string]int
-		wantTxCallCnt        map[string]int
-		wantSubTxCallCnt     map[string]int
+		wantRepoCalls        repoCounts
+		wantQueueCalls       queueCounts
+		wantTxCalls          txCounts
+		wantSubTxCalls       txCounts
 		wantProductInventory inventory.ProductInventory
 		wantResUpdates       []reservationUpdate
 		wantErr              bool
@@ -894,9 +945,10 @@ func TestFillReserves(t *testing.T) {
 			wantResUpdates: []reservationUpdate{
 				{ID: 0, State: inventory.Closed, Quantity: 10},
 			},
-			wantQueueCallCnt: map[string]int{"PublishInventory": 1, "PublishReservation": 1},
-			wantSubTxCallCnt: map[string]int{"Commit": 1, "Rollback": 0},
-			wantTxCallCnt:    map[string]int{"Commit": 1, "Rollback": 0},
+			wantRepoCalls:  repoCounts{SaveProductInventory: 1},
+			wantQueueCalls: queueCounts{PublishInventory: 1, PublishReservation: 1},
+			wantSubTxCalls: txCounts{Commit: 1, Rollback: 0},
+			wantTxCalls:    txCounts{Commit: 1, Rollback: 0},
 		},
 		{
 			name:    "not enough inventory to close reservation",
@@ -919,9 +971,10 @@ func TestFillReserves(t *testing.T) {
 				{ID: 0, State: inventory.Open, Quantity: 5},
 			},
 
-			wantQueueCallCnt: map[string]int{"PublishInventory": 1, "PublishReservation": 1},
-			wantSubTxCallCnt: map[string]int{"Commit": 1, "Rollback": 0},
-			wantTxCallCnt:    map[string]int{"Commit": 1, "Rollback": 0},
+			wantRepoCalls:  repoCounts{SaveProductInventory: 1},
+			wantQueueCalls: queueCounts{PublishInventory: 1, PublishReservation: 1},
+			wantSubTxCalls: txCounts{Commit: 1, Rollback: 0},
+			wantTxCalls:    txCounts{Commit: 1, Rollback: 0},
 		},
 		{
 			name:    "enough inventory to close multiple reservations",
@@ -948,9 +1001,10 @@ func TestFillReserves(t *testing.T) {
 				{ID: 2, State: inventory.Closed, Quantity: 3},
 			},
 
-			wantQueueCallCnt: map[string]int{"PublishInventory": 3, "PublishReservation": 3},
-			wantSubTxCallCnt: map[string]int{"Commit": 3, "Rollback": 0},
-			wantTxCallCnt:    map[string]int{"Commit": 1, "Rollback": 0},
+			wantRepoCalls:  repoCounts{SaveProductInventory: 3},
+			wantQueueCalls: queueCounts{PublishInventory: 3, PublishReservation: 3},
+			wantSubTxCalls: txCounts{Commit: 3, Rollback: 0},
+			wantTxCalls:    txCounts{Commit: 1, Rollback: 0},
 		},
 		{
 			name:    "unexpected error saving inventory",
@@ -971,10 +1025,11 @@ func TestFillReserves(t *testing.T) {
 				Product:   product,
 				Available: 7,
 			},
-			wantResUpdates:   []reservationUpdate{},
-			wantQueueCallCnt: map[string]int{"PublishInventory": 0, "PublishReservation": 0},
-			wantSubTxCallCnt: map[string]int{"Commit": 0, "Rollback": 1},
-			wantTxCallCnt:    map[string]int{"Commit": 0, "Rollback": 1},
+			wantResUpdates: []reservationUpdate{},
+			wantRepoCalls:  repoCounts{SaveProductInventory: 1},
+			wantQueueCalls: queueCounts{PublishInventory: 0, PublishReservation: 0},
+			wantSubTxCalls: txCounts{Commit: 0, Rollback: 1},
+			wantTxCalls:    txCounts{Commit: 0, Rollback: 1},
 		},
 		{
 			name:    "unexpected error updating reservation",
@@ -998,9 +1053,10 @@ func TestFillReserves(t *testing.T) {
 			wantResUpdates: []reservationUpdate{
 				{ID: 0, State: inventory.Closed, Quantity: 3},
 			},
-			wantQueueCallCnt: map[string]int{"PublishInventory": 0, "PublishReservation": 0},
-			wantSubTxCallCnt: map[string]int{"Commit": 0, "Rollback": 1},
-			wantTxCallCnt:    map[string]int{"Commit": 0, "Rollback": 1},
+			wantRepoCalls:  repoCounts{SaveProductInventory: 1},
+			wantQueueCalls: queueCounts{PublishInventory: 0, PublishReservation: 0},
+			wantSubTxCalls: txCounts{Commit: 0, Rollback: 1},
+			wantTxCalls:    txCounts{Commit: 0, Rollback: 1},
 		},
 		{
 			name:    "unexpected error publishing inventory",
@@ -1026,9 +1082,10 @@ func TestFillReserves(t *testing.T) {
 			wantResUpdates: []reservationUpdate{
 				{ID: 0, State: inventory.Closed, Quantity: 3},
 			},
-			wantQueueCallCnt: map[string]int{"PublishInventory": 1, "PublishReservation": 0},
-			wantSubTxCallCnt: map[string]int{"Commit": 1, "Rollback": 1},
-			wantTxCallCnt:    map[string]int{"Commit": 0, "Rollback": 1},
+			wantRepoCalls:  repoCounts{SaveProductInventory: 1},
+			wantQueueCalls: queueCounts{PublishInventory: 1, PublishReservation: 0},
+			wantSubTxCalls: txCounts{Commit: 1, Rollback: 1},
+			wantTxCalls:    txCounts{Commit: 0, Rollback: 1},
 		},
 		{
 			name:    "unexpected error publishing reservation",
@@ -1054,9 +1111,10 @@ func TestFillReserves(t *testing.T) {
 			wantResUpdates: []reservationUpdate{
 				{ID: 0, State: inventory.Closed, Quantity: 3},
 			},
-			wantQueueCallCnt: map[string]int{"PublishInventory": 1, "PublishReservation": 1},
-			wantSubTxCallCnt: map[string]int{"Commit": 1, "Rollback": 1},
-			wantTxCallCnt:    map[string]int{"Commit": 0, "Rollback": 1},
+			wantRepoCalls:  repoCounts{SaveProductInventory: 1},
+			wantQueueCalls: queueCounts{PublishInventory: 1, PublishReservation: 1},
+			wantSubTxCalls: txCounts{Commit: 1, Rollback: 1},
+			wantTxCalls:    txCounts{Commit: 0, Rollback: 1},
 		},
 	}
 
@@ -1126,19 +1184,10 @@ func TestFillReserves(t *testing.T) {
 			if !reflect.DeepEqual(gotResUpdates, test.wantResUpdates) {
 				t.Errorf("unexpected reservation updates\n got=%+v\nwant=%+v", gotResUpdates, test.wantResUpdates)
 			}
-
-			for f, c := range test.wantRepoCallCnt {
-				mockRepo.VerifyCount(f, c, t)
-			}
-			for f, c := range test.wantQueueCallCnt {
-				mockQueue.VerifyCount(f, c, t)
-			}
-			for f, c := range test.wantTxCallCnt {
-				mockTx.VerifyCount(f, c, t)
-			}
-			for f, c := range test.wantSubTxCallCnt {
-				mockSubTx.VerifyCount(f, c, t)
-			}
+			verifyRepoCalls(t, mockRepo, test.wantRepoCalls)
+			verifyQueueCalls(t, mockQueue, test.wantQueueCalls)
+			verifyTxCalls(t, mockTx, test.wantTxCalls)
+			verifySubTxCalls(t, mockSubTx, test.wantSubTxCalls)
 		})
 	}
 }
