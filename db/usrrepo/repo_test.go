@@ -34,12 +34,12 @@ func TestCreate(t *testing.T) {
 		{
 			name:      "insert succeeds",
 			user:      user.User{Username: "alice", HashedPassword: "h", IsAdmin: false, Created: time.Unix(0, 0).UTC()},
-			expectSQL: `INSERT INTO users \(username, password, is_admin, created_at\)`,
+			expectSQL: `^\s*INSERT INTO users \(username, password, is_admin, created_at\)\s+VALUES \(\$1, \$2, \$3, \$4\);?\s*$`,
 		},
 		{
 			name:      "exec error is propagated",
 			user:      user.User{Username: "bob", HashedPassword: "h", IsAdmin: true, Created: time.Unix(0, 0).UTC()},
-			expectSQL: `INSERT INTO users`,
+			expectSQL: `^\s*INSERT INTO users \(username, password, is_admin, created_at\)\s+VALUES \(\$1, \$2, \$3, \$4\);?\s*$`,
 			execErr:   errors.New("boom"),
 			wantErr:   true,
 		},
@@ -73,10 +73,11 @@ func TestCreate(t *testing.T) {
 
 func TestGet(t *testing.T) {
 	row := user.User{Username: "alice", HashedPassword: "h", IsAdmin: true, Created: time.Unix(0, 0).UTC()}
+	const selectUser = `^SELECT username, password, is_admin, created_at FROM users WHERE username = \$1\s*$`
 
 	t.Run("hit returns row", func(t *testing.T) {
 		repo, mock := newRepo(t)
-		mock.ExpectQuery(`SELECT username, password, is_admin, created_at FROM users WHERE username = \$1`).
+		mock.ExpectQuery(selectUser).
 			WithArgs(row.Username).
 			WillReturnRows(pgxmock.NewRows([]string{"username", "password", "is_admin", "created_at"}).
 				AddRow(row.Username, row.HashedPassword, row.IsAdmin, row.Created))
@@ -95,7 +96,7 @@ func TestGet(t *testing.T) {
 
 	t.Run("ErrNoRows maps to ErrNotFound", func(t *testing.T) {
 		repo, mock := newRepo(t)
-		mock.ExpectQuery(`SELECT username`).
+		mock.ExpectQuery(selectUser).
 			WithArgs("missing").
 			WillReturnError(pgx.ErrNoRows)
 
@@ -108,7 +109,7 @@ func TestGet(t *testing.T) {
 	t.Run("cache hit on second call skips DB", func(t *testing.T) {
 		repo, mock := newRepo(t)
 		// Only one expectation: the second call must be served from cache.
-		mock.ExpectQuery(`SELECT username`).
+		mock.ExpectQuery(selectUser).
 			WithArgs(row.Username).
 			WillReturnRows(pgxmock.NewRows([]string{"username", "password", "is_admin", "created_at"}).
 				AddRow(row.Username, row.HashedPassword, row.IsAdmin, row.Created))
@@ -126,9 +127,11 @@ func TestGet(t *testing.T) {
 }
 
 func TestDelete(t *testing.T) {
+	const deleteUser = `^DELETE FROM users WHERE username = \$1\s*$`
+
 	t.Run("delete succeeds", func(t *testing.T) {
 		repo, mock := newRepo(t)
-		mock.ExpectExec(`DELETE FROM users WHERE username = \$1`).
+		mock.ExpectExec(deleteUser).
 			WithArgs("alice").
 			WillReturnResult(pgxmock.NewResult("DELETE", 1))
 
@@ -142,7 +145,7 @@ func TestDelete(t *testing.T) {
 
 	t.Run("exec error propagates", func(t *testing.T) {
 		repo, mock := newRepo(t)
-		mock.ExpectExec(`DELETE FROM users`).
+		mock.ExpectExec(deleteUser).
 			WithArgs("alice").
 			WillReturnError(errors.New("boom"))
 

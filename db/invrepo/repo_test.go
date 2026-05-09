@@ -13,6 +13,8 @@ import (
 	"github.com/sksmith/go-micro-example/db/invrepo"
 )
 
+// repoT exposes only the methods invrepo's *dbRepo provides; the
+// concrete return type from NewPostgresRepo is unexported.
 type repoT interface {
 	SaveProduct(ctx context.Context, p inventory.Product, options ...core.UpdateOptions) error
 	SaveProductInventory(ctx context.Context, pi inventory.ProductInventory, options ...core.UpdateOptions) error
@@ -26,6 +28,7 @@ type repoT interface {
 	GetReservations(ctx context.Context, resOptions inventory.GetReservationsOptions, limit, offset int, options ...core.QueryOptions) ([]inventory.Reservation, error)
 	GetReservationByRequestID(ctx context.Context, requestID string, options ...core.QueryOptions) (inventory.Reservation, error)
 	GetReservation(ctx context.Context, ID uint64, options ...core.QueryOptions) (inventory.Reservation, error)
+	BeginTransaction(ctx context.Context) (core.Transaction, error)
 }
 
 func newRepo(t *testing.T) (repoT, pgxmock.PgxConnIface) {
@@ -38,12 +41,39 @@ func newRepo(t *testing.T) (repoT, pgxmock.PgxConnIface) {
 	return invrepo.NewPostgresRepo(mock), mock
 }
 
+// SQL pattern constants, anchored with ^…$ and explicit \s+ for the
+// multi-line indented queries in repo.go. The default
+// QueryMatcherRegexp is substring-permissive; without anchors a typo
+// like "proudcts" would still match.
+const (
+	updateProduct          = `^\s*UPDATE products\s+SET upc = \$2, name = \$3\s+WHERE sku = \$1;?\s*$`
+	insertProduct          = `^\s*INSERT INTO products \(sku, upc, name\)\s+VALUES \(\$1, \$2, \$3\);?\s*$`
+	updateProductInventory = `^\s*UPDATE product_inventory\s+SET available = \$2\s+WHERE sku = \$1;?\s*$`
+	insertProductInventory = `^INSERT INTO product_inventory \(sku, available\)\s+VALUES \(\$1, \$2\);?\s*$`
+
+	selectProduct          = `^SELECT sku, upc, name FROM products WHERE sku = \$1\s*$`
+	selectProductInventory = `^SELECT p\.sku, p\.upc, p\.name, pi\.available FROM products p, product_inventory pi WHERE p\.sku = \$1 AND p\.sku = pi\.sku\s*$`
+	selectAllInventory     = `^SELECT p\.sku, p\.upc, p\.name, pi\.available FROM products p, product_inventory pi WHERE p\.sku = pi\.sku ORDER BY p\.sku LIMIT \$1 OFFSET \$2\s*$`
+
+	insertProductionEvent  = `^INSERT INTO production_events \(request_id, sku, quantity, created\)\s+VALUES \(\$1, \$2, \$3, \$4\) RETURNING id;?\s*$`
+	selectProductionEvent  = `^SELECT id, request_id, sku, quantity, created FROM production_events\s+WHERE request_id = \$1\s*$`
+	insertReservation      = `^INSERT INTO reservations \(request_id, requester, sku, state, reserved_quantity, requested_quantity, created\)\s+VALUES \(\$1, \$2, \$3, \$4, \$5, \$6, \$7\) RETURNING id;?\s*$`
+	updateReservationStmt  = `^UPDATE reservations SET state = \$2, reserved_quantity = \$3 WHERE id=\$1;?\s*$`
+	selectReservationByID  = `^SELECT id, request_id, requester, sku, state, reserved_quantity, requested_quantity, created FROM reservations WHERE id = \$1\s*$`
+	selectReservationByReq = `^SELECT id, request_id, requester, sku, state, reserved_quantity, requested_quantity, created FROM reservations WHERE request_id = \$1\s*$`
+
+	// Reservation list patterns vary by what filters are present.
+	listReservationsBare   = `^SELECT id, request_id, requester, sku, state, reserved_quantity, requested_quantity, created FROM reservations\s+ORDER BY created ASC LIMIT \$1 OFFSET \$2\s*$`
+	listReservationsBySku  = `^SELECT id, request_id, requester, sku, state, reserved_quantity, requested_quantity, created FROM reservations  WHERE  sku = \$3 ORDER BY created ASC LIMIT \$1 OFFSET \$2\s*$`
+	listReservationsByBoth = `^SELECT id, request_id, requester, sku, state, reserved_quantity, requested_quantity, created FROM reservations  WHERE  sku = \$3 AND state = \$4 ORDER BY created ASC LIMIT \$1 OFFSET \$2\s*$`
+)
+
 func TestSaveProduct(t *testing.T) {
 	p := inventory.Product{Sku: "sku1", Upc: "upc1", Name: "name1"}
 
 	t.Run("update affects a row, no insert", func(t *testing.T) {
 		repo, mock := newRepo(t)
-		mock.ExpectExec(`UPDATE products`).
+		mock.ExpectExec(updateProduct).
 			WithArgs(p.Sku, p.Upc, p.Name).
 			WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 
@@ -57,10 +87,10 @@ func TestSaveProduct(t *testing.T) {
 
 	t.Run("update finds nothing, insert is issued", func(t *testing.T) {
 		repo, mock := newRepo(t)
-		mock.ExpectExec(`UPDATE products`).
+		mock.ExpectExec(updateProduct).
 			WithArgs(p.Sku, p.Upc, p.Name).
 			WillReturnResult(pgxmock.NewResult("UPDATE", 0))
-		mock.ExpectExec(`INSERT INTO products`).
+		mock.ExpectExec(insertProduct).
 			WithArgs(p.Sku, p.Upc, p.Name).
 			WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
@@ -74,7 +104,7 @@ func TestSaveProduct(t *testing.T) {
 
 	t.Run("update error propagates without falling through to insert", func(t *testing.T) {
 		repo, mock := newRepo(t)
-		mock.ExpectExec(`UPDATE products`).
+		mock.ExpectExec(updateProduct).
 			WithArgs(p.Sku, p.Upc, p.Name).
 			WillReturnError(errors.New("boom"))
 
@@ -92,7 +122,7 @@ func TestSaveProductInventory(t *testing.T) {
 
 	t.Run("update succeeds", func(t *testing.T) {
 		repo, mock := newRepo(t)
-		mock.ExpectExec(`UPDATE product_inventory`).
+		mock.ExpectExec(updateProductInventory).
 			WithArgs(pi.Sku, pi.Available).
 			WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 
@@ -106,10 +136,10 @@ func TestSaveProductInventory(t *testing.T) {
 
 	t.Run("update finds nothing, insert is issued", func(t *testing.T) {
 		repo, mock := newRepo(t)
-		mock.ExpectExec(`UPDATE product_inventory`).
+		mock.ExpectExec(updateProductInventory).
 			WithArgs(pi.Sku, pi.Available).
 			WillReturnResult(pgxmock.NewResult("UPDATE", 0))
-		mock.ExpectExec(`INSERT INTO product_inventory`).
+		mock.ExpectExec(insertProductInventory).
 			WithArgs(pi.Sku, pi.Available).
 			WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
@@ -125,7 +155,7 @@ func TestSaveProductInventory(t *testing.T) {
 func TestGetProduct(t *testing.T) {
 	t.Run("hit returns product", func(t *testing.T) {
 		repo, mock := newRepo(t)
-		mock.ExpectQuery(`SELECT sku, upc, name FROM products WHERE sku = \$1`).
+		mock.ExpectQuery(selectProduct).
 			WithArgs("sku1").
 			WillReturnRows(pgxmock.NewRows([]string{"sku", "upc", "name"}).
 				AddRow("sku1", "upc1", "name1"))
@@ -142,7 +172,7 @@ func TestGetProduct(t *testing.T) {
 
 	t.Run("ErrNoRows maps to ErrNotFound", func(t *testing.T) {
 		repo, mock := newRepo(t)
-		mock.ExpectQuery(`SELECT sku, upc, name FROM products`).
+		mock.ExpectQuery(selectProduct).
 			WithArgs("missing").
 			WillReturnError(pgx.ErrNoRows)
 
@@ -156,7 +186,7 @@ func TestGetProduct(t *testing.T) {
 func TestGetProductInventory(t *testing.T) {
 	t.Run("hit returns inventory", func(t *testing.T) {
 		repo, mock := newRepo(t)
-		mock.ExpectQuery(`SELECT p\.sku, p\.upc, p\.name, pi\.available FROM products p, product_inventory pi`).
+		mock.ExpectQuery(selectProductInventory).
 			WithArgs("sku1").
 			WillReturnRows(pgxmock.NewRows([]string{"sku", "upc", "name", "available"}).
 				AddRow("sku1", "upc1", "name1", int64(7)))
@@ -173,11 +203,12 @@ func TestGetProductInventory(t *testing.T) {
 
 func TestGetAllProductInventory(t *testing.T) {
 	repo, mock := newRepo(t)
-	mock.ExpectQuery(`SELECT p\.sku, p\.upc, p\.name, pi\.available .* LIMIT \$1 OFFSET \$2`).
+	mock.ExpectQuery(selectAllInventory).
 		WithArgs(10, 0).
 		WillReturnRows(pgxmock.NewRows([]string{"sku", "upc", "name", "available"}).
 			AddRow("a", "ua", "na", int64(1)).
-			AddRow("b", "ub", "nb", int64(2)))
+			AddRow("b", "ub", "nb", int64(2))).
+		RowsWillBeClosed()
 
 	got, err := repo.GetAllProductInventory(context.Background(), 10, 0)
 	if err != nil {
@@ -186,13 +217,16 @@ func TestGetAllProductInventory(t *testing.T) {
 	if len(got) != 2 || got[0].Sku != "a" || got[1].Sku != "b" {
 		t.Errorf("unexpected result: %+v", got)
 	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("unmet expectations: %v", err)
+	}
 }
 
 func TestSaveProductionEvent(t *testing.T) {
 	t.Run("RETURNING id is scanned back into the event", func(t *testing.T) {
 		repo, mock := newRepo(t)
 		ev := &inventory.ProductionEvent{RequestID: "req1", Sku: "sku1", Quantity: 4, Created: time.Unix(0, 0).UTC()}
-		mock.ExpectQuery(`INSERT INTO production_events`).
+		mock.ExpectQuery(insertProductionEvent).
 			WithArgs(ev.RequestID, ev.Sku, ev.Quantity, ev.Created).
 			WillReturnRows(pgxmock.NewRows([]string{"id"}).AddRow(uint64(42)))
 
@@ -208,7 +242,7 @@ func TestSaveProductionEvent(t *testing.T) {
 func TestGetProductionEventByRequestID(t *testing.T) {
 	repo, mock := newRepo(t)
 	created := time.Unix(0, 0).UTC()
-	mock.ExpectQuery(`SELECT id, request_id, sku, quantity, created FROM production_events`).
+	mock.ExpectQuery(selectProductionEvent).
 		WithArgs("req1").
 		WillReturnRows(pgxmock.NewRows([]string{"id", "request_id", "sku", "quantity", "created"}).
 			AddRow(uint64(7), "req1", "sku1", int64(3), created))
@@ -228,7 +262,7 @@ func TestSaveReservation(t *testing.T) {
 		RequestID: "req1", Requester: "x", Sku: "sku1",
 		State: inventory.Open, ReservedQuantity: 0, RequestedQuantity: 5, Created: time.Unix(0, 0).UTC(),
 	}
-	mock.ExpectQuery(`INSERT INTO reservations`).
+	mock.ExpectQuery(insertReservation).
 		WithArgs(r.RequestID, r.Requester, r.Sku, r.State, r.ReservedQuantity, r.RequestedQuantity, r.Created).
 		WillReturnRows(pgxmock.NewRows([]string{"id"}).AddRow(uint64(99)))
 
@@ -242,7 +276,7 @@ func TestSaveReservation(t *testing.T) {
 
 func TestUpdateReservation(t *testing.T) {
 	repo, mock := newRepo(t)
-	mock.ExpectExec(`UPDATE reservations SET state = \$2, reserved_quantity = \$3 WHERE id=\$1`).
+	mock.ExpectExec(updateReservationStmt).
 		WithArgs(uint64(7), inventory.Closed, int64(5)).
 		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 
@@ -252,11 +286,16 @@ func TestUpdateReservation(t *testing.T) {
 }
 
 func TestGetReservations(t *testing.T) {
+	emptyRows := func() *pgxmock.Rows {
+		return pgxmock.NewRows([]string{"id", "request_id", "requester", "sku", "state", "reserved_quantity", "requested_quantity", "created"})
+	}
+
 	t.Run("no filters builds bare LIMIT/OFFSET query", func(t *testing.T) {
 		repo, mock := newRepo(t)
-		mock.ExpectQuery(`SELECT id, request_id, requester, sku, state, reserved_quantity, requested_quantity, created FROM reservations  ORDER BY created ASC LIMIT \$1 OFFSET \$2`).
+		mock.ExpectQuery(listReservationsBare).
 			WithArgs(10, 0).
-			WillReturnRows(pgxmock.NewRows([]string{"id", "request_id", "requester", "sku", "state", "reserved_quantity", "requested_quantity", "created"}))
+			WillReturnRows(emptyRows()).
+			RowsWillBeClosed()
 
 		got, err := repo.GetReservations(context.Background(), inventory.GetReservationsOptions{}, 10, 0)
 		if err != nil {
@@ -265,13 +304,17 @@ func TestGetReservations(t *testing.T) {
 		if len(got) != 0 {
 			t.Errorf("expected 0 rows, got %d", len(got))
 		}
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("unmet expectations: %v", err)
+		}
 	})
 
 	t.Run("sku filter adds a WHERE clause and arg", func(t *testing.T) {
 		repo, mock := newRepo(t)
-		mock.ExpectQuery(`WHERE  sku = \$3 .* LIMIT \$1 OFFSET \$2`).
+		mock.ExpectQuery(listReservationsBySku).
 			WithArgs(10, 0, "sku1").
-			WillReturnRows(pgxmock.NewRows([]string{"id", "request_id", "requester", "sku", "state", "reserved_quantity", "requested_quantity", "created"}))
+			WillReturnRows(emptyRows()).
+			RowsWillBeClosed()
 
 		_, err := repo.GetReservations(context.Background(), inventory.GetReservationsOptions{Sku: "sku1"}, 10, 0)
 		if err != nil {
@@ -284,9 +327,10 @@ func TestGetReservations(t *testing.T) {
 
 	t.Run("sku and state filters add two WHERE conditions and args", func(t *testing.T) {
 		repo, mock := newRepo(t)
-		mock.ExpectQuery(`WHERE  sku = \$3 AND state = \$4 .* LIMIT \$1 OFFSET \$2`).
+		mock.ExpectQuery(listReservationsByBoth).
 			WithArgs(10, 0, "sku1", inventory.Open).
-			WillReturnRows(pgxmock.NewRows([]string{"id", "request_id", "requester", "sku", "state", "reserved_quantity", "requested_quantity", "created"}))
+			WillReturnRows(emptyRows()).
+			RowsWillBeClosed()
 
 		_, err := repo.GetReservations(context.Background(), inventory.GetReservationsOptions{Sku: "sku1", State: inventory.Open}, 10, 0)
 		if err != nil {
@@ -301,7 +345,7 @@ func TestGetReservations(t *testing.T) {
 func TestGetReservation(t *testing.T) {
 	repo, mock := newRepo(t)
 	created := time.Unix(0, 0).UTC()
-	mock.ExpectQuery(`FROM reservations WHERE id = \$1`).
+	mock.ExpectQuery(selectReservationByID).
 		WithArgs(uint64(7)).
 		WillReturnRows(pgxmock.NewRows([]string{"id", "request_id", "requester", "sku", "state", "reserved_quantity", "requested_quantity", "created"}).
 			AddRow(uint64(7), "req1", "x", "sku1", inventory.Open, int64(0), int64(5), created))
@@ -318,7 +362,7 @@ func TestGetReservation(t *testing.T) {
 func TestGetReservationByRequestID(t *testing.T) {
 	repo, mock := newRepo(t)
 	created := time.Unix(0, 0).UTC()
-	mock.ExpectQuery(`FROM reservations WHERE request_id = \$1`).
+	mock.ExpectQuery(selectReservationByReq).
 		WithArgs("req1").
 		WillReturnRows(pgxmock.NewRows([]string{"id", "request_id", "requester", "sku", "state", "reserved_quantity", "requested_quantity", "created"}).
 			AddRow(uint64(7), "req1", "x", "sku1", inventory.Open, int64(0), int64(5), created))
@@ -330,4 +374,32 @@ func TestGetReservationByRequestID(t *testing.T) {
 	if got.RequestID != "req1" {
 		t.Errorf("unexpected result: %+v", got)
 	}
+}
+
+func TestBeginTransaction(t *testing.T) {
+	t.Run("delegates to conn.Begin", func(t *testing.T) {
+		repo, mock := newRepo(t)
+		mock.ExpectBegin()
+
+		tx, err := repo.BeginTransaction(context.Background())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if tx == nil {
+			t.Fatal("expected non-nil transaction")
+		}
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("unmet expectations: %v", err)
+		}
+	})
+
+	t.Run("Begin error propagates", func(t *testing.T) {
+		repo, mock := newRepo(t)
+		mock.ExpectBegin().WillReturnError(errors.New("boom"))
+
+		_, err := repo.BeginTransaction(context.Background())
+		if err == nil {
+			t.Error("expected error, got nil")
+		}
+	})
 }
