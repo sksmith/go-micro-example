@@ -2,10 +2,10 @@
 
 This service emits two complementary telemetry streams:
 
-| Stream      | Transport                  | Where it shows up                                   |
-|-------------|----------------------------|-----------------------------------------------------|
-| **Metrics** | Prometheus scrape          | `GET /metrics` (Prometheus text format)             |
-| **Traces**  | OpenTelemetry OTLP/gRPC    | Whatever collector `OTEL_EXPORTER_OTLP_ENDPOINT` points at |
+| Stream | Transport | Where it shows up |
+| ------------- | ---------------------------- | ----------------------------------------------------- |
+| **Metrics** | Prometheus scrape | `GET /metrics` (Prometheus text format) |
+| **Traces** | OpenTelemetry OTLP/gRPC | Whatever collector `OTEL_EXPORTER_OTLP_ENDPOINT` points at |
 
 OTLP metrics adoption is deliberately deferred — the existing
 Prometheus surface is stable and the collector story for OTLP
@@ -45,11 +45,11 @@ focuses.
 Three env vars drive the tracing setup; all are read by the OTel
 SDK natively (no custom parsing):
 
-| Variable                          | Default | What it does |
-|-----------------------------------|---------|--------------|
-| `OTEL_EXPORTER_OTLP_ENDPOINT`     | unset   | If unset, tracing installs a no-op provider — call sites still `tracer.Start()` freely, the spans go nowhere. **No collector is required for local dev.** When set, OTLP/gRPC connects to the given endpoint (e.g. `http://otel-collector:4317`). |
-| `OTEL_RESOURCE_ATTRIBUTES`        | unset   | Comma-separated `k=v` pairs added to every span's resource. The SDK reads this; useful for `deployment.environment=staging`, `k8s.namespace.name=...`. |
-| `OTEL_TRACES_SAMPLER_ARG`         | `0.10`  | Root-span sample ratio (0.0–1.0). 10% by default — high enough to spot drift in busy paths, low enough not to flood the collector. Override per-environment. |
+| Variable | Default | What it does |
+| ----------------------------------- | --------- | -------------- |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | unset | If unset, tracing installs a no-op provider — call sites still `tracer.Start()` freely, the spans go nowhere. **No collector is required for local dev.** When set, OTLP/gRPC connects to the given endpoint (e.g. `http://otel-collector:4317`). |
+| `OTEL_RESOURCE_ATTRIBUTES` | unset | Comma-separated `k=v` pairs added to every span's resource. The SDK reads this; useful for `deployment.environment=staging`, `k8s.namespace.name=...`. |
+| `OTEL_TRACES_SAMPLER_ARG` | `0.10` | Root-span sample ratio (0.0–1.0). 10% by default — high enough to spot drift in busy paths, low enough not to flood the collector. Override per-environment. |
 
 ### Sampling
 

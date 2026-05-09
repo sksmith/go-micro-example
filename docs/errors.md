@@ -110,6 +110,7 @@ The shortcut `log.Err(err).Send()` is banned: it produces a log
 entry with no context message.
 
 Every error log entry must:
+
 - Use `log.Error().Err(err)` form (uniform with non-error logs).
 - Have a `.Msg("what was being attempted")`.
 - Include the relevant identifying fields (`Str("sku", ...)`,
