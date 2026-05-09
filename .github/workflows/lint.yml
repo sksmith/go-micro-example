@@ -19,8 +19,8 @@ jobs:
         id: lint
         uses: golangci/golangci-lint-action@v6
         with:
-          version: v1.64.8
-          args: --out-format sarif:golangci-lint.sarif,colored-line-number
+          version: v2.12.2
+          args: --output.sarif.path=golangci-lint.sarif --output.text.path=stdout
       - name: Upload SARIF
         if: ${{ always() && hashFiles('golangci-lint.sarif') != '' }}
         uses: github/codeql-action/upload-sarif@v3
