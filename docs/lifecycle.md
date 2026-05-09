@@ -1,6 +1,7 @@
 # Process lifecycle
 
 ## Startup
+
 [cmd/main.go](../cmd/main.go) builds dependencies in this order
 and fails fast (`log.Fatal`) on any step:
 
@@ -71,9 +72,9 @@ Automated coverage lives in
 
 The router exposes two endpoints for orchestrators to poll:
 
-| Endpoint  | Status | Purpose |
-|-----------|--------|---------|
-| `/live`  | always 200 | **Liveness.** The process is up enough to handle a request. Failing this means kubelet should restart the pod. Does not depend on any external system. |
+| Endpoint | Status | Purpose |
+| ----------- | -------- | --------- |
+| `/live` | always 200 | **Liveness.** The process is up enough to handle a request. Failing this means kubelet should restart the pod. Does not depend on any external system. |
 | `/ready` | 200 if every registered `Pinger` returns nil within 1s, 503 otherwise | **Readiness.** The pod is ready to accept traffic. Currently checks the pgx pool. AMQP is intentionally absent — the queue subsystem doesn't yet expose a non-blocking connectivity check (see follow-up). |
 
 Each `/ready` dep gets its own per-check 1s deadline so a wedged
