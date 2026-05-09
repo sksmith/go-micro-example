@@ -2,10 +2,13 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -25,9 +28,23 @@ import (
 	"github.com/common-nighthawk/go-figure"
 )
 
+// defaultShutdownTimeout caps how long we'll wait for in-flight
+// HTTP requests to drain after a SIGTERM/SIGINT. The orchestrator
+// (Kubernetes by default) sends SIGKILL after terminationGracePeriodSeconds
+// — make sure this stays below that. Override with
+// GME_SHUTDOWN_TIMEOUT_SECONDS, matching the same env-var pattern
+// used by GME_JWT_TTL_SECONDS.
+const defaultShutdownTimeout = 30 * time.Second
+
 func main() {
 	start := time.Now()
-	ctx := context.Background()
+
+	// signal.NotifyContext gives us a context that cancels on
+	// SIGINT (Ctrl-C) or SIGTERM (Kubernetes pod eviction,
+	// systemd stop). Long-lived subsystems (queue redial loops)
+	// thread this ctx so they unwind together.
+	ctx, stopSignals := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stopSignals()
 
 	// Resolve secrets from the configured provider before viper reads
 	// the env (DSN-006). The provider populates GME_* env vars so the
@@ -64,7 +81,6 @@ func main() {
 
 	_ = queue.NewProductQueue(ctx, cfg, invService)
 
-	log.Info().Str("port", cfg.Port.Value).Int64("startTimeMs", time.Since(start).Milliseconds()).Msg("listening")
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port.Value,
 		Handler:           r,
@@ -73,7 +89,83 @@ func main() {
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       120 * time.Second,
 	}
-	log.Fatal().Err(srv.ListenAndServe())
+
+	// Run ListenAndServe in a goroutine so main can wait on
+	// the signal context without blocking the listener.
+	serveErr := make(chan error, 1)
+	go func() {
+		log.Info().Str("port", cfg.Port.Value).Int64("startTimeMs", time.Since(start).Milliseconds()).Msg("listening")
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			serveErr <- err
+		}
+		close(serveErr)
+	}()
+
+	select {
+	case err := <-serveErr:
+		// ListenAndServe returned a non-graceful error before any
+		// signal arrived (e.g. port in use). Log and exit.
+		log.Fatal().Err(err).Msg("HTTP server failed")
+	case <-ctx.Done():
+		log.Info().Str("signal", "received").Msg("graceful shutdown beginning")
+	}
+
+	shutdown(srv, dbPool)
+}
+
+// shutdown runs the ordered teardown after a SIGTERM / SIGINT:
+//
+//  1. Stop accepting new HTTP requests; let in-flight requests
+//     drain up to the configured timeout (shutdownHTTP).
+//  2. Close the pgx pool, releasing connections back to Postgres.
+//
+// AMQP consumer drain (the queue subsystem) is deferred to
+// TST-003 — the existing redial loop in queue/queue.go cooperates
+// with ctx cancellation but doesn't expose a "finish in-flight
+// deliveries then exit" surface. The fix needs the queue to grow
+// a Close method, which sits more naturally with the test suite
+// that ticket sets up.
+func shutdown(srv *http.Server, pool *pgxpool.Pool) {
+	shutdownHTTP(srv, resolveShutdownTimeout())
+	log.Info().Msg("closing database pool")
+	pool.Close()
+	log.Info().Msg("shutdown complete")
+}
+
+// shutdownHTTP stops the server's listeners and waits for in-flight
+// requests to finish, up to the supplied timeout. On timeout (or
+// any other Shutdown error) it falls back to srv.Close, which drops
+// the remaining idle connections immediately.
+func shutdownHTTP(srv *http.Server, timeout time.Duration) {
+	log.Info().Dur("timeout", timeout).Msg("shutting down HTTP server")
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Error().Err(err).Msg("HTTP server shutdown returned an error; forcing close")
+		if closeErr := srv.Close(); closeErr != nil && !errors.Is(closeErr, http.ErrServerClosed) {
+			log.Error().Err(closeErr).Msg("HTTP server force close failed")
+		}
+		return
+	}
+	log.Info().Msg("HTTP server stopped cleanly")
+}
+
+func resolveShutdownTimeout() time.Duration {
+	raw := os.Getenv("GME_SHUTDOWN_TIMEOUT_SECONDS")
+	if raw == "" {
+		return defaultShutdownTimeout
+	}
+	seconds, err := strconv.Atoi(raw)
+	if err != nil || seconds <= 0 {
+		log.Warn().
+			Str("GME_SHUTDOWN_TIMEOUT_SECONDS", raw).
+			Dur("default", defaultShutdownTimeout).
+			Msg("invalid shutdown timeout; using default")
+		return defaultShutdownTimeout
+	}
+	return time.Duration(seconds) * time.Second
 }
 
 func printLogHeader(cfg *config.Config) {
