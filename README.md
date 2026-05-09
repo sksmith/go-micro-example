@@ -325,6 +325,8 @@ Database migration is automated in the project using [migrate](https://github.co
 - [Error handling conventions](docs/errors.md) — sentinels, wrapping
   with `%w`, `errors.Is`/`errors.As`, log shape. Enforced by
   `errorlint` and `errname` in CI.
+- [Process lifecycle](docs/lifecycle.md) — startup ordering and the
+  graceful-shutdown sequence (DSN-001).
 
 ## TODO
 
