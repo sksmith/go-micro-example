@@ -9,8 +9,8 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
-	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/tracelog"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -114,14 +114,14 @@ func ConnectDb(ctx context.Context, cfg *config.Config) (*pgxpool.Pool, error) {
 		return nil, err
 	}
 
-	level, err := pgx.LogLevelFromString(cfg.Db.LogLevel.Value)
+	level, err := tracelog.LogLevelFromString(cfg.Db.LogLevel.Value)
 	if err != nil {
 		return nil, err
 	}
-	poolConfig.ConnConfig.Logger = logger{level: level}
+	poolConfig.ConnConfig.Tracer = &tracelog.TraceLog{Logger: logger{}, LogLevel: level}
 
 	for {
-		pool, err = pgxpool.ConnectConfig(ctx, poolConfig)
+		pool, err = pgxpool.NewWithConfig(ctx, poolConfig)
 		if err != nil {
 			log.Error().Err(err).Msg("failed to create connection pool... retrying")
 			time.Sleep(1 * time.Second)
@@ -133,27 +133,22 @@ func ConnectDb(ctx context.Context, cfg *config.Config) (*pgxpool.Pool, error) {
 	return pool, nil
 }
 
-type logger struct {
-	level pgx.LogLevel
-}
+type logger struct{}
 
-func (l logger) Log(ctx context.Context, level pgx.LogLevel, msg string, data map[string]interface{}) {
-	if l.level < level {
-		return
-	}
+func (logger) Log(ctx context.Context, level tracelog.LogLevel, msg string, data map[string]any) {
 	var evt *zerolog.Event
 	switch level {
-	case pgx.LogLevelTrace:
+	case tracelog.LogLevelTrace:
 		evt = log.Trace()
-	case pgx.LogLevelDebug:
+	case tracelog.LogLevelDebug:
 		evt = log.Debug()
-	case pgx.LogLevelInfo:
+	case tracelog.LogLevelInfo:
 		evt = log.Info()
-	case pgx.LogLevelWarn:
+	case tracelog.LogLevelWarn:
 		evt = log.Warn()
-	case pgx.LogLevelError:
+	case tracelog.LogLevelError:
 		evt = log.Error()
-	case pgx.LogLevelNone:
+	case tracelog.LogLevelNone:
 		evt = log.Info()
 	default:
 		evt = log.Info()

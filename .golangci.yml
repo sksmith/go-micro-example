@@ -1,0 +1,19 @@
+version: "2"
+linters:
+  default: standard
+  settings:
+    staticcheck:
+      # Match the golangci-lint v1 default surface: keep SA*
+      # (correctness) and S* (simplifications) but drop ST* (style)
+      # and QF* (quickfix refactors). Those drift away from the
+      # checks v1 ran and would expand DEP-003 scope into a rename
+      # pass, which is exactly what this ticket isn't.
+      checks:
+        - "SA*"
+        - "S1*"
+    errcheck:
+      exclude-functions:
+        - (net.Conn).Close
+        - (io.Closer).Close
+        - (*net/http.Response).Body.Close
+        - os.Unsetenv

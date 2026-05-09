@@ -3,8 +3,8 @@ package db
 import (
 	"context"
 
-	"github.com/jackc/pgconn"
-	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/sksmith/go-micro-example/testutil"
 )
 
@@ -20,9 +20,11 @@ func NewMockConn() MockConn {
 	return MockConn{
 		QueryFunc:    func(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error) { return nil, nil },
 		QueryRowFunc: func(ctx context.Context, sql string, args ...interface{}) pgx.Row { return nil },
-		ExecFunc:     func(ctx context.Context, sql string, args ...interface{}) (pgconn.CommandTag, error) { return nil, nil },
-		BeginFunc:    func(ctx context.Context) (pgx.Tx, error) { return NewMockPgxTx(), nil },
-		CallWatcher:  testutil.NewCallWatcher(),
+		ExecFunc: func(ctx context.Context, sql string, args ...interface{}) (pgconn.CommandTag, error) {
+			return pgconn.CommandTag{}, nil
+		},
+		BeginFunc:   func(ctx context.Context) (pgx.Tx, error) { return NewMockPgxTx(), nil },
+		CallWatcher: testutil.NewCallWatcher(),
 	}
 }
 
@@ -88,11 +90,6 @@ func (m *MockPgxTx) Begin(ctx context.Context) (pgx.Tx, error) {
 	return nil, nil
 }
 
-func (m *MockPgxTx) BeginFunc(ctx context.Context, f func(pgx.Tx) error) (err error) {
-	m.AddCall(ctx, f)
-	return nil
-}
-
 func (m *MockPgxTx) Commit(ctx context.Context) error {
 	m.AddCall(ctx)
 	return nil
@@ -125,7 +122,7 @@ func (m *MockPgxTx) Prepare(ctx context.Context, name, sql string) (*pgconn.Stat
 
 func (m *MockPgxTx) Exec(ctx context.Context, sql string, arguments ...interface{}) (commandTag pgconn.CommandTag, err error) {
 	m.AddCall(ctx, sql, arguments)
-	return nil, nil
+	return pgconn.CommandTag{}, nil
 }
 
 func (m *MockPgxTx) Query(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error) {
@@ -136,11 +133,6 @@ func (m *MockPgxTx) Query(ctx context.Context, sql string, args ...interface{}) 
 func (m *MockPgxTx) QueryRow(ctx context.Context, sql string, args ...interface{}) pgx.Row {
 	m.AddCall(ctx, sql, args)
 	return nil
-}
-
-func (m *MockPgxTx) QueryFunc(ctx context.Context, sql string, args []interface{}, scans []interface{}, f func(pgx.QueryFuncRow) error) (pgconn.CommandTag, error) {
-	m.AddCall(ctx, sql, args, scans, f)
-	return nil, nil
 }
 
 func (m *MockPgxTx) Conn() *pgx.Conn {
