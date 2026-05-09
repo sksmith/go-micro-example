@@ -57,7 +57,7 @@ func TestMain(m *testing.M) {
 
 	userService := user.NewService(ur)
 
-	r := api.ConfigureRouter(cfg, invService, invService, userService)
+	r := api.ConfigureRouter(cfg, invService, invService, userService, nil, map[string]api.Pinger{"db": dbPool})
 
 	_ = queue.NewProductQueue(ctx, cfg, invService)
 
@@ -71,7 +71,7 @@ func TestMain(m *testing.M) {
 
 func waitForReady() {
 	for {
-		res, err := http.Get(host() + "/health")
+		res, err := http.Get(host() + "/ready")
 		if err == nil && res.StatusCode == 200 {
 			break
 		}

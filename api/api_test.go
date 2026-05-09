@@ -33,7 +33,7 @@ func newTestRouterWithSigner() (chi.Router, *user.MockUserService, *auth.Signer)
 	if err != nil {
 		panic(err)
 	}
-	return api.ConfigureRouter(cfg, invSvc, resSvc, usrSvc, signer), usrSvc, signer
+	return api.ConfigureRouter(cfg, invSvc, resSvc, usrSvc, signer, nil), usrSvc, signer
 }
 
 func TestCorsConfig(t *testing.T) {
@@ -136,7 +136,7 @@ func TestUnauthenticatedEndpointsRemainOpen(t *testing.T) {
 	ts := httptest.NewServer(r)
 	defer ts.Close()
 
-	openPaths := []string{api.HealthEndpoint, api.MetricsEndpoint}
+	openPaths := []string{api.LivenessEndpoint, api.ReadinessEndpoint, api.MetricsEndpoint}
 	for _, p := range openPaths {
 		res, err := http.Get(ts.URL + p)
 		if err != nil {
