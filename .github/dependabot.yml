@@ -1,0 +1,55 @@
+# DEP-009: Dependabot covers all three surfaces called out in the
+# ticket — Go modules, GitHub Actions, Docker base images. Weekly
+# cadence keeps PR pressure manageable; grouping rolls up the
+# families that almost always need to move together so we don't
+# get five PRs for x/sys + x/sync + x/text + x/crypto + x/text on
+# the same day.
+#
+# Patch-level updates are eligible for auto-merge once CI is
+# green; the workflow that enables that is in
+# .github/workflows/dependabot-auto-merge.yml.
+
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    groups:
+      golang-x:
+        patterns:
+          - "golang.org/x/*"
+      jackc-pgx:
+        patterns:
+          - "github.com/jackc/*"
+      prometheus:
+        patterns:
+          - "github.com/prometheus/*"
+      otel:
+        patterns:
+          - "go.opentelemetry.io/*"
+      grpc-protobuf:
+        patterns:
+          - "google.golang.org/grpc"
+          - "google.golang.org/protobuf"
+          - "google.golang.org/genproto*"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      actions:
+        patterns:
+          - "*"
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
