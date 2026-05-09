@@ -327,6 +327,8 @@ Database migration is automated in the project using [migrate](https://github.co
   `errorlint` and `errname` in CI.
 - [Process lifecycle](docs/lifecycle.md) — startup ordering and the
   graceful-shutdown sequence (DSN-001).
+- [Observability](docs/observability.md) — Prometheus metrics + the
+  OpenTelemetry tracing setup (DSN-004).
 
 ## TODO
 

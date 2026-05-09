@@ -7,9 +7,11 @@ import (
 	"math"
 	"time"
 
+	"github.com/exaring/otelpgx"
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/jackc/pgx/v5/multitracer"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/tracelog"
 	"github.com/rs/zerolog"
@@ -118,7 +120,14 @@ func ConnectDb(ctx context.Context, cfg *config.Config) (*pgxpool.Pool, error) {
 	if err != nil {
 		return nil, err
 	}
-	poolConfig.ConnConfig.Tracer = &tracelog.TraceLog{Logger: logger{}, LogLevel: level}
+	// Compose the existing tracelog (zerolog bridge) with otelpgx
+	// so every query both logs and emits an OTel span. otelpgx
+	// reads the active span from ctx; when tracing is no-op the
+	// hooks are still cheap.
+	poolConfig.ConnConfig.Tracer = multitracer.New(
+		&tracelog.TraceLog{Logger: logger{}, LogLevel: level},
+		otelpgx.NewTracer(),
+	)
 
 	for {
 		pool, err = pgxpool.NewWithConfig(ctx, poolConfig)
