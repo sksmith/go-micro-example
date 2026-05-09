@@ -16,8 +16,8 @@ require (
 	github.com/pashagolub/pgxmock/v4 v4.9.0
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.11.1
+	github.com/rabbitmq/amqp091-go v1.11.0
 	github.com/rs/zerolog v1.20.0
-	github.com/streadway/amqp v1.0.0
 	golang.org/x/crypto v0.37.0
 )
 
