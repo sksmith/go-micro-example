@@ -2,6 +2,7 @@ package usrrepo
 
 import (
 	"context"
+	"errors"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog/log"
@@ -64,7 +65,7 @@ func (r *dbRepo) Get(ctx context.Context, username string, txs ...core.QueryOpti
 		Scan(&u.Username, &u.HashedPassword, &u.IsAdmin, &u.Created)
 	if err != nil {
 		m.Complete(err)
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return user.User{}, core.ErrNotFound
 		}
 		return user.User{}, err
@@ -83,7 +84,7 @@ func (r *dbRepo) Delete(ctx context.Context, username string, txs ...core.Update
 
 	if err != nil {
 		m.Complete(err)
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return core.ErrNotFound
 		}
 		return err

@@ -1,6 +1,14 @@
 version: "2"
 linters:
   default: standard
+  enable:
+    # ERR-001: enforce errors.Is over == sentinel comparison, %w
+    # for error wrapping in fmt.Errorf, and errors.As over type
+    # assertions on errors.
+    - errorlint
+    # ERR-001: enforce ErrXxx for sentinel error vars and
+    # XxxError for error types.
+    - errname
   settings:
     staticcheck:
       # Match the golangci-lint v1 default surface: keep SA*

@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"time"
@@ -174,13 +175,13 @@ func RunMigrations(cfg *config.Config) error {
 	}
 	if cfg.Db.Clean.Value {
 		if err := m.Down(); err != nil {
-			if err != migrate.ErrNoChange {
+			if !errors.Is(err, migrate.ErrNoChange) {
 				return err
 			}
 		}
 	}
 	if err := m.Up(); err != nil {
-		if err != migrate.ErrNoChange {
+		if !errors.Is(err, migrate.ErrNoChange) {
 			return err
 		}
 		log.Info().Msg("schema is up to date")

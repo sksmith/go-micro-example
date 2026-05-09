@@ -9,7 +9,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/sksmith/go-micro-example/api"
-	"github.com/sksmith/go-micro-example/core"
 	"github.com/sksmith/go-micro-example/core/user"
 	"github.com/sksmith/go-micro-example/testutil"
 )
@@ -54,9 +53,9 @@ func TestUserCreate(t *testing.T) {
 			wantStatusCode: http.StatusUnauthorized,
 		},
 		{
-			name: "when the creating user is not found, server returns unauthorized",
+			name: "when the creating user has invalid credentials, server returns unauthorized",
 			loginFunc: func(ctx context.Context, username, password string) (user.User, error) {
-				return user.User{}, core.ErrNotFound
+				return user.User{}, user.ErrInvalidCredentials
 			},
 			createFunc: func(ctx context.Context, usr user.CreateUserRequest) (user.User, error) {
 				return createUser(usr.Username, "somepasswordhash", usr.IsAdmin), nil

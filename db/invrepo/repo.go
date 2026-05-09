@@ -2,6 +2,7 @@ package invrepo
 
 import (
 	"context"
+	"errors"
 	"strconv"
 
 	"github.com/jackc/pgx/v5"
@@ -85,7 +86,7 @@ func (d *dbRepo) GetProduct(ctx context.Context, sku string, options ...core.Que
 
 	if err != nil {
 		m.Complete(err)
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return product, core.ErrNotFound
 		}
 		return product, err
@@ -105,7 +106,7 @@ func (d *dbRepo) GetProductInventory(ctx context.Context, sku string, options ..
 
 	if err != nil {
 		m.Complete(err)
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return productInventory, core.ErrNotFound
 		}
 		return productInventory, err
@@ -125,7 +126,7 @@ func (d *dbRepo) GetAllProductInventory(ctx context.Context, limit int, offset i
 		limit, offset)
 	if err != nil {
 		m.Complete(err)
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return products, core.ErrNotFound
 		}
 		return nil, err
@@ -137,7 +138,7 @@ func (d *dbRepo) GetAllProductInventory(ctx context.Context, limit int, offset i
 		err = rows.Scan(&product.Sku, &product.Upc, &product.Name, &product.Available)
 		if err != nil {
 			m.Complete(err)
-			if err == pgx.ErrNoRows {
+			if errors.Is(err, pgx.ErrNoRows) {
 				return nil, core.ErrNotFound
 			}
 			return nil, err
@@ -159,7 +160,7 @@ func (d *dbRepo) GetProductionEventByRequestID(ctx context.Context, requestID st
 
 	if err != nil {
 		m.Complete(err)
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return pe, core.ErrNotFound
 		}
 		return pe, err
@@ -179,7 +180,7 @@ func (d *dbRepo) SaveProductionEvent(ctx context.Context, event *inventory.Produ
 	err := tx.QueryRow(ctx, insert, event.RequestID, event.Sku, event.Quantity, event.Created).Scan(&event.ID)
 	if err != nil {
 		m.Complete(err)
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return core.ErrNotFound
 		}
 		return err
@@ -197,7 +198,7 @@ func (d *dbRepo) SaveReservation(ctx context.Context, r *inventory.Reservation, 
 	err := tx.QueryRow(ctx, insert, r.RequestID, r.Requester, r.Sku, r.State, r.ReservedQuantity, r.RequestedQuantity, r.Created).Scan(&r.ID)
 	if err != nil {
 		m.Complete(err)
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return core.ErrNotFound
 		}
 		return err
@@ -261,7 +262,7 @@ func (d *dbRepo) GetReservations(ctx context.Context, resOptions inventory.GetRe
 		params...)
 	if err != nil {
 		m.Complete(err)
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return reservations, core.ErrNotFound
 		}
 		return nil, err
@@ -292,7 +293,7 @@ func (d *dbRepo) GetReservationByRequestID(ctx context.Context, requestId string
 		requestId).Scan(&r.ID, &r.RequestID, &r.Requester, &r.Sku, &r.State, &r.ReservedQuantity, &r.RequestedQuantity, &r.Created)
 	if err != nil {
 		m.Complete(err)
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return r, core.ErrNotFound
 		}
 		return r, err
@@ -312,7 +313,7 @@ func (d *dbRepo) GetReservation(ctx context.Context, ID uint64, options ...core.
 		Scan(&r.ID, &r.RequestID, &r.Requester, &r.Sku, &r.State, &r.ReservedQuantity, &r.RequestedQuantity, &r.Created)
 	if err != nil {
 		m.Complete(err)
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return r, core.ErrNotFound
 		}
 		return r, err

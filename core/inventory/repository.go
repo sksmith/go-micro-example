@@ -7,13 +7,18 @@ import (
 	"github.com/sksmith/go-micro-example/core"
 )
 
-func rollback(ctx context.Context, tx core.Transaction, err error) {
+// rollback issues a Rollback on tx (no-op if tx is nil) and, on
+// failure, logs the rollback error alongside the triggering error
+// so the cause of the abort and the cause of the failed cleanup are
+// both visible. Earlier versions logged the trigger error under a
+// "failed to rollback" message, which silently hid actual rollback
+// failures (e.g. dead connection).
+func rollback(ctx context.Context, tx core.Transaction, trigger error) {
 	if tx == nil {
 		return
 	}
-	e := tx.Rollback(ctx)
-	if e != nil {
-		log.Warn().Err(err).Msg("failed to rollback")
+	if rbErr := tx.Rollback(ctx); rbErr != nil {
+		log.Warn().Err(rbErr).AnErr("trigger", trigger).Msg("failed to rollback")
 	}
 }
 

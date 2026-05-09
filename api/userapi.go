@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -32,15 +33,19 @@ func (a *UserApi) ConfigureRouter(r chi.Router) {
 func (a *UserApi) Create(w http.ResponseWriter, r *http.Request) {
 	data := &CreateUserRequestDto{}
 	if err := render.Bind(r, data); err != nil {
-		log.Err(err).Send()
-		Render(w, r, ErrInvalidRequest(err))
+		log.Error().Err(err).Msg("failed to bind create-user request")
+		Render(w, r, BadRequestResponse(err))
 		return
 	}
 
 	_, err := a.service.Create(r.Context(), *data.CreateUserRequest)
 
 	if err != nil {
-		log.Err(err).Send()
+		if errors.Is(err, user.ErrInvalidInput) {
+			Render(w, r, BadRequestResponse(err))
+			return
+		}
+		log.Error().Err(err).Str("username", data.Username).Msg("failed to create user")
 		Render(w, r, ErrInternalServer)
 		return
 	}

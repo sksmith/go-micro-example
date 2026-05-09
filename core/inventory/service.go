@@ -13,6 +13,13 @@ import (
 	"github.com/sksmith/go-micro-example/core"
 )
 
+// ErrInvalidInput is the sentinel for validation failures produced
+// by this package's service methods (missing fields, out-of-range
+// values, etc.). The API layer maps anything wrapping this sentinel
+// to HTTP 400 via errors.Is, and the wrapping message becomes the
+// client-facing detail.
+var ErrInvalidInput = errors.New("invalid input")
+
 func NewService(repo Repository, q InventoryQueue) *service {
 	log.Info().Msg("creating inventory service...")
 	return &service{
@@ -43,8 +50,8 @@ func (s *service) CreateProduct(ctx context.Context, product Product) error {
 	const funcName = "CreateProduct"
 
 	dbProduct, err := s.repo.GetProduct(ctx, product.Sku)
-	if err != nil != errors.Is(err, core.ErrNotFound) {
-		return err
+	if err != nil && !errors.Is(err, core.ErrNotFound) {
+		return fmt.Errorf("get existing product: %w", err)
 	}
 	if err == nil {
 		log.Debug().Str("func", funcName).Str("sku", dbProduct.Sku).Msg("product already exists")
@@ -53,7 +60,7 @@ func (s *service) CreateProduct(ctx context.Context, product Product) error {
 
 	tx, err := s.repo.BeginTransaction(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("begin transaction: %w", err)
 	}
 	defer func() {
 		if err != nil {
@@ -63,18 +70,18 @@ func (s *service) CreateProduct(ctx context.Context, product Product) error {
 
 	log.Debug().Str("func", funcName).Str("sku", product.Sku).Msg("creating product")
 	if err = s.repo.SaveProduct(ctx, product, core.UpdateOptions{Tx: tx}); err != nil {
-		return err
+		return fmt.Errorf("save product: %w", err)
 	}
 
 	log.Debug().Str("func", funcName).Str("sku", product.Sku).Msg("creating product inventory")
 	pi := ProductInventory{Product: product}
 
 	if err = s.repo.SaveProductInventory(ctx, pi, core.UpdateOptions{Tx: tx}); err != nil {
-		return err
+		return fmt.Errorf("save product inventory: %w", err)
 	}
 
 	if err = tx.Commit(ctx); err != nil {
-		return err
+		return fmt.Errorf("commit create-product transaction: %w", err)
 	}
 
 	return nil
@@ -91,10 +98,10 @@ func (s *service) Produce(ctx context.Context, product Product, pr ProductionReq
 		Msg("producing inventory")
 
 	if pr.RequestID == "" {
-		return errors.New("request id is required")
+		return fmt.Errorf("request id is required: %w", ErrInvalidInput)
 	}
 	if pr.Quantity < 1 {
-		return errors.New("quantity must be greater than zero")
+		return fmt.Errorf("quantity must be greater than zero: %w", ErrInvalidInput)
 	}
 
 	event, err := s.repo.GetProductionEventByRequestID(ctx, pr.RequestID)
@@ -176,23 +183,21 @@ func (s *service) Reserve(ctx context.Context, rr ReservationRequest) (Reservati
 		}
 	}()
 	if err != nil {
-		return Reservation{}, err
+		return Reservation{}, fmt.Errorf("begin transaction: %w", err)
 	}
 
 	pr, err := s.repo.GetProduct(ctx, rr.Sku, core.QueryOptions{Tx: tx, ForUpdate: true})
 	if err != nil {
-		log.Error().Err(err).Str("requestId", rr.RequestID).Msg("failed to get product")
-		return Reservation{}, err
+		return Reservation{}, fmt.Errorf("get product %q: %w", rr.Sku, err)
 	}
 
 	res, err := s.repo.GetReservationByRequestID(ctx, rr.RequestID, core.QueryOptions{Tx: tx, ForUpdate: true})
 	if err != nil && !errors.Is(err, core.ErrNotFound) {
-		log.Error().Err(err).Str("requestId", rr.RequestID).Msg("failed to get reservation request")
-		return Reservation{}, err
+		return Reservation{}, fmt.Errorf("get reservation by request id %q: %w", rr.RequestID, err)
 	}
 	if res.RequestID != "" {
 		log.Debug().Str("func", funcName).Str("requestId", rr.RequestID).Msg("reservation already exists, returning it")
-		rollback(ctx, tx, err)
+		rollback(ctx, tx, nil)
 		return res, nil
 	}
 
@@ -206,15 +211,15 @@ func (s *service) Reserve(ctx context.Context, rr ReservationRequest) (Reservati
 	}
 
 	if err = s.repo.SaveReservation(ctx, &res, core.UpdateOptions{Tx: tx}); err != nil {
-		return Reservation{}, err
+		return Reservation{}, fmt.Errorf("save reservation: %w", err)
 	}
 
 	if err = tx.Commit(ctx); err != nil {
-		return Reservation{}, err
+		return Reservation{}, fmt.Errorf("commit reserve transaction: %w", err)
 	}
 
 	if err = s.FillReserves(ctx, pr); err != nil {
-		return Reservation{}, err
+		return Reservation{}, fmt.Errorf("fill reserves after reserve: %w", err)
 	}
 
 	return res, nil
@@ -222,16 +227,16 @@ func (s *service) Reserve(ctx context.Context, rr ReservationRequest) (Reservati
 
 func validateReservationRequest(rr ReservationRequest) error {
 	if rr.RequestID == "" {
-		return errors.New("request id is required")
+		return fmt.Errorf("request id is required: %w", ErrInvalidInput)
 	}
 	if rr.Requester == "" {
-		return errors.New("requester is required")
+		return fmt.Errorf("requester is required: %w", ErrInvalidInput)
 	}
 	if rr.Sku == "" {
-		return errors.New("sku is requred")
+		return fmt.Errorf("sku is required: %w", ErrInvalidInput)
 	}
 	if rr.Quantity < 1 {
-		return errors.New("quantity is required")
+		return fmt.Errorf("quantity is required: %w", ErrInvalidInput)
 	}
 	return nil
 }
@@ -277,7 +282,7 @@ func (s *service) GetReservation(ctx context.Context, ID uint64) (Reservation, e
 }
 
 func (s *service) GetReservations(ctx context.Context, options GetReservationsOptions, limit, offset int) ([]Reservation, error) {
-	const funcName = "GetProductInventory"
+	const funcName = "GetReservations"
 
 	log.Debug().
 		Str("func", funcName).
@@ -340,24 +345,24 @@ func (s *service) FillReserves(ctx context.Context, product Product) error {
 		}
 	}()
 	if err != nil {
-		return err
+		return fmt.Errorf("begin transaction: %w", err)
 	}
 
 	openReservations, err := s.repo.GetReservations(ctx, GetReservationsOptions{Sku: product.Sku, State: Open}, 100, 0, core.QueryOptions{Tx: tx, ForUpdate: true})
 	if err != nil {
-		return err
+		return fmt.Errorf("get open reservations for %q: %w", product.Sku, err)
 	}
 
 	productInventory, err := s.repo.GetProductInventory(ctx, product.Sku, core.QueryOptions{Tx: tx, ForUpdate: true})
 	if err != nil {
-		return err
+		return fmt.Errorf("get product inventory for %q: %w", product.Sku, err)
 	}
 
 	for _, reservation := range openReservations {
 		var subtx pgx.Tx
 		subtx, err = tx.Begin(ctx)
 		if err != nil {
-			return err
+			return fmt.Errorf("begin sub-transaction: %w", err)
 		}
 		defer func() {
 			if err != nil {
@@ -396,7 +401,7 @@ func (s *service) FillReserves(ctx context.Context, product Product) error {
 
 		err = s.repo.SaveProductInventory(ctx, productInventory, core.UpdateOptions{Tx: tx})
 		if err != nil {
-			return err
+			return fmt.Errorf("save product inventory: %w", err)
 		}
 
 		log.Debug().
@@ -408,26 +413,26 @@ func (s *service) FillReserves(ctx context.Context, product Product) error {
 
 		err = s.repo.UpdateReservation(ctx, reservation.ID, reservation.State, reservation.ReservedQuantity, core.UpdateOptions{Tx: tx})
 		if err != nil {
-			return err
+			return fmt.Errorf("update reservation %d: %w", reservation.ID, err)
 		}
 
 		if err = subtx.Commit(ctx); err != nil {
-			return err
+			return fmt.Errorf("commit sub-transaction: %w", err)
 		}
 
 		err = s.publishInventory(ctx, productInventory)
 		if err != nil {
-			return err
+			return fmt.Errorf("publish inventory: %w", err)
 		}
 
 		err = s.publishReservation(ctx, reservation)
 		if err != nil {
-			return err
+			return fmt.Errorf("publish reservation: %w", err)
 		}
 	}
 
 	if err = tx.Commit(ctx); err != nil {
-		return err
+		return fmt.Errorf("commit fill-reserves transaction: %w", err)
 	}
 
 	return nil
