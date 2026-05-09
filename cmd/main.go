@@ -18,6 +18,7 @@ import (
 	"github.com/sksmith/go-micro-example/config"
 	"github.com/sksmith/go-micro-example/core/auth"
 	"github.com/sksmith/go-micro-example/core/inventory"
+	"github.com/sksmith/go-micro-example/core/observability"
 	"github.com/sksmith/go-micro-example/core/secrets"
 	"github.com/sksmith/go-micro-example/core/user"
 	"github.com/sksmith/go-micro-example/db"
@@ -35,6 +36,13 @@ import (
 // GME_SHUTDOWN_TIMEOUT_SECONDS, matching the same env-var pattern
 // used by GME_JWT_TTL_SECONDS.
 const defaultShutdownTimeout = 30 * time.Second
+
+// defaultSamplingRatio is the root-span sample rate used when
+// OTEL_TRACES_SAMPLER_ARG is unset. 10% is the value DSN-004
+// recommends as a starting point — high enough to spot drift in
+// busy paths, low enough not to flood the collector. Child spans
+// inherit their parent's sampling decision (parent-based).
+const defaultSamplingRatio = 0.10
 
 func main() {
 	start := time.Now()
@@ -58,6 +66,19 @@ func main() {
 	configLogging(cfg)
 	printLogHeader(cfg)
 	cfg.Print()
+
+	// Tracing initialises before anything that emits spans. When
+	// OTEL_EXPORTER_OTLP_ENDPOINT is unset (local dev / tests)
+	// this installs a no-op provider — call sites still tracer.Start
+	// freely, the spans just go nowhere.
+	tracingShutdown, err := observability.InitTracing(ctx, observability.TracingConfig{
+		ServiceName:    cfg.AppName.Value,
+		ServiceVersion: cfg.AppVersion.Value,
+		SamplingRatio:  observability.ResolveSamplingRatio(defaultSamplingRatio),
+	})
+	if err != nil {
+		log.Fatal().Err(err).Msg("tracing init failed")
+	}
 
 	dbPool := configDatabase(ctx, cfg)
 
@@ -115,7 +136,7 @@ func main() {
 		log.Info().Str("signal", "received").Msg("graceful shutdown beginning")
 	}
 
-	shutdown(srv, dbPool)
+	shutdown(srv, dbPool, tracingShutdown)
 }
 
 // shutdown runs the ordered teardown after a SIGTERM / SIGINT:
@@ -123,6 +144,8 @@ func main() {
 //  1. Stop accepting new HTTP requests; let in-flight requests
 //     drain up to the configured timeout (shutdownHTTP).
 //  2. Close the pgx pool, releasing connections back to Postgres.
+//  3. Flush the OTel tracer provider so any batched spans reach
+//     the collector before the process exits.
 //
 // AMQP consumer drain (the queue subsystem) is deferred to
 // TST-003 — the existing redial loop in queue/queue.go cooperates
@@ -130,10 +153,17 @@ func main() {
 // deliveries then exit" surface. The fix needs the queue to grow
 // a Close method, which sits more naturally with the test suite
 // that ticket sets up.
-func shutdown(srv *http.Server, pool *pgxpool.Pool) {
+func shutdown(srv *http.Server, pool *pgxpool.Pool, tracingShutdown observability.ShutdownFunc) {
 	shutdownHTTP(srv, resolveShutdownTimeout())
 	log.Info().Msg("closing database pool")
 	pool.Close()
+
+	log.Info().Msg("flushing tracer")
+	flushCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := tracingShutdown(flushCtx); err != nil {
+		log.Error().Err(err).Msg("tracer shutdown returned an error")
+	}
 	log.Info().Msg("shutdown complete")
 }
 

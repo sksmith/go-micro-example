@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/cors"
 	"github.com/go-chi/render"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/riandyrn/otelchi"
 	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/config"
 	"github.com/sksmith/go-micro-example/core/auth"
@@ -49,6 +50,11 @@ func ConfigureRouter(cfg *config.Config, invSvc InventoryService, resSvc Reserva
 	}))
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Recoverer)
+	// otelchi mounts before Metrics/Logging so the span covers
+	// both. The chi route pattern (e.g. /api/v1/inventory/{sku})
+	// is the span name, which is what you want for grouping —
+	// not the literal URL with the sku interpolated.
+	r.Use(otelchi.Middleware(cfg.AppName.Value, otelchi.WithChiRoutes(r)))
 	r.Use(Metrics)
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 	r.Use(Logging)
