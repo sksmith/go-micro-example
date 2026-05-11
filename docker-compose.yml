@@ -1,4 +1,3 @@
-version: '3'
 # Local-development stack only. Credentials default to dev values for
 # convenience but accept overrides via env vars (or a gitignored .env
 # file in this directory). Do not run this compose file in production.
@@ -29,7 +28,8 @@ services:
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin}
 
   rabbitmq:
-    image: rabbitmq:3.9-management-alpine
+    # 3.9 reached EOL; 4.0 is the current supported series.
+    image: rabbitmq:4.0-management-alpine
     container_name: 'rabbitmq'
     ports:
       - 5672:5672
@@ -37,15 +37,31 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-guest}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-guest}
+    volumes:
+      # DSN-015: declare exchanges/queues/bindings so the app's
+      # publishers and consumers find what they need on first boot.
+      # Replaces the old scripts/setup-rmq.sh curl workflow.
+      - ./scripts/rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro
+      - ./scripts/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      # check_running is stricter than ping: it returns true only after
+      # rabbit_app has fully booted (mnesia ready, AMQP listener up,
+      # definitions loaded).
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_running"]
       interval: 5s
-      timeout: 5s
-      retries: 12
+      timeout: 10s
+      retries: 30
+      start_period: 10s
 
   app:
     build:
       context: .
+      args:
+        # Surface git metadata into the binary so the demo banner
+        # shows real values instead of NOT_SUPPLIED.
+        VER: ${VER:-dev}
+        SHA1: ${SHA1:-dev}
+        NOW: ${NOW:-unknown}
     depends_on:
       postgres:
         condition: service_healthy
@@ -54,10 +70,21 @@ services:
     ports:
       - "8080:8080"
     environment:
+      # In compose, postgres and rabbitmq are reachable via their
+      # service names — config.yml's localhost defaults need to be
+      # overridden via env. db.user/pass and rabbitmq.user/pass are
+      # required anyway (SEC-004).
+      GME_DB_HOST: postgres
+      GME_DB_PORT: "5432"
       GME_DB_USER: ${POSTGRES_USER:-postgres}
       GME_DB_PASS: ${POSTGRES_PASSWORD:-postgres}
+      GME_RABBITMQ_HOST: rabbitmq
+      GME_RABBITMQ_PORT: "5672"
       GME_RABBITMQ_USER: ${RABBITMQ_DEFAULT_USER:-guest}
       GME_RABBITMQ_PASS: ${RABBITMQ_DEFAULT_PASS:-guest}
+      # Stable signing key so the demo doesn't print a "tokens will
+      # not survive a restart" warning. 32 bytes of dev-only material.
+      GME_JWT_SIGNING_KEY: ${GME_JWT_SIGNING_KEY:-demo-only-jwt-signing-key-do-not-use}
       # DSN-015: deterministic admin so the demo orchestrator can
       # exchange Basic creds for a JWT without scraping logs.
       BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-admin}

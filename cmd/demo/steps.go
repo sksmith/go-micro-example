@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -50,16 +51,20 @@ func runRESTRoundTrip(ctx context.Context, cfg Config) (string, error) {
 	}
 
 	sku := fmt.Sprintf("demo-sku-%d", nowNanos())
-	inner := v1.PutApiV1InventoryJSONBody{}
-	if err := inner.FromApiCreateProductRequest(v1.ApiCreateProductRequest{
+	// oapi-codegen's OpenAPI 3.1 union types marshal to "{}" through
+	// the typed entrypoint (the MarshalJSON method lives on the
+	// underlying type but doesn't transfer to the defined request
+	// type — a known oapi-codegen 3.1 limitation). Marshal the
+	// variant ourselves and use the WithBody entrypoint instead.
+	createBody, err := json.Marshal(v1.ApiCreateProductRequest{
 		Sku:  ptrString(sku),
 		Upc:  ptrString("demo-upc"),
 		Name: ptrString("Demo Widget"),
-	}); err != nil {
+	})
+	if err != nil {
 		return "", fmt.Errorf("encode create body: %w", err)
 	}
-
-	createRes, err := client.PutApiV1Inventory(ctx, v1.PutApiV1InventoryJSONRequestBody(inner))
+	createRes, err := client.PutApiV1InventoryWithBody(ctx, "application/json", bytes.NewReader(createBody))
 	if err != nil {
 		return "", fmt.Errorf("PUT inventory: %w", err)
 	}

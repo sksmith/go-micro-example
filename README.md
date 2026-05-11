@@ -52,6 +52,11 @@ orchestrator** (DSN-015). After the app's `/ready` returns 200, the
 orchestrator runs every registered capability step against the live
 app and prints a summary table on its way out.
 
+`make demo` is a convenience wrapper that runs the same stack with
+`--abort-on-container-exit --exit-code-from demo`, so the whole stack
+tears down when the demo finishes and your shell gets the demo's exit
+code. Use `make demo-down` to wipe volumes if a step left state behind.
+
 #### What you'll see
 
 The `demo` service log ends with a table like:
@@ -309,6 +314,11 @@ exposed so you can run a single step in isolation:
 | `make build` | Builds the binary into `./bin/go-micro-example` with version metadata baked in. |
 | `make run` | Runs the application via `go run ./cmd/.`. Requires Postgres and RabbitMQ. |
 | `make docker` | Builds the Docker image. |
+| `make demo` | Brings up the full docker-compose stack and runs the DSN-015 orchestrator end-to-end. Tears everything down on exit and propagates the demo container's exit code. |
+| `make demo-down` | `docker compose down -v` — tears down the demo stack and wipes volumes. |
+| `make openapi` | Regenerates `api/openapi.yaml` + `api/openapi.json` from handler annotations (DSN-026). |
+| `make clients` | Regenerates Go (`api/client/v1`) and TS (`web/src/api`) clients from the spec. |
+| `make openapi-check` | CI drift gate: regenerates spec + Go client and fails on diff. |
 
 If `make tools` has not been run yet, `lint` and `sec` will fail with
 `command not found`; install the tools first.

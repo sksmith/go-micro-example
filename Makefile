@@ -24,7 +24,7 @@ test-race:
 	@echo "==> go test -race"
 	go test -race -count=1 -timeout 60s ./...
 
-verify: fmt vet lint sec test-race
+verify: fmt vet lint sec test-race openapi-check
 	@echo "==> verify OK"
 
 cover:
@@ -87,3 +87,19 @@ clients-ts:
 openapi-check: openapi clients-go
 	@git diff --exit-code -- api/openapi.yaml api/openapi.json api/client/v1 \
 	  || { echo "OpenAPI artifacts are stale. Run 'make openapi clients' and commit."; exit 1; }
+
+.PHONY: demo demo-down
+# demo runs the DSN-015 orchestrator end-to-end against a fresh
+# docker-compose stack. Only the app + demo log streams are attached
+# so the reader sees the orchestrator's summary and the app's own
+# output, not Postgres/RabbitMQ/pgadmin noise. The exit code of the
+# demo container is captured and propagated, and demo-down runs
+# unconditionally (trap on EXIT) so a successful or failed demo
+# leaves no dangling containers.
+demo:
+	@set -e; trap '$(MAKE) demo-down' EXIT; \
+	docker compose up --build --abort-on-container-exit --exit-code-from demo \
+	  --attach app --attach demo
+
+demo-down:
+	docker compose down -v
