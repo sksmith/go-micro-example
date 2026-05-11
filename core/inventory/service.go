@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/core"
+	"github.com/sksmith/go-micro-example/core/cache"
 )
 
 // ErrInvalidInput is the sentinel for validation failures produced
@@ -56,10 +57,32 @@ type service struct {
 	repo            Repository
 	queue           InventoryQueue
 	emitter         EventEmitter
+	cache           cache.Cache
+	cacheTTL        time.Duration
 	subsMu          sync.Mutex
 	inventorySubs   map[InventorySubID]chan<- ProductInventory
 	reservationSubs map[ReservationsSubID]chan<- Reservation
 }
+
+// SetCache wires the optional read-through cache for GetProductInventory
+// (DSN-020). When set, reads attempt cache first; writes invalidate
+// the per-SKU key. Pass nil to disable. ttl<=0 falls back to 5
+// minutes — long enough to be useful, short enough that a missed
+// invalidation self-heals quickly.
+func (s *service) SetCache(c cache.Cache, ttl time.Duration) {
+	s.cache = c
+	if ttl > 0 {
+		s.cacheTTL = ttl
+	} else {
+		s.cacheTTL = 5 * time.Minute
+	}
+}
+
+// productCacheKey is the per-SKU key under which ProductInventory is
+// cached. The "v1" suffix is the global invalidation lever — bumping
+// it drops every cached entry without touching Redis directly, which
+// matters when the cached shape changes (DSN-020).
+func productCacheKey(sku string) string { return "inv:product:" + sku + ":v1" }
 
 func (s *service) CreateProduct(ctx context.Context, product Product) error {
 	const funcName = "CreateProduct"
@@ -277,9 +300,26 @@ func (s *service) GetProductInventory(ctx context.Context, sku string) (ProductI
 
 	log.Ctx(ctx).Debug().Str("func", funcName).Str("sku", sku).Msg("getting product inventory")
 
+	if s.cache != nil {
+		if pi, ok, err := cache.Get[ProductInventory](ctx, s.cache, productCacheKey(sku)); err == nil && ok {
+			return pi, nil
+		} else if err != nil {
+			// Treat any cache error as a miss — the authoritative
+			// read below covers correctness; the warning lets
+			// operators notice if the cache is flapping.
+			log.Ctx(ctx).Warn().Err(err).Str("sku", sku).Msg("cache get failed; falling through to DB")
+		}
+	}
+
 	product, err := s.repo.GetProductInventory(ctx, sku)
 	if err != nil {
 		return product, err
+	}
+
+	if s.cache != nil {
+		if setErr := cache.Set(ctx, s.cache, productCacheKey(sku), product, s.cacheTTL); setErr != nil {
+			log.Ctx(ctx).Warn().Err(setErr).Str("sku", sku).Msg("cache populate failed; serving DB result")
+		}
 	}
 	return product, nil
 }
@@ -465,6 +505,15 @@ func (s *service) publishInventory(ctx context.Context, pi ProductInventory) err
 			// consumers will re-sync on the next change. Log and
 			// move on rather than fail the write path.
 			log.Ctx(ctx).Warn().Err(emitErr).Str("sku", pi.Sku).Msg("kafka emit failed; AMQP write succeeded")
+		}
+	}
+	// DSN-020 cache invalidation: every successful write to inventory
+	// reaches publishInventory after its tx has committed, so this is
+	// the right hook to drop the cached entry. Best-effort: if the
+	// cache is unreachable the per-key TTL becomes the safety net.
+	if s.cache != nil {
+		if delErr := s.cache.Delete(ctx, productCacheKey(pi.Sku)); delErr != nil {
+			log.Ctx(ctx).Warn().Err(delErr).Str("sku", pi.Sku).Msg("cache invalidate failed; TTL will eventually expire stale entry")
 		}
 	}
 	go s.notifyInventorySubscribers(pi)

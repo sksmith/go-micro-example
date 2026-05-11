@@ -84,6 +84,20 @@ services:
       retries: 24
       start_period: 5s
 
+  redis:
+    # DSN-020: Redis cache for the inventory read path. The image
+    # ships with a sensible default config; the demo uses an
+    # ephemeral, unauthenticated instance which is appropriate for
+    # local dev and intentionally not for prod.
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
   stub-catalog:
     # DSN-018: tiny upstream the outbound-REST client demo calls.
     # Serves GET /products/{sku} and GET /flaky/{sku} (the latter
@@ -112,6 +126,8 @@ services:
       rabbitmq:
         condition: service_healthy
       redpanda:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       stub-catalog:
         condition: service_started
@@ -143,6 +159,9 @@ services:
       # DSN-018: outbound REST. Empty URL disables the catalog client
       # entirely; the inventory API serves unenriched responses.
       GME_CATALOG_BASEURL: http://stub-catalog:9100
+      # DSN-020: Redis cache for the inventory read path. Empty URL
+      # disables the cache; the inventory API serves DB reads directly.
+      GME_REDIS_URL: redis://redis:6379/0
       # DSN-015: deterministic admin so the demo orchestrator can
       # exchange Basic creds for a JWT without scraping logs.
       BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-admin}

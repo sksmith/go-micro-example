@@ -99,6 +99,9 @@
                     "rabbitmq": {
                         "$ref": "#/components/schemas/config.QueueConfig"
                     },
+                    "redis": {
+                        "$ref": "#/components/schemas/config.RedisConfig"
+                    },
                     "revision": {
                         "$ref": "#/components/schemas/config.StringConfig"
                     },
@@ -474,6 +477,20 @@
                         "$ref": "#/components/schemas/config.ReservationQueueConfig"
                     },
                     "user": {
+                        "$ref": "#/components/schemas/config.StringConfig"
+                    }
+                },
+                "type": "object"
+            },
+            "config.RedisConfig": {
+                "properties": {
+                    "cacheTtlMinutes": {
+                        "$ref": "#/components/schemas/config.IntConfig"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "url": {
                         "$ref": "#/components/schemas/config.StringConfig"
                     }
                 },

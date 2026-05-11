@@ -25,11 +25,13 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/api"
 	"github.com/sksmith/go-micro-example/config"
 	"github.com/sksmith/go-micro-example/core/auth"
+	"github.com/sksmith/go-micro-example/core/cache"
 	"github.com/sksmith/go-micro-example/core/catalog"
 	"github.com/sksmith/go-micro-example/core/inventory"
 	"github.com/sksmith/go-micro-example/core/observability"
@@ -106,6 +108,13 @@ func main() {
 
 	invService := inventory.NewService(ir, iq)
 
+	// DSN-020: Redis cache. An empty URL leaves invService.cache nil
+	// and the inventory read path falls through to the DB unchanged.
+	redisClient := buildRedisClient(cfg)
+	if redisClient != nil {
+		invService.SetCache(cache.NewRedisCache(redisClient), time.Duration(cfg.Redis.CacheTTLMinutes.Value)*time.Minute)
+	}
+
 	ur := usrrepo.NewPostgresRepo(dbPool)
 
 	userService := user.NewService(ur)
@@ -121,6 +130,9 @@ func main() {
 	// absent — the queue subsystem doesn't yet expose a non-blocking
 	// connectivity check; tracked alongside TST-003.
 	readinessDeps := map[string]api.Pinger{"db": dbPool}
+	if redisClient != nil {
+		readinessDeps["redis"] = redisPinger{client: redisClient}
+	}
 	catalogClient := buildCatalogClient(cfg)
 	idempotencyMw := buildIdempotencyMiddleware(cfg)
 	r := api.ConfigureRouter(cfg, invService, invService, userService, signer, readinessDeps, catalogClient, idempotencyMw)
@@ -166,6 +178,43 @@ func main() {
 	}
 
 	shutdown(srv, dbPool, tracingShutdown)
+	if redisClient != nil {
+		if err := redisClient.Close(); err != nil {
+			log.Warn().Err(err).Msg("redis close returned an error")
+		}
+	}
+}
+
+// redisPinger adapts a *redis.Client to api.Pinger so /ready can
+// verify Redis connectivity. The native Redis Ping returns a
+// (*StatusCmd) instead of an error directly; wrap to match the
+// interface.
+type redisPinger struct{ client *redis.Client }
+
+func (r redisPinger) Ping(ctx context.Context) error {
+	return r.client.Ping(ctx).Err()
+}
+
+// buildRedisClient constructs the shared Redis client for DSN-020.
+// An empty redis.url disables the client; returning nil tells the
+// rest of the wiring to skip cache plumbing. Construction errors are
+// logged and downgraded to nil: a misconfigured Redis URL shouldn't
+// take the service down — the cache is opt-in optimization, not a
+// hard dependency.
+func buildRedisClient(cfg *config.Config) *redis.Client {
+	url := cfg.Redis.URL.Value
+	if url == "" {
+		log.Info().Msg("redis client disabled (redis.url empty); inventory cache off")
+		return nil
+	}
+	opts, err := redis.ParseURL(url)
+	if err != nil {
+		log.Error().Err(err).Str("url", url).Msg("redis URL parse failed; continuing without cache")
+		return nil
+	}
+	client := redis.NewClient(opts)
+	log.Info().Str("addr", opts.Addr).Int("db", opts.DB).Msg("redis client ready")
+	return client
 }
 
 // buildIdempotencyMiddleware constructs the DSN-019 Idempotency-Key

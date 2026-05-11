@@ -50,6 +50,11 @@ var Steps = []Step{
 		Name:       "REST Idempotency-Key replay + conflict",
 		Run:        runRESTIdempotency,
 	},
+	{
+		Capability: "DSN-020",
+		Name:       "Redis cache: second read is a hit",
+		Run:        runCacheRead,
+	},
 }
 
 // runRESTRoundTrip exchanges admin Basic credentials for a JWT,

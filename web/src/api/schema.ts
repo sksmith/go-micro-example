@@ -705,6 +705,7 @@ export interface components {
             port?: components["schemas"]["config.StringConfig"];
             profile?: components["schemas"]["config.StringConfig"];
             rabbitmq?: components["schemas"]["config.QueueConfig"];
+            redis?: components["schemas"]["config.RedisConfig"];
             revision?: components["schemas"]["config.StringConfig"];
             sha1Version?: components["schemas"]["config.StringConfig"];
         };
@@ -836,6 +837,11 @@ export interface components {
             product?: components["schemas"]["config.ProductQueueConfig"];
             reservation?: components["schemas"]["config.ReservationQueueConfig"];
             user?: components["schemas"]["config.StringConfig"];
+        };
+        "config.RedisConfig": {
+            cacheTtlMinutes?: components["schemas"]["config.IntConfig"];
+            description?: string;
+            url?: components["schemas"]["config.StringConfig"];
         };
         "config.ReservationQueueConfig": {
             description?: string;

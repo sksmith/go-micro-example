@@ -135,6 +135,42 @@ The TS step shells out to `npx openapi-typescript@7` — it needs Node
 locally and is intentionally out of CI's Go-only matrix. Reviewers spot
 TS drift by hand for now.
 
+### Redis cache (inventory read-path)
+
+`GET /api/v1/inventory/{sku}` reads through a Redis cache
+([core/cache](core/cache/cache.go), DSN-020). The cache sits at the
+*service* layer, not the handler — non-HTTP consumers (queue-driven
+flows, future gRPC) hit the same path.
+
+Cache-aside pattern:
+
+- Miss → DB read → populate cache with a per-key TTL (default 5
+  minutes) → return.
+- Hit → return cached value, repository never touched.
+- Successful write (Produce, fulfilled reservation) invalidates the
+  per-SKU key via the `publishInventory` post-commit hook. The TTL is
+  the safety net for a missed invalidation.
+
+The cache is best-effort: an empty `redis.url` or a Redis outage
+degrades to the DB path transparently — every request still succeeds,
+just slower. A `cache_requests_total{prefix,outcome=hit|miss|error}`
+counter surfaces the degradation so operators can spot a cache that's
+silently down.
+
+Key shape: `inv:product:{sku}:v1`. Bumping the `v1` suffix is the
+global invalidation lever — drop every entry without touching Redis
+directly when the cached shape changes.
+
+Config (env vars):
+
+| env var | default | meaning |
+| --- | --- | --- |
+| `GME_REDIS_URL` | empty | Redis connection URL (`redis://host:port/db`). Empty disables the cache. |
+| `GME_REDIS_CACHETTLMINUTES` | `5` | TTL for cached ProductInventory entries. |
+
+`/ready` adds Redis to its dependency map when the client is wired,
+so a probe fails fast if Redis is unreachable.
+
 ### REST idempotency (Idempotency-Key)
 
 Mutating routes (`PUT /api/v1/inventory/{sku}/productionEvent`, `PUT
