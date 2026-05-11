@@ -66,6 +66,9 @@
                     "docs": {
                         "$ref": "#/components/schemas/config.DocsConfig"
                     },
+                    "kafka": {
+                        "$ref": "#/components/schemas/config.KafkaConfig"
+                    },
                     "log": {
                         "$ref": "#/components/schemas/config.LogConfig"
                     },
@@ -328,6 +331,29 @@
                         "type": "string"
                     },
                     "exchange": {
+                        "$ref": "#/components/schemas/config.StringConfig"
+                    }
+                },
+                "type": "object"
+            },
+            "config.KafkaConfig": {
+                "properties": {
+                    "brokers": {
+                        "$ref": "#/components/schemas/config.StringConfig"
+                    },
+                    "commandsTopic": {
+                        "$ref": "#/components/schemas/config.StringConfig"
+                    },
+                    "consumerGroup": {
+                        "$ref": "#/components/schemas/config.StringConfig"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "dltTopic": {
+                        "$ref": "#/components/schemas/config.StringConfig"
+                    },
+                    "eventsTopic": {
                         "$ref": "#/components/schemas/config.StringConfig"
                     }
                 },

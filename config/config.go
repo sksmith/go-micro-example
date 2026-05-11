@@ -70,7 +70,17 @@ type Config struct {
 	Log         LogConfig    `json:"log"         yaml:"log"`
 	Db          DbConfig     `json:"db"          yaml:"db"`
 	RabbitMQ    QueueConfig  `json:"rabbitmq"    yaml:"rabbitmq"`
+	Kafka       KafkaConfig  `json:"kafka"       yaml:"kafka"`
 	Docs        DocsConfig   `json:"docs"        yaml:"docs"`
+}
+
+type KafkaConfig struct {
+	Brokers       StringConfig `json:"brokers"        yaml:"brokers"`
+	EventsTopic   StringConfig `json:"eventsTopic"    yaml:"eventsTopic"`
+	CommandsTopic StringConfig `json:"commandsTopic"  yaml:"commandsTopic"`
+	DltTopic      StringConfig `json:"dltTopic"       yaml:"dltTopic"`
+	ConsumerGroup StringConfig `json:"consumerGroup"  yaml:"consumerGroup"`
+	Description   string       `json:"description"    yaml:"description"`
 }
 
 type DocsConfig struct {
@@ -226,6 +236,11 @@ func bindSensitiveEnv() {
 		"rabbitmq.port",
 		"docs.enabled",
 		"config.source",
+		"kafka.brokers",
+		"kafka.eventsTopic",
+		"kafka.commandsTopic",
+		"kafka.dltTopic",
+		"kafka.consumerGroup",
 	} {
 		// Errors here would mean a programming error in the key list —
 		// viper.BindEnv only fails on empty input.
@@ -502,6 +517,13 @@ func setupDefaults(config *Config) {
 
 	config.Docs.Description = "Settings for the OpenAPI spec + Swagger UI exposed at /openapi.yaml and /docs."
 	config.Docs.Enabled = BoolConfig{Value: true, Default: true, Description: "Serve /openapi.yaml and /docs. Default true; flip to false in prod to keep the spec internal."}
+
+	config.Kafka.Description = "DSN-016: Kafka broker + topic configuration. Empty brokers disables the Kafka producer/consumer entirely."
+	config.Kafka.Brokers = StringConfig{Value: "", Default: "", Description: "Comma-separated Kafka bootstrap brokers. Empty disables Kafka."}
+	config.Kafka.EventsTopic = StringConfig{Value: "inventory.product-quantity-changed.v1", Default: "inventory.product-quantity-changed.v1", Description: "Outbound topic for product-inventory-changed domain events."}
+	config.Kafka.CommandsTopic = StringConfig{Value: "inventory.commands.v1", Default: "inventory.commands.v1", Description: "Inbound topic for inventory commands (e.g. RecordProduction)."}
+	config.Kafka.DltTopic = StringConfig{Value: "inventory.commands.v1.dlt", Default: "inventory.commands.v1.dlt", Description: "Dead-letter topic for commands that exhaust their retry budget."}
+	config.Kafka.ConsumerGroup = StringConfig{Value: "inventory-service", Default: "inventory-service", Description: "Kafka consumer group name."}
 
 	config.Config.Description = "Settings for where and how the application should get its configurations."
 	config.Config.Print = BoolConfig{Value: false, Default: false, Description: "Print configurations on startup."}

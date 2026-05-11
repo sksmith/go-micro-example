@@ -31,14 +31,48 @@ Every event is a JSON object matching
 
 ## Event types
 
-| Type                                    | Producer                | Consumer                       |
-| --------------------------------------- | ----------------------- | ------------------------------ |
-| `inventory.product_inventory_changed`   | inventory write-path    | (none in this repo yet)        |
-| `inventory.reservation_changed`         | inventory write-path    | (none in this repo yet)        |
-| `inventory.product_created`             | upstream catalog system | `queue.ProductQueue` consumer  |
+| Type | Transport | Producer | Consumer |
+| --- | --- | --- | --- |
+| `inventory.product_inventory_changed` | AMQP fanout | inventory write-path | (none in this repo yet) |
+| `inventory.reservation_changed` | AMQP fanout | inventory write-path | (none in this repo yet) |
+| `inventory.product_created` | AMQP queue | upstream catalog system | `queue.ProductQueue` consumer |
+| `inventory.product_quantity_changed` | Kafka topic | inventory write-path (DSN-016) | downstream subscribers |
+| `inventory.record_production` | Kafka topic | demo runner / upstream caller | `kafka.InventoryCommandHandler` |
 
 Adding a new event type means committing a new schema file under
 `events/schemas/` and a `Type*` constant in `events/events.go`.
+
+## Kafka (DSN-016)
+
+The Kafka transport runs in parallel to AMQP: producers emit on
+`inventory.product-quantity-changed.v1` whenever inventory changes, and
+a consumer joins the `inventory-service` group on
+`inventory.commands.v1` to apply inbound commands (currently
+`inventory.record_production`).
+
+Wire-level details:
+
+- **Topic naming**: `<domain>.<event-or-command>.<version>` per the
+  acceptance criteria.
+- **Body**: same `events.Envelope` JSON used by AMQP. Schemas
+  validate on receipt.
+- **Headers**: `event_id` (UUID v4) for at-a-glance lookup and
+  `traceparent` (W3C) so consumer spans stitch back to the producer.
+- **Retries**: bounded in-memory (default 3 with exponential
+  backoff). On exhaustion the message is republished to
+  `inventory.commands.v1.dlt` with an `x-dlt-reason` header and the
+  offset is committed so the consumer doesn't get stuck.
+- **At-least-once semantics**: offsets commit only after the handler
+  succeeds, but rebalance-induced redelivery is possible. DSN-017
+  wraps the handler with a dedupe table to give exactly-once
+  side-effects.
+- **Prometheus counters**: `kafka_events_produced_total`,
+  `kafka_events_consumed_total`, `kafka_events_failed_total`,
+  `kafka_events_dlt_total`.
+
+The Kafka path is gated by `kafka.brokers`. Leave it empty
+(`GME_KAFKA_BROKERS=""`) to run the service without Kafka — the
+AMQP path keeps working unchanged.
 
 ## Compatibility policy
 

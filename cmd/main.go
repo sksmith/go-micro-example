@@ -20,6 +20,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -36,6 +37,7 @@ import (
 	"github.com/sksmith/go-micro-example/db"
 	"github.com/sksmith/go-micro-example/db/invrepo"
 	"github.com/sksmith/go-micro-example/db/usrrepo"
+	gmekafka "github.com/sksmith/go-micro-example/kafka"
 	"github.com/sksmith/go-micro-example/queue"
 
 	"github.com/common-nighthawk/go-figure"
@@ -119,6 +121,15 @@ func main() {
 
 	_ = queue.NewProductQueue(ctx, cfg, invService)
 
+	// DSN-016: Kafka producer + consumer. Skipped entirely when
+	// kafka.brokers is empty so the AMQP-only template path still
+	// runs cleanly without a Kafka broker.
+	kafkaCleanup := func() {}
+	if cfg.Kafka.Brokers.Value != "" {
+		kafkaCleanup = startKafka(ctx, cfg, invService)
+	}
+	defer kafkaCleanup()
+
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port.Value,
 		Handler:           r,
@@ -149,6 +160,56 @@ func main() {
 	}
 
 	shutdown(srv, dbPool, tracingShutdown)
+}
+
+// kafkaInventoryService is the surface DSN-016's startKafka needs
+// from the inventory service. Defining it inline keeps cmd/main from
+// referencing the package-private *inventory.service while still
+// requiring the methods the Kafka adapters actually call.
+type kafkaInventoryService interface {
+	SetEventEmitter(inventory.EventEmitter)
+	GetProduct(ctx context.Context, sku string) (inventory.Product, error)
+	Produce(ctx context.Context, product inventory.Product, event inventory.ProductionRequest) error
+}
+
+// startKafka builds the Kafka producer + consumer pair (DSN-016) and
+// returns a cleanup function the caller defers. The consumer runs in
+// its own goroutine and exits when ctx is canceled; cleanup waits for
+// that exit so an in-flight handler doesn't get clipped.
+func startKafka(ctx context.Context, cfg *config.Config, invService kafkaInventoryService) func() {
+	brokers := strings.Split(cfg.Kafka.Brokers.Value, ",")
+	prod, err := gmekafka.NewProducer(brokers, cfg.Kafka.EventsTopic.Value)
+	if err != nil {
+		log.Error().Err(err).Msg("kafka producer init failed; continuing without Kafka")
+		return func() {}
+	}
+	invService.SetEventEmitter(&gmekafka.InventoryEmitter{Producer: prod})
+
+	consumer, err := gmekafka.NewConsumer(gmekafka.ConsumerConfig{
+		Brokers:  brokers,
+		Topic:    cfg.Kafka.CommandsTopic.Value,
+		DLTTopic: cfg.Kafka.DltTopic.Value,
+		Group:    cfg.Kafka.ConsumerGroup.Value,
+		Handler:  &gmekafka.InventoryCommandHandler{Service: invService},
+	})
+	if err != nil {
+		log.Error().Err(err).Msg("kafka consumer init failed; producer still active")
+		return func() { prod.Close() }
+	}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		if runErr := consumer.Run(ctx); runErr != nil {
+			log.Error().Err(runErr).Msg("kafka consumer run returned an error")
+		}
+	}()
+
+	return func() {
+		<-done
+		consumer.Close()
+		prod.Close()
+	}
 }
 
 // shutdown runs the ordered teardown after a SIGTERM / SIGINT:

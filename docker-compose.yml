@@ -53,6 +53,37 @@ services:
       retries: 30
       start_period: 10s
 
+  redpanda:
+    # DSN-016: Kafka transport. Redpanda is a single-binary
+    # Kafka-API-compatible broker that boots fast — ideal for
+    # docker-compose demos. The schema registry is intentionally not
+    # enabled here; messages are JSON envelopes (events.Envelope) and
+    # validation runs against the in-repo JSON Schemas (DSN-012).
+    image: redpandadata/redpanda:v24.2.7
+    container_name: redpanda
+    command:
+      - redpanda
+      - start
+      - --overprovisioned
+      - --smp=1
+      - --memory=512M
+      - --reserve-memory=0M
+      - --node-id=0
+      - --check=false
+      # Advertise both an internal listener (other compose services)
+      # and an external listener (host curl/scripts).
+      - --kafka-addr=INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092
+      - --advertise-kafka-addr=INTERNAL://redpanda:29092,EXTERNAL://localhost:9092
+    ports:
+      - "9092:9092"
+      - "9644:9644"
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster info -X brokers=localhost:9092 >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 5s
+
   app:
     build:
       context: .
@@ -66,6 +97,8 @@ services:
       postgres:
         condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      redpanda:
         condition: service_healthy
     ports:
       - "8080:8080"
@@ -85,6 +118,13 @@ services:
       # Stable signing key so the demo doesn't print a "tokens will
       # not survive a restart" warning. 32 bytes of dev-only material.
       GME_JWT_SIGNING_KEY: ${GME_JWT_SIGNING_KEY:-demo-only-jwt-signing-key-do-not-use}
+      # DSN-016: Kafka brokers + topics (events go out, commands come
+      # in). Topics auto-create on first publish/subscribe in Redpanda.
+      GME_KAFKA_BROKERS: redpanda:29092
+      GME_KAFKA_EVENTS_TOPIC: inventory.product-quantity-changed.v1
+      GME_KAFKA_COMMANDS_TOPIC: inventory.commands.v1
+      GME_KAFKA_DLT_TOPIC: inventory.commands.v1.dlt
+      GME_KAFKA_CONSUMER_GROUP: inventory-service
       # DSN-015: deterministic admin so the demo orchestrator can
       # exchange Basic creds for a JWT without scraping logs.
       BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-admin}
@@ -107,6 +147,10 @@ services:
       DEMO_BASE_URL: http://app:8080
       DEMO_ADMIN_USER: admin
       DEMO_ADMIN_PASS: ${BOOTSTRAP_ADMIN_PASSWORD:-admin}
+      DEMO_KAFKA_BROKERS: redpanda:29092
+      DEMO_KAFKA_COMMANDS_TOPIC: inventory.commands.v1
+      DEMO_KAFKA_EVENTS_TOPIC: inventory.product-quantity-changed.v1
+      DEMO_KAFKA_DEMO_GROUP: demo-watcher
     # The container exits when the demo finishes (0 on success, non-0
     # on any step failure). 'docker-compose up' shows the summary in
     # the demo service's log stream; the app keeps running for
