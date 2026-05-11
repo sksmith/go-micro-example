@@ -189,10 +189,11 @@ TTL (default 24h, matching Stripe's contract):
 | TTL expired | Treated as a first request — handler re-runs. |
 | Handler returned 5xx | Not cached — the next retry gets a fresh attempt. |
 
-The middleware is pluggable: today it uses an in-memory store, which
-is sufficient for single-replica deployments. DSN-021 will swap the
-backing store for Redis so the cache survives across replicas. The
-store contract is in [idempotency/rest/store.go](idempotency/rest/store.go).
+The middleware is pluggable behind a small `Store` interface. When
+`GME_REDIS_URL` is set, DSN-021a backs the store with Redis so
+cross-replica retries replay correctly; otherwise it falls back to
+an in-memory store that's sufficient for single-replica deployments.
+The contract is in [idempotency/rest/store.go](idempotency/rest/store.go).
 
 Two layers of dedupe sit on top of each other deliberately: the
 middleware guards safe retries by replaying the original *response*,
