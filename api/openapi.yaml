@@ -1,5 +1,17 @@
 components:
   schemas:
+    api.CatalogInfo:
+      description: |-
+        Catalog is the optional enrichment from the upstream catalog
+        service (DSN-018). Omitted when the catalog client is disabled
+        or when the upstream is unreachable — the inventory response
+        still succeeds in that case.
+      properties:
+        category:
+          type: string
+        description:
+          type: string
+      type: object
     api.CreateProductRequest:
       properties:
         name:
@@ -37,6 +49,8 @@ components:
           $ref: '#/components/schemas/config.StringConfig'
         buildTime:
           $ref: '#/components/schemas/config.StringConfig'
+        catalog:
+          $ref: '#/components/schemas/config.CatalogConfig'
         config:
           $ref: '#/components/schemas/config.ConfigSource'
         db:
@@ -87,6 +101,8 @@ components:
       properties:
         available:
           type: integer
+        catalog:
+          $ref: '#/components/schemas/api.CatalogInfo'
         name:
           type: string
         sku:
@@ -143,6 +159,19 @@ components:
           type: string
         value:
           type: boolean
+      type: object
+    config.CatalogConfig:
+      properties:
+        baseUrl:
+          $ref: '#/components/schemas/config.StringConfig'
+        description:
+          type: string
+        maxAttempts:
+          $ref: '#/components/schemas/config.IntConfig'
+        perAttemptMs:
+          $ref: '#/components/schemas/config.IntConfig'
+        timeoutMs:
+          $ref: '#/components/schemas/config.IntConfig'
       type: object
     config.ConfigSource:
       properties:

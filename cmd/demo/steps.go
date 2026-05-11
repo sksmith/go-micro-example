@@ -40,6 +40,11 @@ var Steps = []Step{
 		Name:       "Duplicate Kafka command applied exactly once",
 		Run:        runKafkaDuplicateReplay,
 	},
+	{
+		Capability: "DSN-018",
+		Name:       "Catalog enrichment via outbound REST",
+		Run:        runCatalogEnrichment,
+	},
 }
 
 // runRESTRoundTrip exchanges admin Basic credentials for a JWT,

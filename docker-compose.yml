@@ -84,6 +84,19 @@ services:
       retries: 24
       start_period: 5s
 
+  stub-catalog:
+    # DSN-018: tiny upstream the outbound-REST client demo calls.
+    # Serves GET /products/{sku} and GET /flaky/{sku} (the latter
+    # fails twice before succeeding, exercising the retry branch).
+    # No in-image healthcheck (scratch base, no shell). The app side
+    # treats catalog as best-effort enrichment, so start ordering
+    # via `service_started` is enough.
+    build:
+      context: .
+      dockerfile: Dockerfile.stub-catalog
+    ports:
+      - "9100:9100"
+
   app:
     build:
       context: .
@@ -100,6 +113,8 @@ services:
         condition: service_healthy
       redpanda:
         condition: service_healthy
+      stub-catalog:
+        condition: service_started
     ports:
       - "8080:8080"
     environment:
@@ -125,6 +140,9 @@ services:
       GME_KAFKA_COMMANDS_TOPIC: inventory.commands.v1
       GME_KAFKA_DLT_TOPIC: inventory.commands.v1.dlt
       GME_KAFKA_CONSUMER_GROUP: inventory-service
+      # DSN-018: outbound REST. Empty URL disables the catalog client
+      # entirely; the inventory API serves unenriched responses.
+      GME_CATALOG_BASEURL: http://stub-catalog:9100
       # DSN-015: deterministic admin so the demo orchestrator can
       # exchange Basic creds for a JWT without scraping logs.
       BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-admin}

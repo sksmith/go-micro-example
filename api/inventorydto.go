@@ -11,6 +11,21 @@ import (
 
 type ProductResponse struct {
 	inventory.ProductInventory
+
+	// Catalog is the optional enrichment from the upstream catalog
+	// service (DSN-018). Omitted when the catalog client is disabled
+	// or when the upstream is unreachable — the inventory response
+	// still succeeds in that case.
+	Catalog *CatalogInfo `json:"catalog,omitempty"`
+}
+
+// CatalogInfo is the subset of upstream catalog data the inventory
+// API exposes. Keep this in sync with core/catalog.Product —
+// fields added there should be threaded through here only when the
+// API contract should change.
+type CatalogInfo struct {
+	Description string `json:"description"`
+	Category    string `json:"category,omitempty"`
 }
 
 func NewProductResponse(product inventory.ProductInventory) *ProductResponse {

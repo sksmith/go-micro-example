@@ -59,19 +59,31 @@ type FloatConfig struct {
 }
 
 type Config struct {
-	AppName     StringConfig `json:"appName"     yaml:"appName"`
-	AppVersion  StringConfig `json:"appVersion"  yaml:"appVersion"`
-	Sha1Version StringConfig `json:"sha1Version" yaml:"sha1Version"`
-	BuildTime   StringConfig `json:"buildTime"   yaml:"buildTime"`
-	Profile     StringConfig `json:"profile"     yaml:"profile"`
-	Revision    StringConfig `json:"revision"    yaml:"revision"`
-	Port        StringConfig `json:"port"        yaml:"port"`
-	Config      ConfigSource `json:"config"      yaml:"config"`
-	Log         LogConfig    `json:"log"         yaml:"log"`
-	Db          DbConfig     `json:"db"          yaml:"db"`
-	RabbitMQ    QueueConfig  `json:"rabbitmq"    yaml:"rabbitmq"`
-	Kafka       KafkaConfig  `json:"kafka"       yaml:"kafka"`
-	Docs        DocsConfig   `json:"docs"        yaml:"docs"`
+	AppName     StringConfig  `json:"appName"     yaml:"appName"`
+	AppVersion  StringConfig  `json:"appVersion"  yaml:"appVersion"`
+	Sha1Version StringConfig  `json:"sha1Version" yaml:"sha1Version"`
+	BuildTime   StringConfig  `json:"buildTime"   yaml:"buildTime"`
+	Profile     StringConfig  `json:"profile"     yaml:"profile"`
+	Revision    StringConfig  `json:"revision"    yaml:"revision"`
+	Port        StringConfig  `json:"port"        yaml:"port"`
+	Config      ConfigSource  `json:"config"      yaml:"config"`
+	Log         LogConfig     `json:"log"         yaml:"log"`
+	Db          DbConfig      `json:"db"          yaml:"db"`
+	RabbitMQ    QueueConfig   `json:"rabbitmq"    yaml:"rabbitmq"`
+	Kafka       KafkaConfig   `json:"kafka"       yaml:"kafka"`
+	Catalog     CatalogConfig `json:"catalog"    yaml:"catalog"`
+	Docs        DocsConfig    `json:"docs"        yaml:"docs"`
+}
+
+// CatalogConfig holds the outbound-REST client knobs introduced in
+// DSN-018. An empty BaseURL disables the client; the inventory API
+// then serves unenriched responses.
+type CatalogConfig struct {
+	BaseURL           StringConfig `json:"baseUrl"           yaml:"baseUrl"`
+	Timeout           IntConfig    `json:"timeoutMs"         yaml:"timeoutMs"`
+	PerAttemptTimeout IntConfig    `json:"perAttemptMs"      yaml:"perAttemptMs"`
+	MaxAttempts       IntConfig    `json:"maxAttempts"       yaml:"maxAttempts"`
+	Description       string       `json:"description"       yaml:"description"`
 }
 
 type KafkaConfig struct {
@@ -241,6 +253,10 @@ func bindSensitiveEnv() {
 		"kafka.commandsTopic",
 		"kafka.dltTopic",
 		"kafka.consumerGroup",
+		"catalog.baseUrl",
+		"catalog.timeoutMs",
+		"catalog.perAttemptMs",
+		"catalog.maxAttempts",
 	} {
 		// Errors here would mean a programming error in the key list —
 		// viper.BindEnv only fails on empty input.
@@ -524,6 +540,12 @@ func setupDefaults(config *Config) {
 	config.Kafka.CommandsTopic = StringConfig{Value: "inventory.commands.v1", Default: "inventory.commands.v1", Description: "Inbound topic for inventory commands (e.g. RecordProduction)."}
 	config.Kafka.DltTopic = StringConfig{Value: "inventory.commands.v1.dlt", Default: "inventory.commands.v1.dlt", Description: "Dead-letter topic for commands that exhaust their retry budget."}
 	config.Kafka.ConsumerGroup = StringConfig{Value: "inventory-service", Default: "inventory-service", Description: "Kafka consumer group name."}
+
+	config.Catalog.Description = "DSN-018: outbound REST client for the upstream catalog service. Empty BaseURL disables the client; inventory responses are served unenriched."
+	config.Catalog.BaseURL = StringConfig{Value: "", Default: "", Description: "Base URL of the upstream catalog service. Empty disables the client."}
+	config.Catalog.Timeout = IntConfig{Value: 3000, Default: 3000, Description: "Total deadline for one Lookup call including retries, in milliseconds."}
+	config.Catalog.PerAttemptTimeout = IntConfig{Value: 1000, Default: 1000, Description: "Per-attempt HTTP timeout in milliseconds."}
+	config.Catalog.MaxAttempts = IntConfig{Value: 3, Default: 3, Description: "Total catalog Lookup attempts including the first call (1 initial + N-1 retries)."}
 
 	config.Config.Description = "Settings for where and how the application should get its configurations."
 	config.Config.Print = BoolConfig{Value: false, Default: false, Description: "Print configurations on startup."}

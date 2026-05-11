@@ -665,6 +665,16 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * @description Catalog is the optional enrichment from the upstream catalog
+         *     service (DSN-018). Omitted when the catalog client is disabled
+         *     or when the upstream is unreachable — the inventory response
+         *     still succeeds in that case.
+         */
+        "api.CatalogInfo": {
+            category?: string;
+            description?: string;
+        };
         "api.CreateProductRequest": {
             name?: string;
             sku?: string;
@@ -685,9 +695,11 @@ export interface components {
             appName?: components["schemas"]["config.StringConfig"];
             appVersion?: components["schemas"]["config.StringConfig"];
             buildTime?: components["schemas"]["config.StringConfig"];
+            catalog?: components["schemas"]["config.CatalogConfig"];
             config?: components["schemas"]["config.ConfigSource"];
             db?: components["schemas"]["config.DbConfig"];
             docs?: components["schemas"]["config.DocsConfig"];
+            kafka?: components["schemas"]["config.KafkaConfig"];
             log?: components["schemas"]["config.LogConfig"];
             port?: components["schemas"]["config.StringConfig"];
             profile?: components["schemas"]["config.StringConfig"];
@@ -709,6 +721,7 @@ export interface components {
         };
         "api.ProductResponse": {
             available?: number;
+            catalog?: components["schemas"]["api.CatalogInfo"];
             name?: string;
             sku?: string;
             upc?: string;
@@ -739,6 +752,13 @@ export interface components {
             default?: boolean;
             description?: string;
             value?: boolean;
+        };
+        "config.CatalogConfig": {
+            baseUrl?: components["schemas"]["config.StringConfig"];
+            description?: string;
+            maxAttempts?: components["schemas"]["config.IntConfig"];
+            perAttemptMs?: components["schemas"]["config.IntConfig"];
+            timeoutMs?: components["schemas"]["config.IntConfig"];
         };
         "config.ConfigSource": {
             description?: string;
@@ -779,6 +799,14 @@ export interface components {
         "config.InventoryQueueConfig": {
             description?: string;
             exchange?: components["schemas"]["config.StringConfig"];
+        };
+        "config.KafkaConfig": {
+            brokers?: components["schemas"]["config.StringConfig"];
+            commandsTopic?: components["schemas"]["config.StringConfig"];
+            consumerGroup?: components["schemas"]["config.StringConfig"];
+            description?: string;
+            dltTopic?: components["schemas"]["config.StringConfig"];
+            eventsTopic?: components["schemas"]["config.StringConfig"];
         };
         "config.LogConfig": {
             description?: string;

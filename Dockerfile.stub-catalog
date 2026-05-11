@@ -1,0 +1,18 @@
+# DSN-018: tiny upstream the outbound-REST client demo calls. The
+# image only ships ./cmd/stub-catalog. Shares the toolchain pin with
+# the main Dockerfile (see DEP-001).
+FROM golang:1.26-alpine AS builder
+
+WORKDIR /app
+COPY . .
+
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -o ./stub-catalog ./cmd/stub-catalog
+
+FROM scratch
+
+COPY --from=builder /app/stub-catalog /usr/bin/stub-catalog
+
+EXPOSE 9100
+
+ENTRYPOINT ["stub-catalog"]
