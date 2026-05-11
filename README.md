@@ -61,6 +61,19 @@ exactly. I couldn't quite find an equivalent solution I liked.
 Truth be told, if I were doing inter-microservice communication I would strongly consider using gRPC rather than a 
 RESTful API.
 
+#### Pagination
+
+List endpoints accept `?limit=…&offset=…`. `limit` defaults to `50`,
+must be a positive integer, and is capped at `200`. `offset` defaults
+to `0` and must be a non-negative integer. Invalid input returns a
+`400 application/problem+json` with an `errors[]` extension naming the
+offending field — values are never silently coerced.
+
+Responses include an [RFC 8288](https://www.rfc-editor.org/rfc/rfc8288)
+`Link` header. A `rel="next"` link is emitted when the server returned
+a full page (`len(results) == limit`); a `rel="prev"` link is emitted
+when `offset > 0`.
+
 ### Authentication
 
 Endpoints under `/api/v1` are protected by the

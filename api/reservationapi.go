@@ -165,8 +165,7 @@ func (a *ReservationApi) ReservationCtx(next http.Handler) http.Handler {
 }
 
 func (a *ReservationApi) List(w http.ResponseWriter, r *http.Request) {
-	limit := r.Context().Value(CtxKeyLimit).(int)
-	offset := r.Context().Value(CtxKeyOffset).(int)
+	p := PaginationFrom(r.Context())
 
 	sku := r.URL.Query().Get("sku")
 
@@ -176,7 +175,7 @@ func (a *ReservationApi) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res, err := a.service.GetReservations(r.Context(), inventory.GetReservationsOptions{Sku: sku, State: state}, limit, offset)
+	res, err := a.service.GetReservations(r.Context(), inventory.GetReservationsOptions{Sku: sku, State: state}, p.Limit, p.Offset)
 
 	if err != nil {
 		if errors.Is(err, core.ErrNotFound) {
@@ -187,6 +186,8 @@ func (a *ReservationApi) List(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+
+	WriteLinkHeader(w, r, p, len(res))
 
 	resList := NewReservationListResponse(res)
 	render.Status(r, http.StatusOK)
