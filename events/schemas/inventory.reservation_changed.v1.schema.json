@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/sksmith/go-micro-example/events/schemas/inventory.reservation_changed.v1.schema.json",
+  "title": "inventory.reservation_changed v1",
+  "description": "Emitted whenever a reservation is created, partially filled, fully filled, or cancelled.",
+  "type": "object",
+  "required": ["id", "requestId", "requester", "sku", "state", "reservedQuantity", "requestedQuantity", "created"],
+  "properties": {
+    "id": {"type": "integer", "minimum": 0},
+    "requestId": {"type": "string", "minLength": 1},
+    "requester": {"type": "string", "minLength": 1},
+    "sku": {"type": "string", "minLength": 1},
+    "state": {"type": "string", "enum": ["Open", "Closed", ""]},
+    "reservedQuantity": {"type": "integer", "minimum": 0},
+    "requestedQuantity": {"type": "integer", "minimum": 0},
+    "created": {"type": "string", "format": "date-time"}
+  }
+}

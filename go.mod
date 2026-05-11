@@ -19,6 +19,7 @@ require (
 	github.com/rabbitmq/amqp091-go v1.11.0
 	github.com/riandyrn/otelchi v0.12.3
 	github.com/rs/zerolog v1.35.1
+	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
 	go.opentelemetry.io/otel v1.43.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.43.0
 	go.opentelemetry.io/otel/sdk v1.43.0

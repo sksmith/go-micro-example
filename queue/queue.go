@@ -4,12 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
+	"github.com/google/uuid"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/config"
 	"github.com/sksmith/go-micro-example/core/inventory"
 	"github.com/sksmith/go-micro-example/core/observability"
+	"github.com/sksmith/go-micro-example/events"
 )
 
 // AMQPRequestIDHeader is the AMQP message header that carries the
@@ -56,21 +59,32 @@ func getUrl(cfg *config.Config) string {
 }
 
 func (i *InventoryQueue) PublishInventory(ctx context.Context, productInventory inventory.ProductInventory) error {
-	body, err := json.Marshal(productInventory)
+	body, err := encodeEvent(events.TypeProductInventoryChanged, productInventory)
 	if err != nil {
-		return fmt.Errorf("failed to serialize message for queue: %w", err)
+		return fmt.Errorf("failed to serialize inventory event: %w", err)
 	}
 	i.inventory <- newMessage(ctx, body)
 	return nil
 }
 
 func (i *InventoryQueue) PublishReservation(ctx context.Context, reservation inventory.Reservation) error {
-	body, err := json.Marshal(reservation)
+	body, err := encodeEvent(events.TypeReservationChanged, reservation)
 	if err != nil {
-		return fmt.Errorf("error marshalling reservation to send to queue: %w", err)
+		return fmt.Errorf("failed to serialize reservation event: %w", err)
 	}
 	i.reservation <- newMessage(ctx, body)
 	return nil
+}
+
+// encodeEvent wraps a payload in the standard Envelope and serializes
+// it. The event_id is a UUID v4 so consumers can use it as the
+// idempotency key (DSN-017 / DSN-025 will lean on this).
+func encodeEvent(eventType string, payload any) ([]byte, error) {
+	env, err := events.NewEnvelope(uuid.NewString(), eventType, 1, time.Now(), payload)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(env)
 }
 
 // newMessage snapshots the correlation fields off ctx so the publisher
@@ -101,26 +115,7 @@ func NewProductQueue(ctx context.Context, cfg *config.Config, handler ProductHan
 
 	go func() {
 		for msg := range prodChan {
-			// Per-message correlation: derive a context bearing the
-			// inbound request_id so handler logs (and any outbound
-			// calls the handler makes) tie back to the producing
-			// request, even though we're miles from the HTTP scope.
-			msgCtx := observability.ContextWithRequestID(ctx, msg.requestID)
-			logger := log.With().Str("request_id", msg.requestID).Logger()
-			msgCtx = logger.WithContext(msgCtx)
-
-			product := inventory.Product{}
-			err := json.Unmarshal(msg.body, &product)
-			if err != nil {
-				log.Ctx(msgCtx).Error().Err(err).Msg("error unmarshalling product, writing to dlt")
-				pq.sendToDlt(msgCtx, msg.body)
-			}
-
-			err = handler.CreateProduct(msgCtx, product)
-			if err != nil {
-				log.Ctx(msgCtx).Error().Err(err).Msg("failed to create product, sending to dlt")
-				pq.productDlt <- msg
-			}
+			pq.handleProductMessage(ctx, handler, msg)
 		}
 	}()
 
@@ -145,6 +140,40 @@ type ProductHandler interface {
 
 func (p *ProductQueue) sendToDlt(ctx context.Context, body []byte) {
 	p.productDlt <- newMessage(ctx, body)
+}
+
+// handleProductMessage validates an incoming product message against
+// the events.TypeProductCreated schema and routes invalid messages to
+// the DLT with a logged reason. Extracted from NewProductQueue so the
+// validation + DLT logic can be unit-tested without standing up AMQP.
+func (p *ProductQueue) handleProductMessage(ctx context.Context, handler ProductHandler, msg message) {
+	msgCtx := observability.ContextWithRequestID(ctx, msg.requestID)
+	logger := log.With().Str("request_id", msg.requestID).Logger()
+	msgCtx = logger.WithContext(msgCtx)
+
+	env, err := events.Validate(msg.body)
+	if err != nil {
+		log.Ctx(msgCtx).Error().Err(err).Msg("invalid event, writing to dlt")
+		p.sendToDlt(msgCtx, msg.body)
+		return
+	}
+	if env.EventType != events.TypeProductCreated {
+		log.Ctx(msgCtx).Error().Str("event_type", env.EventType).Msg("unsupported event type on product queue, writing to dlt")
+		p.sendToDlt(msgCtx, msg.body)
+		return
+	}
+
+	product := inventory.Product{}
+	if err := json.Unmarshal(env.Payload, &product); err != nil {
+		log.Ctx(msgCtx).Error().Err(err).Msg("failed to decode validated payload, writing to dlt")
+		p.sendToDlt(msgCtx, msg.body)
+		return
+	}
+
+	if err := handler.CreateProduct(msgCtx, product); err != nil {
+		log.Ctx(msgCtx).Error().Err(err).Str("event_id", env.EventID).Msg("failed to create product, sending to dlt")
+		p.productDlt <- msg
+	}
 }
 
 // TODO We should be using one exchange per domain object here.
