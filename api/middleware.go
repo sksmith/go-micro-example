@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -42,44 +41,9 @@ func CorrelationLogger(next http.Handler) http.Handler {
 	})
 }
 
-const DefaultPageLimit = 50
-
 type CtxKey string
 
-const (
-	CtxKeyLimit  CtxKey = "limit"
-	CtxKeyOffset CtxKey = "offset"
-	CtxKeyUser   CtxKey = "user"
-)
-
-func Paginate(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		limitStr := r.URL.Query().Get("limit")
-		offsetStr := r.URL.Query().Get("offset")
-
-		var err error
-		limit := DefaultPageLimit
-		if limitStr != "" {
-			limit, err = strconv.Atoi(limitStr)
-			if err != nil {
-				limit = DefaultPageLimit
-			}
-		}
-
-		offset := 0
-		if offsetStr != "" {
-			offset, err = strconv.Atoi(offsetStr)
-			if err != nil {
-				offset = 0
-			}
-		}
-
-		ctx := context.WithValue(r.Context(), CtxKeyLimit, limit)
-		ctx = context.WithValue(ctx, CtxKeyOffset, offset)
-
-		next.ServeHTTP(w, r.WithContext(ctx))
-	})
-}
+const CtxKeyUser CtxKey = "user"
 
 // Authenticate requires a Bearer JWT (SEC-002c). HTTP Basic credentials
 // are no longer accepted on protected routes; callers must exchange

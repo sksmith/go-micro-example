@@ -98,16 +98,16 @@ func (a *InventoryApi) Subscribe(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *InventoryApi) List(w http.ResponseWriter, r *http.Request) {
-	limit := r.Context().Value(CtxKeyLimit).(int)
-	offset := r.Context().Value(CtxKeyOffset).(int)
+	p := PaginationFrom(r.Context())
 
-	products, err := a.service.GetAllProductInventory(r.Context(), limit, offset)
+	products, err := a.service.GetAllProductInventory(r.Context(), p.Limit, p.Offset)
 	if err != nil {
-		log.Ctx(r.Context()).Error().Err(err).Int("limit", limit).Int("offset", offset).Msg("failed to list product inventory")
+		log.Ctx(r.Context()).Error().Err(err).Int("limit", p.Limit).Int("offset", p.Offset).Msg("failed to list product inventory")
 		Render(w, r, InternalServerProblem(err))
 		return
 	}
 
+	WriteLinkHeader(w, r, p, len(products))
 	RenderList(w, r, NewProductListResponse(products))
 }
 
