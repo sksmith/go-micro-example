@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/sksmith/go-micro-example/events/schemas/envelope.schema.json",
+  "title": "Event envelope",
+  "description": "Common envelope wrapping every domain event published by go-micro-example. Concrete event payloads validate against their own schema referenced by event_type + event_version.",
+  "type": "object",
+  "required": ["event_id", "event_type", "event_version", "occurred_at", "producer", "payload"],
+  "additionalProperties": false,
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "description": "Globally unique identifier for this event instance. UUID v4 recommended; consumers use it for idempotency.",
+      "minLength": 1
+    },
+    "event_type": {
+      "type": "string",
+      "description": "Reverse-DNS-style identifier of the event kind, e.g. inventory.product_inventory_changed.",
+      "minLength": 1
+    },
+    "event_version": {
+      "type": "integer",
+      "description": "Major schema version. Additive changes preserve the version; breaking changes bump it (and publish to a new exchange).",
+      "minimum": 1
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "RFC 3339 timestamp at which the source-of-truth event happened (not publish time)."
+    },
+    "producer": {
+      "type": "string",
+      "description": "Logical name of the service that produced the event.",
+      "minLength": 1
+    },
+    "payload": {
+      "type": "object",
+      "description": "Event-type-specific body. Validate against the event-type schema."
+    }
+  }
+}

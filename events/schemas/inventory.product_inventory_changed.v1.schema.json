@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/sksmith/go-micro-example/events/schemas/inventory.product_inventory_changed.v1.schema.json",
+  "title": "inventory.product_inventory_changed v1",
+  "description": "Emitted whenever the available inventory count for a SKU changes.",
+  "type": "object",
+  "required": ["sku", "upc", "name", "available"],
+  "properties": {
+    "sku": {"type": "string", "minLength": 1},
+    "upc": {"type": "string"},
+    "name": {"type": "string"},
+    "available": {"type": "integer"}
+  }
+}

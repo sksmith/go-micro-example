@@ -348,6 +348,8 @@ Database migration is automated in the project using [migrate](https://github.co
   graceful-shutdown sequence (DSN-001).
 - [Observability](docs/observability.md) — Prometheus metrics + the
   OpenTelemetry tracing setup (DSN-004).
+- [Messaging contracts](docs/messaging.md) — domain-event envelope,
+  schema registry, compatibility policy (DSN-012).
 
 ## TODO
 

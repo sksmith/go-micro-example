@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/sksmith/go-micro-example/events/schemas/inventory.product_created.v1.schema.json",
+  "title": "inventory.product_created v1",
+  "description": "Emitted (or sent by an upstream catalog system) when a new SKU is created.",
+  "type": "object",
+  "required": ["sku", "upc", "name"],
+  "properties": {
+    "sku": {"type": "string", "minLength": 1},
+    "upc": {"type": "string"},
+    "name": {"type": "string"}
+  }
+}
