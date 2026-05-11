@@ -64,11 +64,12 @@ RESTful API.
 ### Authentication
 
 Endpoints under `/api/v1` are protected by the
-[Authenticate middleware](api/middleware.go), which accepts **either** an HTTP Basic credential
-**or** a Bearer JWT (SEC-002a — both modes work in parallel; SEC-002c will retire Basic Auth once
-callers have migrated). Users are stored in the database with bcrypt-hashed passwords and locally
-cached using [golang-lru](https://github.com/hashicorp/golang-lru). In a production setting if I
-actually wanted caching I'd either use a remote cache like Redis, or a distributed local cache like
+[Authenticate middleware](api/middleware.go), which requires a Bearer JWT. Callers exchange
+credentials at `/auth/token` (the only endpoint that accepts HTTP Basic) for a short-lived JWT,
+then present that token on subsequent requests. Users are stored in the database with
+bcrypt-hashed passwords and locally cached using
+[golang-lru](https://github.com/hashicorp/golang-lru). In a production setting if I actually
+wanted caching I'd either use a remote cache like Redis, or a distributed local cache like
 groupcache to prevent stale or out of sync data.
 
 #### Getting a JWT
@@ -125,16 +126,14 @@ This application outputs prometheus metrics using middleware I plugged into the 
 locally check them out at [http://localhost:8080/metrics](http://localhost:8080/metrics). Every URL automatically
 gets a hit count and a latency metric added. You can find the configurations [here](api/middleware.go).
 
-In addition to the per-URL metrics, the auth middleware exposes two counters so you can track the
-SEC-002 migration from Basic Auth to JWTs:
+In addition to the per-URL metrics, the auth middleware exposes two counters:
 
 | Metric | Meaning |
 | --- | --- |
-| `auth_basic_requests_total` | Successful HTTP Basic Auth requests. |
+| `auth_basic_requests_total` | Retained from the SEC-002 migration; stays flat at zero now that Basic Auth is no longer accepted on protected routes (SEC-002c). |
 | `auth_jwt_requests_total` | Successful Bearer JWT requests. |
 
-Neither counter increments on auth failure. SEC-002c will remove the Basic Auth path once
-`rate(auth_basic_requests_total[1d])` is at zero across at least one release cycle.
+Neither counter increments on auth failure.
 
 ### Logging
 

@@ -71,7 +71,7 @@ func ConfigureRouter(cfg *config.Config, invSvc InventoryService, resSvc Reserva
 		r.Route(AuthPath, NewAuthApi(userService, signer).ConfigureRouter)
 	}
 
-	r.With(Authenticate(userService, signer)).Route(ApiPath, func(r chi.Router) {
+	r.With(Authenticate(signer)).Route(ApiPath, func(r chi.Router) {
 		r.Route(InventoryPath, NewInventoryApi(invSvc).ConfigureRouter)
 		r.Route(ReservationPath, NewReservationApi(resSvc).ConfigureRouter)
 		r.Route(UserPath, NewUserApi(userService).ConfigureRouter)

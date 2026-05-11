@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -113,7 +114,8 @@ func TestApiRoutesRequireAuthentication(t *testing.T) {
 			}
 		})
 
-		t.Run("bad-credentials/"+test.name, func(t *testing.T) {
+		t.Run("basic-auth-rejected/"+test.name, func(t *testing.T) {
+			// SEC-002c: Basic Auth is no longer accepted on protected routes.
 			req, err := http.NewRequest(http.MethodGet, ts.URL+test.path, nil)
 			if err != nil {
 				t.Fatal(err)
@@ -125,7 +127,10 @@ func TestApiRoutesRequireAuthentication(t *testing.T) {
 			}
 			defer res.Body.Close()
 			if res.StatusCode != http.StatusUnauthorized {
-				t.Errorf("expected 401 for bad-credentials %s, got %d", test.path, res.StatusCode)
+				t.Errorf("expected 401 for Basic-Auth attempt on %s, got %d", test.path, res.StatusCode)
+			}
+			if got := res.Header.Get("WWW-Authenticate"); !strings.HasPrefix(got, "Bearer") {
+				t.Errorf("expected WWW-Authenticate: Bearer on %s, got %q", test.path, got)
 			}
 		})
 	}
