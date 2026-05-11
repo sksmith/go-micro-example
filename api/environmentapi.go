@@ -19,7 +19,15 @@ func (n *EnvApi) ConfigureRouter(r chi.Router) {
 	r.Get("/", n.Get)
 }
 
+// Get returns a redacted view of runtime configuration (admin only).
+//
+//	@Summary	Get redacted runtime config
+//	@Tags		admin
+//	@Produce	json
+//	@Success	200	{object}	EnvResponse
+//	@Failure	401	{object}	Problem
+//	@Router		/api/v1/admin/env [get]
+//	@Security	BearerAuth
 func (a *EnvApi) Get(w http.ResponseWriter, r *http.Request) {
-
 	Render(w, r, NewEnvResponse(*a.cfg))
 }

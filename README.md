@@ -74,6 +74,35 @@ Responses include an [RFC 8288](https://www.rfc-editor.org/rfc/rfc8288)
 a full page (`len(results) == limit`); a `rel="prev"` link is emitted
 when `offset > 0`.
 
+#### OpenAPI spec + Swagger UI
+
+The application is annotated with [`swaggo/swag`](https://github.com/swaggo/swag);
+`make openapi` regenerates [`api/openapi.yaml`](api/openapi.yaml) from the
+handler comments. Generated artifacts are committed and a CI drift check
+([.github/workflows/openapi.yml](.github/workflows/openapi.yml)) fails the
+build when the spec or the Go client are stale.
+
+| Endpoint        | Purpose                                                                |
+| --------------- | ---------------------------------------------------------------------- |
+| `/openapi.yaml` | OpenAPI 3.1 source-of-truth, embedded into the binary via `go:embed`.  |
+| `/docs`         | Swagger UI (offline, bundled via `swaggest/swgui/v5emb`).              |
+
+Both routes are gated by `docs.enabled` (default `true`). Set
+`docs.enabled: false` (or `GME_DOCS_ENABLED=false`) in `prod` to keep the
+spec internal.
+
+Typed clients are generated alongside the spec:
+
+| Target              | Command           | Output                |
+| ------------------- | ----------------- | --------------------- |
+| Go client           | `make clients-go` | `api/client/v1/`      |
+| TypeScript types    | `make clients-ts` | `web/src/api/`        |
+| Both                | `make clients`    | both                  |
+
+The TS step shells out to `npx openapi-typescript@7` — it needs Node
+locally and is intentionally out of CI's Go-only matrix. Reviewers spot
+TS drift by hand for now.
+
 ### Authentication
 
 Endpoints under `/api/v1` are protected by the

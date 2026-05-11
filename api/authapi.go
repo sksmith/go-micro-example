@@ -39,6 +39,16 @@ func (a *AuthApi) ConfigureRouter(r chi.Router) {
 	r.Post("/token", a.Token)
 }
 
+// Token exchanges HTTP Basic credentials for a short-lived bearer JWT.
+//
+//	@Summary	Issue a bearer token
+//	@Tags		auth
+//	@Produce	json
+//	@Success	200	{object}	TokenResponse
+//	@Failure	401	{object}	Problem
+//	@Failure	500	{object}	Problem
+//	@Router		/auth/token [post]
+//	@description	Requires HTTP Basic credentials (RFC 6749 §2.3.1 OAuth2 client_credentials flow).
 func (a *AuthApi) Token(w http.ResponseWriter, r *http.Request) {
 	username, password, ok := r.BasicAuth()
 	if !ok {

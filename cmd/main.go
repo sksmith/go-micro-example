@@ -1,3 +1,15 @@
+// Package main starts the go-micro-example HTTP server.
+//
+//	@title			go-micro-example API
+//	@version		1.0
+//	@description	Reference API for the go-micro-example service: inventory, reservations, users, and an admin/env probe.
+//	@description	All errors use RFC 7807 (application/problem+json).
+//	@BasePath		/
+//
+//	@securityDefinitions.apikey	BearerAuth
+//	@in							header
+//	@name						Authorization
+//	@description				Bearer JWT issued by POST /auth/token. To obtain one, send HTTP Basic credentials to /auth/token.
 package main
 
 import (
