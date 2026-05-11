@@ -17,5 +17,10 @@ jobs:
         run: |
           go install github.com/swaggo/swag/v2/cmd/swag@latest
           go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
+      # swag's --parseDependency walks dependent module sources to
+      # resolve struct types; without a populated module cache it
+      # exits with "cannot find all dependencies, <nil>".
+      - name: Warm module cache
+        run: go mod download
       - name: Regenerate spec + Go client and fail on drift
         run: make openapi-check
