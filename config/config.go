@@ -206,18 +206,26 @@ func init() {
 	bindSensitiveEnv()
 }
 
-// bindSensitiveEnv wires the credential-bearing config keys to env-var
-// fallbacks so secrets can stay out of tracked files (SEC-004). Env vars
-// use the GME_ prefix and replace dotted keys with underscores —
-// `db.pass` becomes `GME_DB_PASS`, etc.
+// bindSensitiveEnv wires credential and deployment-target config keys
+// to env-var fallbacks so secrets stay out of tracked files (SEC-004)
+// and the same image runs in different environments (DSN-015: compose
+// overrides db.host/rabbitmq.host to service names). Env vars use the
+// GME_ prefix and replace dotted keys with underscores — `db.pass`
+// becomes `GME_DB_PASS`, etc.
 func bindSensitiveEnv() {
 	viper.SetEnvPrefix("GME")
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	for _, key := range []string{
 		"db.user",
 		"db.pass",
+		"db.host",
+		"db.port",
 		"rabbitmq.user",
 		"rabbitmq.pass",
+		"rabbitmq.host",
+		"rabbitmq.port",
+		"docs.enabled",
+		"config.source",
 	} {
 		// Errors here would mean a programming error in the key list —
 		// viper.BindEnv only fails on empty input.
@@ -497,7 +505,7 @@ func setupDefaults(config *Config) {
 
 	config.Config.Description = "Settings for where and how the application should get its configurations."
 	config.Config.Print = BoolConfig{Value: false, Default: false, Description: "Print configurations on startup."}
-	config.Config.Source = StringConfig{Value: "", Default: "", Description: "Where the application should go for configurations. Examples: local, etcd"}
+	config.Config.Source = StringConfig{Value: "local", Default: "local", Description: "Where the application should go for configurations. Examples: local, etcd"}
 
 	config.Config.Spring.Description = "Configuration settings for Spring Cloud Config. These are only used if config.source is spring."
 	config.Config.Spring.Url = StringConfig{Value: "", Default: "", Description: "The url of the Spring Cloud Config server."}

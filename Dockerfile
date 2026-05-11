@@ -28,5 +28,8 @@ WORKDIR /app
 COPY --from=builder /app/go-micro-example /usr/bin/
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /app/config.yml /app
+# Migrations need to ship with the image so 'db.migrate=true' can
+# find them at /app/db/migrations on startup.
+COPY --from=builder /app/db/migrations /app/db/migrations
 
 ENTRYPOINT ["go-micro-example"]

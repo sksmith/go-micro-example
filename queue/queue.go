@@ -214,18 +214,35 @@ func redial(ctx context.Context, url string) chan chan session {
 			select {
 			case sessions <- sess:
 			case <-ctx.Done():
-				log.Fatal().Msg("shutting down session factory")
+				// Normal lifecycle event — the process is shutting
+				// down. log.Fatal here would exit the process from
+				// inside a goroutine and short-circuit the graceful
+				// shutdown path in cmd/main.go.
+				log.Info().Msg("shutting down session factory")
 				return
 			}
 
 			conn, err := amqp.Dial(url)
 			if err != nil {
-				log.Fatal().Err(err).Str("url", url).Msg("cannot (re)dial")
+				log.Error().Err(err).Str("url", url).Msg("cannot (re)dial; retrying")
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(2 * time.Second):
+					continue
+				}
 			}
 
 			ch, err := conn.Channel()
 			if err != nil {
-				log.Fatal().Err(err).Msg("cannot create channel")
+				log.Error().Err(err).Msg("cannot create channel; retrying")
+				_ = conn.Close()
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(2 * time.Second):
+					continue
+				}
 			}
 
 			select {

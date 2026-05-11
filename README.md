@@ -47,6 +47,38 @@ make build
 docker-compose up
 ```
 
+This brings up Postgres, RabbitMQ, the app, and a one-shot **demo
+orchestrator** (DSN-015). After the app's `/ready` returns 200, the
+orchestrator runs every registered capability step against the live
+app and prints a summary table on its way out.
+
+`make demo` is a convenience wrapper that runs the same stack with
+`--abort-on-container-exit --exit-code-from demo`, so the whole stack
+tears down when the demo finishes and your shell gets the demo's exit
+code. Use `make demo-down` to wipe volumes if a step left state behind.
+
+#### What you'll see
+
+The `demo` service log ends with a table like:
+
+```text
+demo summary
+────────────────────────────────────────────────────────────────────────
+CAPABILITY     STEP                              STATUS    LATENCY TRACE
+DSN-026        REST create + read via gener…     pass         32ms abc123…
+────────────────────────────────────────────────────────────────────────
+```
+
+One row per registered step. `pass` everywhere means every advertised
+capability fired end-to-end; the demo container exits 0. Any `fail`
+includes the underlying error reason on the next line and the demo
+container exits non-zero (the app keeps running for further poking).
+
+Each capability ticket (DSN-016 through DSN-027) plugs into the
+orchestrator by appending a `Step` to
+[cmd/demo/steps.go](cmd/demo/steps.go). If the API breaks, the demo
+breaks — it's a contract test as much as a demo.
+
 ## Application Features
 
 ### RESTful API
@@ -282,6 +314,11 @@ exposed so you can run a single step in isolation:
 | `make build` | Builds the binary into `./bin/go-micro-example` with version metadata baked in. |
 | `make run` | Runs the application via `go run ./cmd/.`. Requires Postgres and RabbitMQ. |
 | `make docker` | Builds the Docker image. |
+| `make demo` | Brings up the full docker-compose stack and runs the DSN-015 orchestrator end-to-end. Tears everything down on exit and propagates the demo container's exit code. |
+| `make demo-down` | `docker compose down -v` — tears down the demo stack and wipes volumes. |
+| `make openapi` | Regenerates `api/openapi.yaml` + `api/openapi.json` from handler annotations (DSN-026). |
+| `make clients` | Regenerates Go (`api/client/v1`) and TS (`web/src/api`) clients from the spec. |
+| `make openapi-check` | CI drift gate: regenerates spec + Go client and fails on diff. |
 
 If `make tools` has not been run yet, `lint` and `sec` will fail with
 `command not found`; install the tools first.

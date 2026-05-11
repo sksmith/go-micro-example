@@ -1,0 +1,17 @@
+# DSN-015 demo orchestrator. Builds only cmd/demo and ships the
+# binary on scratch. Shares the same Go toolchain pin as the main
+# Dockerfile (see DEP-001).
+FROM golang:1.26-alpine AS builder
+
+WORKDIR /app
+COPY . .
+
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -o ./demo ./cmd/demo
+
+FROM scratch
+
+COPY --from=builder /app/demo /usr/bin/demo
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+
+ENTRYPOINT ["demo"]

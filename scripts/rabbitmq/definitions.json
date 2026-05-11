@@ -1,0 +1,32 @@
+{
+  "rabbit_version": "4.0",
+  "users": [
+    {
+      "name": "guest",
+      "password": "guest",
+      "tags": ["administrator"]
+    }
+  ],
+  "vhosts": [{"name": "/"}],
+  "permissions": [
+    {"user": "guest", "vhost": "/", "configure": ".*", "write": ".*", "read": ".*"}
+  ],
+  "exchanges": [
+    {"name": "inventory.exchange", "vhost": "/", "type": "direct", "durable": true, "auto_delete": false, "internal": false, "arguments": {}},
+    {"name": "reservation.exchange", "vhost": "/", "type": "direct", "durable": true, "auto_delete": false, "internal": false, "arguments": {}},
+    {"name": "product.exchange", "vhost": "/", "type": "direct", "durable": true, "auto_delete": false, "internal": false, "arguments": {}},
+    {"name": "product.dlt.exchange", "vhost": "/", "type": "direct", "durable": true, "auto_delete": false, "internal": false, "arguments": {}}
+  ],
+  "queues": [
+    {"name": "inventory.queue", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {}},
+    {"name": "reservation.queue", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {}},
+    {"name": "product.queue", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {}},
+    {"name": "product.dlt.queue", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {}}
+  ],
+  "bindings": [
+    {"source": "inventory.exchange", "vhost": "/", "destination": "inventory.queue", "destination_type": "queue", "routing_key": "", "arguments": {}},
+    {"source": "reservation.exchange", "vhost": "/", "destination": "reservation.queue", "destination_type": "queue", "routing_key": "", "arguments": {}},
+    {"source": "product.exchange", "vhost": "/", "destination": "product.queue", "destination_type": "queue", "routing_key": "", "arguments": {}},
+    {"source": "product.dlt.exchange", "vhost": "/", "destination": "product.dlt.queue", "destination_type": "queue", "routing_key": "", "arguments": {}}
+  ]
+}
