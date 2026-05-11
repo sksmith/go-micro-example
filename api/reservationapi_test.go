@@ -93,7 +93,7 @@ func TestReservationGet(t *testing.T) {
 		getReservationFunc func(ctx context.Context, ID uint64) (inventory.Reservation, error)
 		ID                 string
 		wantResponse       *api.ReservationResponse
-		wantErr            *api.ErrResponse
+		wantErr            *api.Problem
 		wantStatusCode     int
 	}{
 		{
@@ -111,7 +111,7 @@ func TestReservationGet(t *testing.T) {
 			},
 			ID:             "1",
 			wantResponse:   nil,
-			wantErr:        api.ErrNotFound,
+			wantErr:        api.NotFoundProblem(),
 			wantStatusCode: http.StatusNotFound,
 		},
 		{
@@ -120,7 +120,7 @@ func TestReservationGet(t *testing.T) {
 			},
 			ID:             "1",
 			wantResponse:   nil,
-			wantErr:        api.ErrInternalServer,
+			wantErr:        api.InternalServerProblem(nil),
 			wantStatusCode: http.StatusInternalServerError,
 		},
 	}
@@ -146,14 +146,14 @@ func TestReservationGet(t *testing.T) {
 				t.Errorf("reservation\n got=%+v\nwant=%+v", got, *test.wantResponse)
 			}
 		} else {
-			got := &api.ErrResponse{}
+			got := &api.Problem{}
 			testutil.Unmarshal(res, got, t)
 
-			if got.StatusText != test.wantErr.StatusText {
-				t.Errorf("status text got=%s want=%s", got.StatusText, test.wantErr.StatusText)
+			if got.Title != test.wantErr.Title {
+				t.Errorf("status text got=%s want=%s", got.Title, test.wantErr.Title)
 			}
-			if got.ErrorText != test.wantErr.ErrorText {
-				t.Errorf("error text got=%s want=%s", got.ErrorText, test.wantErr.ErrorText)
+			if got.Detail != test.wantErr.Detail {
+				t.Errorf("error text got=%s want=%s", got.Detail, test.wantErr.Detail)
 			}
 		}
 	}
@@ -194,7 +194,7 @@ func TestReservationCreate(t *testing.T) {
 		reserveFunc    func(ctx context.Context, rr inventory.ReservationRequest) (inventory.Reservation, error)
 		request        *api.ReservationRequest
 		wantResponse   *api.ReservationResponse
-		wantErr        *api.ErrResponse
+		wantErr        *api.Problem
 		wantStatusCode int
 	}{
 		{
@@ -212,7 +212,7 @@ func TestReservationCreate(t *testing.T) {
 			},
 			request:        createReservationRequest("requestid1", "requester1", "sku1", 1),
 			wantResponse:   nil,
-			wantErr:        api.ErrNotFound,
+			wantErr:        api.NotFoundProblem(),
 			wantStatusCode: http.StatusNotFound,
 		},
 		{
@@ -221,7 +221,7 @@ func TestReservationCreate(t *testing.T) {
 			},
 			request:        createReservationRequest("requestid1", "requester1", "sku1", 1),
 			wantResponse:   nil,
-			wantErr:        api.ErrInternalServer,
+			wantErr:        api.InternalServerProblem(nil),
 			wantStatusCode: http.StatusInternalServerError,
 		},
 	}
@@ -244,14 +244,14 @@ func TestReservationCreate(t *testing.T) {
 				t.Errorf("reservation\n got=%+v\nwant=%+v", got, *test.wantResponse)
 			}
 		} else {
-			got := &api.ErrResponse{}
+			got := &api.Problem{}
 			testutil.Unmarshal(res, got, t)
 
-			if got.StatusText != test.wantErr.StatusText {
-				t.Errorf("status text got=%s want=%s", got.StatusText, test.wantErr.StatusText)
+			if got.Title != test.wantErr.Title {
+				t.Errorf("status text got=%s want=%s", got.Title, test.wantErr.Title)
 			}
-			if got.ErrorText != test.wantErr.ErrorText {
-				t.Errorf("error text got=%s want=%s", got.ErrorText, test.wantErr.ErrorText)
+			if got.Detail != test.wantErr.Detail {
+				t.Errorf("error text got=%s want=%s", got.Detail, test.wantErr.Detail)
 			}
 		}
 	}
@@ -321,7 +321,7 @@ func TestReservationList(t *testing.T) {
 		{
 			getReservationsFunc: nil,
 			url:                 ts.URL + "?state=SomeInvalidState",
-			wantResponse:        api.BadRequestResponse(errors.New("invalid state")),
+			wantResponse:        api.BadRequestProblem(errors.New("invalid state")),
 			wantStatusCode:      http.StatusBadRequest,
 		},
 		{
@@ -329,7 +329,7 @@ func TestReservationList(t *testing.T) {
 				return []inventory.Reservation{}, core.ErrNotFound
 			},
 			url:            ts.URL,
-			wantResponse:   api.ErrNotFound,
+			wantResponse:   api.NotFoundProblem(),
 			wantStatusCode: http.StatusNotFound,
 		},
 		{
@@ -345,7 +345,7 @@ func TestReservationList(t *testing.T) {
 				return []inventory.Reservation{}, errors.New("some unexpected error")
 			},
 			url:            ts.URL,
-			wantResponse:   api.ErrInternalServer,
+			wantResponse:   api.InternalServerProblem(nil),
 			wantStatusCode: http.StatusInternalServerError,
 		},
 	}
@@ -366,15 +366,15 @@ func TestReservationList(t *testing.T) {
 			test.wantStatusCode == http.StatusInternalServerError ||
 			test.wantStatusCode == http.StatusNotFound {
 
-			want := test.wantResponse.(*api.ErrResponse)
-			got := &api.ErrResponse{}
+			want := test.wantResponse.(*api.Problem)
+			got := &api.Problem{}
 			testutil.Unmarshal(res, got, t)
 
-			if got.StatusText != want.StatusText {
-				t.Errorf("status text got=%s want=%s", got.StatusText, want.StatusText)
+			if got.Title != want.Title {
+				t.Errorf("status text got=%s want=%s", got.Title, want.Title)
 			}
-			if got.ErrorText != want.ErrorText {
-				t.Errorf("error text got=%s want=%s", got.ErrorText, want.ErrorText)
+			if got.Detail != want.Detail {
+				t.Errorf("error text got=%s want=%s", got.Detail, want.Detail)
 			}
 		} else {
 			want := test.wantResponse.([]api.ReservationResponse)

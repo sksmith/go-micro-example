@@ -78,7 +78,7 @@ func TestUserCreate(t *testing.T) {
 			},
 			url:            ts.URL,
 			request:        createUserReq("someuser", "somepass", false),
-			wantResponse:   api.ErrInternalServer,
+			wantResponse:   api.InternalServerProblem(nil),
 			wantStatusCode: http.StatusInternalServerError,
 		},
 	}
@@ -97,15 +97,15 @@ func TestUserCreate(t *testing.T) {
 				test.wantStatusCode == http.StatusInternalServerError ||
 				test.wantStatusCode == http.StatusNotFound {
 
-				want := test.wantResponse.(*api.ErrResponse)
-				got := &api.ErrResponse{}
+				want := test.wantResponse.(*api.Problem)
+				got := &api.Problem{}
 				testutil.Unmarshal(res, got, t)
 
-				if got.StatusText != want.StatusText {
-					t.Errorf("status text got=%s want=%s", got.StatusText, want.StatusText)
+				if got.Title != want.Title {
+					t.Errorf("status text got=%s want=%s", got.Title, want.Title)
 				}
-				if got.ErrorText != want.ErrorText {
-					t.Errorf("error text got=%s want=%s", got.ErrorText, want.ErrorText)
+				if got.Detail != want.Detail {
+					t.Errorf("error text got=%s want=%s", got.Detail, want.Detail)
 				}
 			}
 		})

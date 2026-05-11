@@ -128,13 +128,33 @@ A grep for `log.Err(` should return nothing in non-test code.
 
 ## Error response builders
 
-API helpers that *build* an `*ErrResponse` are named after the
-HTTP status, not with an `Err` prefix:
+API error responses conform to RFC 7807 (`application/problem+json`).
+The on-the-wire shape is `api.Problem`:
 
-- `BadRequestResponse(err)` — 400
-- `ErrInternalServer` — 500 (a static `*ErrResponse` value,
-  legitimately `Err`-prefixed because it's a sentinel response)
-- `ErrNotFound` — 404 (same)
+```json
+{
+  "type": "about:blank",
+  "title": "Bad Request",
+  "status": 400,
+  "detail": "sku is required",
+  "instance": "/api/v1/inventory/",
+  "errors": [{"field": "sku", "detail": "required"}]
+}
+```
+
+Constructors live in [api/errordto.go](../api/errordto.go) and are
+named after the HTTP status, not with an `Err` prefix:
+
+- `BadRequestProblem(err)` — 400 with `detail = err.Error()`.
+- `ValidationProblem(fields...)` — 400 with `errors[]` extension.
+- `NotFoundProblem()` — 404.
+- `InternalServerProblem(err)` — 500. The underlying `err` is
+  retained on `Problem.Err` for logging only; it is **never**
+  serialized in `detail`.
+
+Route every problem through `api.Render(w, r, problem)` so the
+`application/problem+json` content type isn't overwritten by
+`go-chi/render`'s JSON responder.
 
 `Err`-prefixed identifiers should be sentinel error *values*, not
 functions, so that `errors.Is(x, ErrFoo)` is the only thing

@@ -84,6 +84,10 @@ func ConfigureRouter(cfg *config.Config, invSvc InventoryService, resSvc Reserva
 }
 
 func Render(w http.ResponseWriter, r *http.Request, rnd render.Renderer) {
+	if p, ok := rnd.(*Problem); ok {
+		p.WriteTo(w, r)
+		return
+	}
 	if err := render.Render(w, r, rnd); err != nil {
 		log.Ctx(r.Context()).Warn().Err(err).Msg("failed to render")
 	}

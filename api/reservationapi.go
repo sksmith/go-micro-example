@@ -59,7 +59,7 @@ func (a *ReservationApi) Subscribe(w http.ResponseWriter, r *http.Request) {
 	conn, _, _, err := ws.UpgradeHTTP(r, w)
 	if err != nil {
 		log.Ctx(r.Context()).Error().Err(err).Msg("failed to establish reservation subscription connection")
-		Render(w, r, ErrInternalServer)
+		Render(w, r, InternalServerProblem(err))
 		return
 	}
 	go func() {
@@ -102,7 +102,7 @@ func (a *ReservationApi) Get(w http.ResponseWriter, r *http.Request) {
 func (a *ReservationApi) Create(w http.ResponseWriter, r *http.Request) {
 	data := &ReservationRequest{}
 	if err := render.Bind(r, data); err != nil {
-		Render(w, r, BadRequestResponse(err))
+		Render(w, r, BadRequestProblem(err))
 		return
 	}
 
@@ -111,12 +111,12 @@ func (a *ReservationApi) Create(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch {
 		case errors.Is(err, core.ErrNotFound):
-			Render(w, r, ErrNotFound)
+			Render(w, r, NotFoundProblem())
 		case errors.Is(err, inventory.ErrInvalidInput):
-			Render(w, r, BadRequestResponse(err))
+			Render(w, r, BadRequestProblem(err))
 		default:
 			log.Ctx(r.Context()).Error().Err(err).Interface("reservationRequest", data).Msg("failed to reserve")
-			Render(w, r, ErrInternalServer)
+			Render(w, r, InternalServerProblem(err))
 		}
 		return
 	}
@@ -136,14 +136,14 @@ func (a *ReservationApi) ReservationCtx(next http.Handler) http.Handler {
 
 		IDStr := chi.URLParam(r, "ID")
 		if IDStr == "" {
-			Render(w, r, BadRequestResponse(errors.New("reservation id is required")))
+			Render(w, r, BadRequestProblem(errors.New("reservation id is required")))
 			return
 		}
 
 		ID, err := strconv.ParseUint(IDStr, 10, 64)
 		if err != nil {
 			log.Ctx(r.Context()).Error().Err(err).Str("ID", IDStr).Msg("invalid reservation id")
-			Render(w, r, BadRequestResponse(errors.New("invalid reservation id")))
+			Render(w, r, BadRequestProblem(errors.New("invalid reservation id")))
 			return
 		}
 
@@ -151,10 +151,10 @@ func (a *ReservationApi) ReservationCtx(next http.Handler) http.Handler {
 
 		if err != nil {
 			if errors.Is(err, core.ErrNotFound) {
-				Render(w, r, ErrNotFound)
+				Render(w, r, NotFoundProblem())
 			} else {
 				log.Ctx(r.Context()).Error().Err(err).Str("id", IDStr).Msg("error acquiring product")
-				Render(w, r, ErrInternalServer)
+				Render(w, r, InternalServerProblem(err))
 			}
 			return
 		}
@@ -172,7 +172,7 @@ func (a *ReservationApi) List(w http.ResponseWriter, r *http.Request) {
 
 	state, err := inventory.ParseReserveState(r.URL.Query().Get("state"))
 	if err != nil {
-		Render(w, r, BadRequestResponse(errors.New("invalid state")))
+		Render(w, r, BadRequestProblem(errors.New("invalid state")))
 		return
 	}
 
@@ -180,10 +180,10 @@ func (a *ReservationApi) List(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		if errors.Is(err, core.ErrNotFound) {
-			Render(w, r, ErrNotFound)
+			Render(w, r, NotFoundProblem())
 		} else {
 			log.Ctx(r.Context()).Error().Err(err).Str("sku", sku).Str("state", string(state)).Msg("failed to list reservations")
-			Render(w, r, ErrInternalServer)
+			Render(w, r, InternalServerProblem(err))
 		}
 		return
 	}

@@ -34,7 +34,7 @@ func (a *UserApi) Create(w http.ResponseWriter, r *http.Request) {
 	data := &CreateUserRequestDto{}
 	if err := render.Bind(r, data); err != nil {
 		log.Ctx(r.Context()).Error().Err(err).Msg("failed to bind create-user request")
-		Render(w, r, BadRequestResponse(err))
+		Render(w, r, BadRequestProblem(err))
 		return
 	}
 
@@ -42,11 +42,11 @@ func (a *UserApi) Create(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		if errors.Is(err, user.ErrInvalidInput) {
-			Render(w, r, BadRequestResponse(err))
+			Render(w, r, BadRequestProblem(err))
 			return
 		}
 		log.Ctx(r.Context()).Error().Err(err).Str("username", data.Username).Msg("failed to create user")
-		Render(w, r, ErrInternalServer)
+		Render(w, r, InternalServerProblem(err))
 		return
 	}
 }
