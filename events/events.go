@@ -48,6 +48,8 @@ const (
 	TypeProductInventoryChanged = "inventory.product_inventory_changed"
 	TypeReservationChanged      = "inventory.reservation_changed"
 	TypeProductCreated          = "inventory.product_created"
+	TypeProductQuantityChanged  = "inventory.product_quantity_changed"
+	TypeRecordProduction        = "inventory.record_production"
 )
 
 // Envelope is the RFC 7807-flavored common shape that wraps every

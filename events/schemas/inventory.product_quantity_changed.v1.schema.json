@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/sksmith/go-micro-example/events/schemas/inventory.product_quantity_changed.v1.schema.json",
+  "title": "inventory.product_quantity_changed v1",
+  "description": "Emitted when the available quantity for a SKU changes (production, reservation fill, etc.). DSN-016 Kafka outbound.",
+  "type": "object",
+  "required": ["sku", "available"],
+  "properties": {
+    "sku": {"type": "string", "minLength": 1},
+    "available": {"type": "integer"}
+  }
+}

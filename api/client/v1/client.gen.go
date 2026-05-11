@@ -89,6 +89,7 @@ type ApiEnvResponse struct {
 	Config      *ConfigConfigSource `json:"config,omitempty"`
 	Db          *ConfigDbConfig     `json:"db,omitempty"`
 	Docs        *ConfigDocsConfig   `json:"docs,omitempty"`
+	Kafka       *ConfigKafkaConfig  `json:"kafka,omitempty"`
 	Log         *ConfigLogConfig    `json:"log,omitempty"`
 	Port        *ConfigStringConfig `json:"port,omitempty"`
 	Profile     *ConfigStringConfig `json:"profile,omitempty"`
@@ -208,6 +209,16 @@ type ConfigIntConfig struct {
 type ConfigInventoryQueueConfig struct {
 	Description *string             `json:"description,omitempty"`
 	Exchange    *ConfigStringConfig `json:"exchange,omitempty"`
+}
+
+// ConfigKafkaConfig defines model for config.KafkaConfig.
+type ConfigKafkaConfig struct {
+	Brokers       *ConfigStringConfig `json:"brokers,omitempty"`
+	CommandsTopic *ConfigStringConfig `json:"commandsTopic,omitempty"`
+	ConsumerGroup *ConfigStringConfig `json:"consumerGroup,omitempty"`
+	Description   *string             `json:"description,omitempty"`
+	DltTopic      *ConfigStringConfig `json:"dltTopic,omitempty"`
+	EventsTopic   *ConfigStringConfig `json:"eventsTopic,omitempty"`
 }
 
 // ConfigLogConfig defines model for config.LogConfig.

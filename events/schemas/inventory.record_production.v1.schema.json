@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/sksmith/go-micro-example/events/schemas/inventory.record_production.v1.schema.json",
+  "title": "inventory.record_production v1",
+  "description": "Command instructing the inventory service to record a production event for a SKU. DSN-016 Kafka inbound.",
+  "type": "object",
+  "required": ["sku", "requestId", "quantity"],
+  "properties": {
+    "sku": {"type": "string", "minLength": 1},
+    "requestId": {"type": "string", "minLength": 1},
+    "quantity": {"type": "integer", "minimum": 1}
+  }
+}

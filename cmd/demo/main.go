@@ -52,17 +52,27 @@ type Config struct {
 	Deadline       time.Duration
 	PerStepTimeout time.Duration
 	PollInterval   time.Duration
+
+	// DSN-016 Kafka step. Empty Brokers skips the step gracefully.
+	KafkaBrokers       string
+	KafkaCommandsTopic string
+	KafkaEventsTopic   string
+	KafkaDemoGroup     string
 }
 
 func loadConfig() Config {
 	return Config{
-		BaseURL:        envOr("DEMO_BASE_URL", "http://localhost:8080"),
-		ReadyPath:      envOr("DEMO_READY_PATH", "/ready"),
-		AdminUser:      envOr("DEMO_ADMIN_USER", "admin"),
-		AdminPass:      envOr("DEMO_ADMIN_PASS", "admin"),
-		Deadline:       envDuration("DEMO_DEADLINE", 90*time.Second),
-		PerStepTimeout: envDuration("DEMO_STEP_TIMEOUT", 10*time.Second),
-		PollInterval:   envDuration("DEMO_POLL_INTERVAL", 2*time.Second),
+		BaseURL:            envOr("DEMO_BASE_URL", "http://localhost:8080"),
+		ReadyPath:          envOr("DEMO_READY_PATH", "/ready"),
+		AdminUser:          envOr("DEMO_ADMIN_USER", "admin"),
+		AdminPass:          envOr("DEMO_ADMIN_PASS", "admin"),
+		Deadline:           envDuration("DEMO_DEADLINE", 90*time.Second),
+		PerStepTimeout:     envDuration("DEMO_STEP_TIMEOUT", 15*time.Second),
+		PollInterval:       envDuration("DEMO_POLL_INTERVAL", 2*time.Second),
+		KafkaBrokers:       envOr("DEMO_KAFKA_BROKERS", ""),
+		KafkaCommandsTopic: envOr("DEMO_KAFKA_COMMANDS_TOPIC", "inventory.commands.v1"),
+		KafkaEventsTopic:   envOr("DEMO_KAFKA_EVENTS_TOPIC", "inventory.product-quantity-changed.v1"),
+		KafkaDemoGroup:     envOr("DEMO_KAFKA_DEMO_GROUP", "demo-watcher"),
 	}
 }
 

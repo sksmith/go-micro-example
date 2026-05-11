@@ -30,6 +30,20 @@ func NewService(repo Repository, q InventoryQueue) *service {
 	}
 }
 
+// EventEmitter is the optional Kafka-side notifier wired by cmd/main.go
+// when a broker is configured (DSN-016). The service runs unchanged
+// when the emitter is nil — Kafka is parallel to AMQP, not a
+// replacement for it.
+type EventEmitter interface {
+	EmitProductQuantityChanged(ctx context.Context, sku string, available int64) error
+}
+
+// SetEventEmitter swaps in the optional Kafka emitter. Passing nil
+// disables Kafka publishing.
+func (s *service) SetEventEmitter(e EventEmitter) {
+	s.emitter = e
+}
+
 type InventorySubID string
 type ReservationsSubID string
 
@@ -41,6 +55,7 @@ type GetReservationsOptions struct {
 type service struct {
 	repo            Repository
 	queue           InventoryQueue
+	emitter         EventEmitter
 	subsMu          sync.Mutex
 	inventorySubs   map[InventorySubID]chan<- ProductInventory
 	reservationSubs map[ReservationsSubID]chan<- Reservation
@@ -442,6 +457,15 @@ func (s *service) publishInventory(ctx context.Context, pi ProductInventory) err
 	err := s.queue.PublishInventory(ctx, pi)
 	if err != nil {
 		return fmt.Errorf("failed to publish inventory to queue: %w", err)
+	}
+	if s.emitter != nil {
+		if emitErr := s.emitter.EmitProductQuantityChanged(ctx, pi.Sku, pi.Available); emitErr != nil {
+			// Kafka emission is best-effort alongside AMQP. The
+			// authoritative state is committed; downstream Kafka
+			// consumers will re-sync on the next change. Log and
+			// move on rather than fail the write path.
+			log.Ctx(ctx).Warn().Err(emitErr).Str("sku", pi.Sku).Msg("kafka emit failed; AMQP write succeeded")
+		}
 	}
 	go s.notifyInventorySubscribers(pi)
 	return nil

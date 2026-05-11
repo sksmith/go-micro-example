@@ -30,6 +30,11 @@ var Steps = []Step{
 		Name:       "REST create + read via generated client",
 		Run:        runRESTRoundTrip,
 	},
+	{
+		Capability: "DSN-016",
+		Name:       "Kafka command → product_quantity_changed event",
+		Run:        runKafkaRoundTrip,
+	},
 }
 
 // runRESTRoundTrip exchanges admin Basic credentials for a JWT,
