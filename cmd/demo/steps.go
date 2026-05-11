@@ -35,6 +35,11 @@ var Steps = []Step{
 		Name:       "Kafka command → product_quantity_changed event",
 		Run:        runKafkaRoundTrip,
 	},
+	{
+		Capability: "DSN-017",
+		Name:       "Duplicate Kafka command applied exactly once",
+		Run:        runKafkaDuplicateReplay,
+	},
 }
 
 // runRESTRoundTrip exchanges admin Basic credentials for a JWT,

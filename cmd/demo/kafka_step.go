@@ -119,13 +119,18 @@ func runKafkaRoundTrip(ctx context.Context, cfg Config) (string, error) {
 }
 
 // createProduct is the small REST helper the Kafka step uses to seed
-// a SKU before publishing its command. The bulk of REST-via-client
-// validation lives in runRESTRoundTrip; this is just plumbing.
+// a SKU before publishing its command. UPC is derived from the SKU
+// so concurrent demo steps don't collide on the products_upc_key
+// unique constraint.
 func createProduct(ctx context.Context, cfg Config, tok, sku string) error {
 	type product struct {
 		Sku  string `json:"sku"`
 		Upc  string `json:"upc"`
 		Name string `json:"name"`
 	}
-	return restPut(ctx, cfg, tok, cfg.BaseURL+"/api/v1/inventory", product{Sku: sku, Upc: "kafka-upc", Name: "Kafka demo SKU"})
+	return restPut(ctx, cfg, tok, cfg.BaseURL+"/api/v1/inventory", product{
+		Sku:  sku,
+		Upc:  "upc-" + sku,
+		Name: "demo SKU " + sku,
+	})
 }
