@@ -37,6 +37,8 @@ import (
 	"github.com/sksmith/go-micro-example/db"
 	"github.com/sksmith/go-micro-example/db/invrepo"
 	"github.com/sksmith/go-micro-example/db/usrrepo"
+	"github.com/sksmith/go-micro-example/events"
+	"github.com/sksmith/go-micro-example/idempotency"
 	gmekafka "github.com/sksmith/go-micro-example/kafka"
 	"github.com/sksmith/go-micro-example/queue"
 
@@ -126,7 +128,7 @@ func main() {
 	// runs cleanly without a Kafka broker.
 	kafkaCleanup := func() {}
 	if cfg.Kafka.Brokers.Value != "" {
-		kafkaCleanup = startKafka(ctx, cfg, invService)
+		kafkaCleanup = startKafka(ctx, cfg, invService, dbPool)
 	}
 	defer kafkaCleanup()
 
@@ -176,7 +178,12 @@ type kafkaInventoryService interface {
 // returns a cleanup function the caller defers. The consumer runs in
 // its own goroutine and exits when ctx is canceled; cleanup waits for
 // that exit so an in-flight handler doesn't get clipped.
-func startKafka(ctx context.Context, cfg *config.Config, invService kafkaInventoryService) func() {
+//
+// The handler is wrapped with the DSN-017 idempotency Applier so a
+// redelivered Kafka message — common after rebalances — does not
+// double-apply its side effects. A background retention job prunes
+// processed_events rows older than the retention window.
+func startKafka(ctx context.Context, cfg *config.Config, invService kafkaInventoryService, pool *pgxpool.Pool) func() {
 	brokers := strings.Split(cfg.Kafka.Brokers.Value, ",")
 	prod, err := gmekafka.NewProducer(brokers, cfg.Kafka.EventsTopic.Value)
 	if err != nil {
@@ -185,12 +192,16 @@ func startKafka(ctx context.Context, cfg *config.Config, invService kafkaInvento
 	}
 	invService.SetEventEmitter(&gmekafka.InventoryEmitter{Producer: prod})
 
+	applier := idempotency.NewApplier(pool, cfg.Kafka.ConsumerGroup.Value)
+	inner := &gmekafka.InventoryCommandHandler{Service: invService}
+	handler := idempotentHandler{applier: applier, inner: inner}
+
 	consumer, err := gmekafka.NewConsumer(gmekafka.ConsumerConfig{
 		Brokers:  brokers,
 		Topic:    cfg.Kafka.CommandsTopic.Value,
 		DLTTopic: cfg.Kafka.DltTopic.Value,
 		Group:    cfg.Kafka.ConsumerGroup.Value,
-		Handler:  &gmekafka.InventoryCommandHandler{Service: invService},
+		Handler:  handler,
 	})
 	if err != nil {
 		log.Error().Err(err).Msg("kafka consumer init failed; producer still active")
@@ -205,11 +216,34 @@ func startKafka(ctx context.Context, cfg *config.Config, invService kafkaInvento
 		}
 	}()
 
+	cleanupDone := make(chan struct{})
+	go func() {
+		defer close(cleanupDone)
+		applier.Cleanup(ctx, time.Hour, 30*24*time.Hour)
+	}()
+
 	return func() {
 		<-done
+		<-cleanupDone
 		consumer.Close()
 		prod.Close()
 	}
+}
+
+// idempotentHandler wraps a gmekafka.Handler with the idempotency
+// Applier so each (event_id, consumer_group) pair runs at most once.
+// Returning the inner handler's error preserves DSN-016's bounded
+// retry → DLT path; the dedupe row only commits when the inner
+// handler returns nil.
+type idempotentHandler struct {
+	applier *idempotency.Applier
+	inner   gmekafka.Handler
+}
+
+func (h idempotentHandler) Handle(ctx context.Context, env events.Envelope) error {
+	return h.applier.Apply(ctx, env.EventID, func(ctx context.Context) error {
+		return h.inner.Handle(ctx, env)
+	})
 }
 
 // shutdown runs the ordered teardown after a SIGTERM / SIGINT:

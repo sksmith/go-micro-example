@@ -62,10 +62,15 @@ Wire-level details:
   backoff). On exhaustion the message is republished to
   `inventory.commands.v1.dlt` with an `x-dlt-reason` header and the
   offset is committed so the consumer doesn't get stuck.
-- **At-least-once semantics**: offsets commit only after the handler
-  succeeds, but rebalance-induced redelivery is possible. DSN-017
-  wraps the handler with a dedupe table to give exactly-once
-  side-effects.
+- **At-least-once delivery, at-most-once handler invocation**: the
+  Kafka consumer commits offsets only after the handler succeeds, so
+  a crash mid-handler causes redelivery. DSN-017 wraps the handler
+  with the [`idempotency`](../idempotency) package's `Applier`: each
+  message's `event_id` is recorded in `processed_events` before the
+  handler runs. A redelivery hits the unique constraint on
+  `(event_id, consumer_group)`, rowcount=0, and the handler is
+  skipped. On handler error the dedupe row is removed so the next
+  delivery can re-attempt.
 - **Prometheus counters**: `kafka_events_produced_total`,
   `kafka_events_consumed_total`, `kafka_events_failed_total`,
   `kafka_events_dlt_total`.
@@ -73,6 +78,41 @@ Wire-level details:
 The Kafka path is gated by `kafka.brokers`. Leave it empty
 (`GME_KAFKA_BROKERS=""`) to run the service without Kafka — the
 AMQP path keeps working unchanged.
+
+### Consumer guarantees (DSN-017)
+
+**What the consumer guarantees:**
+
+- The handler runs **at most once per `(event_id, consumer_group)` pair**
+  under normal operation. Redeliveries — rebalance churn, request
+  retries from upstream, manual replay — are dropped at the door.
+- On handler error the dedupe row is removed so the next delivery can
+  re-attempt cleanly.
+- Two independent consumer groups can each apply the same event once
+  (the dedupe key is per-group).
+
+**What the consumer does NOT guarantee:**
+
+- Atomicity between dedupe row and handler side effects. The dedupe
+  row commits BEFORE the handler runs (not inside the same
+  transaction), so a process crash AFTER INSERT but BEFORE the
+  rollback-on-error DELETE leaves a stuck row that skips the next
+  retry. This is a deliberate trade-off — co-transactional dedupe
+  would require threading a transaction through every service method
+  the handler touches. If you need that guarantee, push the
+  idempotency check INTO the service (use `event_id` as part of the
+  business-level uniqueness key, like `request_id` on the inventory
+  service's `Produce` method).
+- Ordering across partitions or across topics. Kafka guarantees order
+  within a partition; the dedupe layer doesn't change that.
+- Replay correctness for handlers with side effects **outside**
+  Postgres. The Applier only records the dedupe row — external HTTP
+  calls, file writes, etc. happen exactly as many times as the
+  handler runs.
+- Indefinite retention. `processed_events` rows older than the
+  retention window (default 30 days) are pruned by a background
+  goroutine started alongside the consumer. Events redelivered after
+  the retention window are NOT recognized as duplicates.
 
 ## Compatibility policy
 
