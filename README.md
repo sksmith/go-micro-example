@@ -135,6 +135,41 @@ The TS step shells out to `npx openapi-typescript@7` — it needs Node
 locally and is intentionally out of CI's Go-only matrix. Reviewers spot
 TS drift by hand for now.
 
+### Outbound REST client (catalog)
+
+The inventory `GET /api/v1/inventory/{sku}` response is optionally
+enriched by an outbound call to a stub "catalog" upstream
+([core/catalog](core/catalog/client.go), DSN-018). The client wraps
+`*http.Client` with explicit timeouts, bounded retries with
+exponential backoff + jitter (5xx and transport errors only — 4xx is
+treated as a non-recoverable caller bug), `otelhttp.Transport` for
+trace propagation, and `X-Request-Id` header injection from the
+inbound request's correlation context (DSN-005).
+
+The upstream itself is a tiny stub at
+[cmd/stub-catalog](cmd/stub-catalog/main.go) wired into
+[docker-compose.yml](docker-compose.yml); the `make demo` orchestrator
+hits the enriched endpoint and asserts the catalog block is present.
+
+Catalog failures degrade gracefully: a timeout, 5xx-after-retries,
+404, or upstream outage leaves the inventory response intact — the
+`catalog` JSON field is simply omitted. Enrichment is best-effort,
+never a hard dependency of the request.
+
+Config (env vars):
+
+| env var | default | meaning |
+| --- | --- | --- |
+| `GME_CATALOG_BASEURL` | empty | Catalog base URL. Empty disables the client entirely. |
+| `GME_CATALOG_TIMEOUTMS` | `3000` | Total deadline for one Lookup including retries. |
+| `GME_CATALOG_PERATTEMPTMS` | `1000` | Per-attempt HTTP timeout. |
+| `GME_CATALOG_MAXATTEMPTS` | `3` | Total attempts (1 initial + N-1 retries). |
+
+Prometheus metrics emitted by the client:
+`catalog_client_requests_total{outcome}`,
+`catalog_client_retries_total`, `catalog_client_failures_total`,
+`catalog_client_lookup_duration_ms`.
+
 ### Authentication
 
 Endpoints under `/api/v1` are protected by the

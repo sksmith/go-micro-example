@@ -12,6 +12,7 @@ import (
 	"github.com/gobwas/ws/wsutil"
 	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/core"
+	"github.com/sksmith/go-micro-example/core/catalog"
 	"github.com/sksmith/go-micro-example/core/inventory"
 )
 
@@ -29,10 +30,20 @@ type InventoryService interface {
 
 type InventoryApi struct {
 	service InventoryService
+	catalog catalog.Client
 }
 
 func NewInventoryApi(service InventoryService) *InventoryApi {
 	return &InventoryApi{service: service}
+}
+
+// SetCatalog installs the optional outbound catalog client (DSN-018).
+// When set, GetProductInventory enriches its response with the
+// upstream's description/category. A nil argument disables enrichment.
+// Failures from the catalog are logged and dropped — enrichment is
+// best-effort, never a hard dependency of the request.
+func (a *InventoryApi) SetCatalog(c catalog.Client) {
+	a.catalog = c
 }
 
 const (
@@ -253,6 +264,25 @@ func (a *InventoryApi) GetProductInventory(w http.ResponseWriter, r *http.Reques
 	}
 
 	resp := &ProductResponse{ProductInventory: res}
+	resp.Catalog = a.lookupCatalog(r, product.Sku)
 	render.Status(r, http.StatusOK)
 	Render(w, r, resp)
+}
+
+// lookupCatalog runs the optional outbound enrichment (DSN-018). The
+// catalog client is intentionally best-effort: missing data, 404s,
+// upstream errors, and timeouts all fall through to a nil result so
+// the inventory response still returns to the caller.
+func (a *InventoryApi) lookupCatalog(r *http.Request, sku string) *CatalogInfo {
+	if a.catalog == nil {
+		return nil
+	}
+	p, err := a.catalog.Lookup(r.Context(), sku)
+	if err != nil {
+		if !errors.Is(err, catalog.ErrNotFound) {
+			log.Ctx(r.Context()).Warn().Err(err).Str("sku", sku).Msg("catalog enrichment failed; serving unenriched response")
+		}
+		return nil
+	}
+	return &CatalogInfo{Description: p.Description, Category: p.Category}
 }

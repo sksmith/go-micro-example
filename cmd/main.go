@@ -30,6 +30,7 @@ import (
 	"github.com/sksmith/go-micro-example/api"
 	"github.com/sksmith/go-micro-example/config"
 	"github.com/sksmith/go-micro-example/core/auth"
+	"github.com/sksmith/go-micro-example/core/catalog"
 	"github.com/sksmith/go-micro-example/core/inventory"
 	"github.com/sksmith/go-micro-example/core/observability"
 	"github.com/sksmith/go-micro-example/core/secrets"
@@ -119,7 +120,8 @@ func main() {
 	// absent — the queue subsystem doesn't yet expose a non-blocking
 	// connectivity check; tracked alongside TST-003.
 	readinessDeps := map[string]api.Pinger{"db": dbPool}
-	r := api.ConfigureRouter(cfg, invService, invService, userService, signer, readinessDeps)
+	catalogClient := buildCatalogClient(cfg)
+	r := api.ConfigureRouter(cfg, invService, invService, userService, signer, readinessDeps, catalogClient)
 
 	_ = queue.NewProductQueue(ctx, cfg, invService)
 
@@ -162,6 +164,31 @@ func main() {
 	}
 
 	shutdown(srv, dbPool, tracingShutdown)
+}
+
+// buildCatalogClient constructs the outbound REST client for the
+// upstream catalog service (DSN-018). An empty catalog.baseUrl
+// disables the client — the inventory API then serves unenriched
+// responses. Construction errors are logged and the function returns
+// nil rather than failing startup: enrichment is best-effort and a
+// misconfigured upstream shouldn't take the whole service offline.
+func buildCatalogClient(cfg *config.Config) catalog.Client {
+	if cfg.Catalog.BaseURL.Value == "" {
+		log.Info().Msg("catalog client disabled (catalog.baseUrl empty)")
+		return nil
+	}
+	c, err := catalog.NewHTTPClient(catalog.Config{
+		BaseURL:           cfg.Catalog.BaseURL.Value,
+		Timeout:           time.Duration(cfg.Catalog.Timeout.Value) * time.Millisecond,
+		PerAttemptTimeout: time.Duration(cfg.Catalog.PerAttemptTimeout.Value) * time.Millisecond,
+		MaxAttempts:       int(cfg.Catalog.MaxAttempts.Value),
+	})
+	if err != nil {
+		log.Error().Err(err).Msg("catalog client init failed; continuing without enrichment")
+		return nil
+	}
+	log.Info().Str("baseUrl", cfg.Catalog.BaseURL.Value).Msg("catalog client ready")
+	return c
 }
 
 // kafkaInventoryService is the surface DSN-016's startKafka needs

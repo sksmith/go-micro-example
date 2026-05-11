@@ -14,6 +14,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/config"
 	"github.com/sksmith/go-micro-example/core/auth"
+	"github.com/sksmith/go-micro-example/core/catalog"
 )
 
 const (
@@ -39,7 +40,9 @@ const (
 // readinessDeps is the map of name → Pinger that /ready checks
 // on every probe. Callers pass at minimum {"db": pgPool}; pass
 // nil for an empty map (legacy tests).
-func ConfigureRouter(cfg *config.Config, invSvc InventoryService, resSvc ReservationService, userService UserService, signer *auth.Signer, readinessDeps map[string]Pinger) chi.Router {
+// catalogClient is a nil-safe alias for the outbound catalog client
+// (DSN-018). Pass nil to leave inventory responses unenriched.
+func ConfigureRouter(cfg *config.Config, invSvc InventoryService, resSvc ReservationService, userService UserService, signer *auth.Signer, readinessDeps map[string]Pinger, catalogClient catalog.Client) chi.Router {
 	log.Info().Msg("configuring router...")
 	r := chi.NewRouter()
 
@@ -80,7 +83,9 @@ func ConfigureRouter(cfg *config.Config, invSvc InventoryService, resSvc Reserva
 	}
 
 	r.With(Authenticate(signer)).Route(ApiPath, func(r chi.Router) {
-		r.Route(InventoryPath, NewInventoryApi(invSvc).ConfigureRouter)
+		invApi := NewInventoryApi(invSvc)
+		invApi.SetCatalog(catalogClient)
+		r.Route(InventoryPath, invApi.ConfigureRouter)
 		r.Route(ReservationPath, NewReservationApi(resSvc).ConfigureRouter)
 		r.Route(UserPath, NewUserApi(userService).ConfigureRouter)
 		r.With(AdminOnly).Route(AdminPath, func(r chi.Router) {

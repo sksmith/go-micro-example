@@ -14,6 +14,7 @@ import (
 	"github.com/gobwas/ws"
 	"github.com/sksmith/go-micro-example/api"
 	"github.com/sksmith/go-micro-example/core"
+	"github.com/sksmith/go-micro-example/core/catalog"
 	"github.com/sksmith/go-micro-example/core/inventory"
 	"github.com/sksmith/go-micro-example/testutil"
 
@@ -490,6 +491,88 @@ func TestInventoryGetProductInventory(t *testing.T) {
 			}
 		}
 	}
+}
+
+// TestInventoryGetProductInventoryEnriched covers the DSN-018
+// outbound-REST enrichment path: when a catalog client is wired and
+// returns a product, the response carries the upstream description;
+// when the client returns an error, the response still succeeds
+// (catalog is best-effort) and the catalog field is omitted.
+func TestInventoryGetProductInventoryEnriched(t *testing.T) {
+	tests := []struct {
+		name        string
+		client      catalog.Client
+		wantCatalog *api.CatalogInfo
+	}{
+		{
+			name: "lookup ok adds catalog fields",
+			client: stubCatalogClient{
+				lookup: func(_ context.Context, sku string) (catalog.Product, error) {
+					return catalog.Product{Sku: sku, Description: "Widget desc", Category: "tools"}, nil
+				},
+			},
+			wantCatalog: &api.CatalogInfo{Description: "Widget desc", Category: "tools"},
+		},
+		{
+			name: "lookup error drops to unenriched response",
+			client: stubCatalogClient{
+				lookup: func(_ context.Context, _ string) (catalog.Product, error) {
+					return catalog.Product{}, errors.New("upstream down")
+				},
+			},
+			wantCatalog: nil,
+		},
+		{
+			name:        "nil client skips enrichment entirely",
+			client:      nil,
+			wantCatalog: nil,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockSvc := inventory.NewMockInventoryService()
+			invApi := api.NewInventoryApi(mockSvc)
+			invApi.SetCatalog(tc.client)
+			r := chi.NewRouter()
+			invApi.ConfigureRouter(r)
+			ts := httptest.NewServer(r)
+			defer ts.Close()
+
+			pi := getTestProductInventory()[0]
+			mockSvc.GetProductFunc = func(_ context.Context, _ string) (inventory.Product, error) {
+				return pi.Product, nil
+			}
+			mockSvc.GetProductInventoryFunc = func(_ context.Context, _ string) (inventory.ProductInventory, error) {
+				return pi, nil
+			}
+
+			res, err := http.Get(ts.URL + "/" + pi.Sku)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if res.StatusCode != http.StatusOK {
+				t.Fatalf("status=%d, want 200", res.StatusCode)
+			}
+			got := api.ProductResponse{}
+			testutil.Unmarshal(res, &got, t)
+
+			if !reflect.DeepEqual(got.Catalog, tc.wantCatalog) {
+				t.Errorf("Catalog\n got=%+v\nwant=%+v", got.Catalog, tc.wantCatalog)
+			}
+		})
+	}
+}
+
+// stubCatalogClient is the test seam for the catalog.Client surface.
+// Production code receives a *catalog.HTTPClient; the API test only
+// needs Lookup to return canned data.
+type stubCatalogClient struct {
+	lookup func(ctx context.Context, sku string) (catalog.Product, error)
+}
+
+func (s stubCatalogClient) Lookup(ctx context.Context, sku string) (catalog.Product, error) {
+	return s.lookup(ctx, sku)
 }
 
 func createProductionEventRequest(requestID string, quantity int64) *api.CreateProductionEventRequest {

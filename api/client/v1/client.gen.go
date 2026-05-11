@@ -59,6 +59,15 @@ func (e GetApiV1ReservationParamsState) Valid() bool {
 	}
 }
 
+// ApiCatalogInfo Catalog is the optional enrichment from the upstream catalog
+// service (DSN-018). Omitted when the catalog client is disabled
+// or when the upstream is unreachable — the inventory response
+// still succeeds in that case.
+type ApiCatalogInfo struct {
+	Category    *string `json:"category,omitempty"`
+	Description *string `json:"description,omitempty"`
+}
+
 // ApiCreateProductRequest defines model for api.CreateProductRequest.
 type ApiCreateProductRequest struct {
 	Name *string `json:"name,omitempty"`
@@ -83,19 +92,20 @@ type ApiCreateUserRequestDto struct {
 
 // ApiEnvResponse defines model for api.EnvResponse.
 type ApiEnvResponse struct {
-	AppName     *ConfigStringConfig `json:"appName,omitempty"`
-	AppVersion  *ConfigStringConfig `json:"appVersion,omitempty"`
-	BuildTime   *ConfigStringConfig `json:"buildTime,omitempty"`
-	Config      *ConfigConfigSource `json:"config,omitempty"`
-	Db          *ConfigDbConfig     `json:"db,omitempty"`
-	Docs        *ConfigDocsConfig   `json:"docs,omitempty"`
-	Kafka       *ConfigKafkaConfig  `json:"kafka,omitempty"`
-	Log         *ConfigLogConfig    `json:"log,omitempty"`
-	Port        *ConfigStringConfig `json:"port,omitempty"`
-	Profile     *ConfigStringConfig `json:"profile,omitempty"`
-	Rabbitmq    *ConfigQueueConfig  `json:"rabbitmq,omitempty"`
-	Revision    *ConfigStringConfig `json:"revision,omitempty"`
-	Sha1Version *ConfigStringConfig `json:"sha1Version,omitempty"`
+	AppName     *ConfigStringConfig  `json:"appName,omitempty"`
+	AppVersion  *ConfigStringConfig  `json:"appVersion,omitempty"`
+	BuildTime   *ConfigStringConfig  `json:"buildTime,omitempty"`
+	Catalog     *ConfigCatalogConfig `json:"catalog,omitempty"`
+	Config      *ConfigConfigSource  `json:"config,omitempty"`
+	Db          *ConfigDbConfig      `json:"db,omitempty"`
+	Docs        *ConfigDocsConfig    `json:"docs,omitempty"`
+	Kafka       *ConfigKafkaConfig   `json:"kafka,omitempty"`
+	Log         *ConfigLogConfig     `json:"log,omitempty"`
+	Port        *ConfigStringConfig  `json:"port,omitempty"`
+	Profile     *ConfigStringConfig  `json:"profile,omitempty"`
+	Rabbitmq    *ConfigQueueConfig   `json:"rabbitmq,omitempty"`
+	Revision    *ConfigStringConfig  `json:"revision,omitempty"`
+	Sha1Version *ConfigStringConfig  `json:"sha1Version,omitempty"`
 }
 
 // ApiFieldProblem defines model for api.FieldProblem.
@@ -116,10 +126,16 @@ type ApiProblem struct {
 
 // ApiProductResponse defines model for api.ProductResponse.
 type ApiProductResponse struct {
-	Available *int    `json:"available,omitempty"`
-	Name      *string `json:"name,omitempty"`
-	Sku       *string `json:"sku,omitempty"`
-	Upc       *string `json:"upc,omitempty"`
+	Available *int `json:"available,omitempty"`
+
+	// Catalog Catalog is the optional enrichment from the upstream catalog
+	// service (DSN-018). Omitted when the catalog client is disabled
+	// or when the upstream is unreachable — the inventory response
+	// still succeeds in that case.
+	Catalog *ApiCatalogInfo `json:"catalog,omitempty"`
+	Name    *string         `json:"name,omitempty"`
+	Sku     *string         `json:"sku,omitempty"`
+	Upc     *string         `json:"upc,omitempty"`
 }
 
 // ApiProductionEventResponse defines model for api.ProductionEventResponse.
@@ -157,6 +173,15 @@ type ConfigBoolConfig struct {
 	Default     *bool   `json:"default,omitempty"`
 	Description *string `json:"description,omitempty"`
 	Value       *bool   `json:"value,omitempty"`
+}
+
+// ConfigCatalogConfig defines model for config.CatalogConfig.
+type ConfigCatalogConfig struct {
+	BaseUrl      *ConfigStringConfig `json:"baseUrl,omitempty"`
+	Description  *string             `json:"description,omitempty"`
+	MaxAttempts  *ConfigIntConfig    `json:"maxAttempts,omitempty"`
+	PerAttemptMs *ConfigIntConfig    `json:"perAttemptMs,omitempty"`
+	TimeoutMs    *ConfigIntConfig    `json:"timeoutMs,omitempty"`
 }
 
 // ConfigConfigSource defines model for config.ConfigSource.
