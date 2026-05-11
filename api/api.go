@@ -42,7 +42,11 @@ const (
 // nil for an empty map (legacy tests).
 // catalogClient is a nil-safe alias for the outbound catalog client
 // (DSN-018). Pass nil to leave inventory responses unenriched.
-func ConfigureRouter(cfg *config.Config, invSvc InventoryService, resSvc ReservationService, userService UserService, signer *auth.Signer, readinessDeps map[string]Pinger, catalogClient catalog.Client) chi.Router {
+//
+// idempotencyMw is the optional DSN-019 Idempotency-Key middleware.
+// nil leaves the mutating routes unwrapped; non-nil applies it to
+// productionEvent and the reservation Create route.
+func ConfigureRouter(cfg *config.Config, invSvc InventoryService, resSvc ReservationService, userService UserService, signer *auth.Signer, readinessDeps map[string]Pinger, catalogClient catalog.Client, idempotencyMw func(http.Handler) http.Handler) chi.Router {
 	log.Info().Msg("configuring router...")
 	r := chi.NewRouter()
 
@@ -85,8 +89,11 @@ func ConfigureRouter(cfg *config.Config, invSvc InventoryService, resSvc Reserva
 	r.With(Authenticate(signer)).Route(ApiPath, func(r chi.Router) {
 		invApi := NewInventoryApi(invSvc)
 		invApi.SetCatalog(catalogClient)
+		invApi.SetIdempotency(idempotencyMw)
 		r.Route(InventoryPath, invApi.ConfigureRouter)
-		r.Route(ReservationPath, NewReservationApi(resSvc).ConfigureRouter)
+		resApi := NewReservationApi(resSvc)
+		resApi.SetIdempotency(idempotencyMw)
+		r.Route(ReservationPath, resApi.ConfigureRouter)
 		r.Route(UserPath, NewUserApi(userService).ConfigureRouter)
 		r.With(AdminOnly).Route(AdminPath, func(r chi.Router) {
 			r.Route(EnvPath, NewEnvApi(cfg).ConfigureRouter)

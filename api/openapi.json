@@ -81,6 +81,9 @@
                     "docs": {
                         "$ref": "#/components/schemas/config.DocsConfig"
                     },
+                    "idempotency": {
+                        "$ref": "#/components/schemas/config.IdempotencyConfig"
+                    },
                     "kafka": {
                         "$ref": "#/components/schemas/config.KafkaConfig"
                     },
@@ -345,6 +348,17 @@
                     },
                     "enabled": {
                         "$ref": "#/components/schemas/config.BoolConfig"
+                    }
+                },
+                "type": "object"
+            },
+            "config.IdempotencyConfig": {
+                "properties": {
+                    "description": {
+                        "type": "string"
+                    },
+                    "ttlMinutes": {
+                        "$ref": "#/components/schemas/config.IntConfig"
                     }
                 },
                 "type": "object"

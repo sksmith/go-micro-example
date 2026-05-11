@@ -92,20 +92,21 @@ type ApiCreateUserRequestDto struct {
 
 // ApiEnvResponse defines model for api.EnvResponse.
 type ApiEnvResponse struct {
-	AppName     *ConfigStringConfig  `json:"appName,omitempty"`
-	AppVersion  *ConfigStringConfig  `json:"appVersion,omitempty"`
-	BuildTime   *ConfigStringConfig  `json:"buildTime,omitempty"`
-	Catalog     *ConfigCatalogConfig `json:"catalog,omitempty"`
-	Config      *ConfigConfigSource  `json:"config,omitempty"`
-	Db          *ConfigDbConfig      `json:"db,omitempty"`
-	Docs        *ConfigDocsConfig    `json:"docs,omitempty"`
-	Kafka       *ConfigKafkaConfig   `json:"kafka,omitempty"`
-	Log         *ConfigLogConfig     `json:"log,omitempty"`
-	Port        *ConfigStringConfig  `json:"port,omitempty"`
-	Profile     *ConfigStringConfig  `json:"profile,omitempty"`
-	Rabbitmq    *ConfigQueueConfig   `json:"rabbitmq,omitempty"`
-	Revision    *ConfigStringConfig  `json:"revision,omitempty"`
-	Sha1Version *ConfigStringConfig  `json:"sha1Version,omitempty"`
+	AppName     *ConfigStringConfig      `json:"appName,omitempty"`
+	AppVersion  *ConfigStringConfig      `json:"appVersion,omitempty"`
+	BuildTime   *ConfigStringConfig      `json:"buildTime,omitempty"`
+	Catalog     *ConfigCatalogConfig     `json:"catalog,omitempty"`
+	Config      *ConfigConfigSource      `json:"config,omitempty"`
+	Db          *ConfigDbConfig          `json:"db,omitempty"`
+	Docs        *ConfigDocsConfig        `json:"docs,omitempty"`
+	Idempotency *ConfigIdempotencyConfig `json:"idempotency,omitempty"`
+	Kafka       *ConfigKafkaConfig       `json:"kafka,omitempty"`
+	Log         *ConfigLogConfig         `json:"log,omitempty"`
+	Port        *ConfigStringConfig      `json:"port,omitempty"`
+	Profile     *ConfigStringConfig      `json:"profile,omitempty"`
+	Rabbitmq    *ConfigQueueConfig       `json:"rabbitmq,omitempty"`
+	Revision    *ConfigStringConfig      `json:"revision,omitempty"`
+	Sha1Version *ConfigStringConfig      `json:"sha1Version,omitempty"`
 }
 
 // ApiFieldProblem defines model for api.FieldProblem.
@@ -221,6 +222,12 @@ type ConfigDbPoolConfig struct {
 type ConfigDocsConfig struct {
 	Description *string           `json:"description,omitempty"`
 	Enabled     *ConfigBoolConfig `json:"enabled,omitempty"`
+}
+
+// ConfigIdempotencyConfig defines model for config.IdempotencyConfig.
+type ConfigIdempotencyConfig struct {
+	Description *string          `json:"description,omitempty"`
+	TtlMinutes  *ConfigIntConfig `json:"ttlMinutes,omitempty"`
 }
 
 // ConfigIntConfig defines model for config.IntConfig.

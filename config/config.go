@@ -59,20 +59,29 @@ type FloatConfig struct {
 }
 
 type Config struct {
-	AppName     StringConfig  `json:"appName"     yaml:"appName"`
-	AppVersion  StringConfig  `json:"appVersion"  yaml:"appVersion"`
-	Sha1Version StringConfig  `json:"sha1Version" yaml:"sha1Version"`
-	BuildTime   StringConfig  `json:"buildTime"   yaml:"buildTime"`
-	Profile     StringConfig  `json:"profile"     yaml:"profile"`
-	Revision    StringConfig  `json:"revision"    yaml:"revision"`
-	Port        StringConfig  `json:"port"        yaml:"port"`
-	Config      ConfigSource  `json:"config"      yaml:"config"`
-	Log         LogConfig     `json:"log"         yaml:"log"`
-	Db          DbConfig      `json:"db"          yaml:"db"`
-	RabbitMQ    QueueConfig   `json:"rabbitmq"    yaml:"rabbitmq"`
-	Kafka       KafkaConfig   `json:"kafka"       yaml:"kafka"`
-	Catalog     CatalogConfig `json:"catalog"    yaml:"catalog"`
-	Docs        DocsConfig    `json:"docs"        yaml:"docs"`
+	AppName     StringConfig      `json:"appName"     yaml:"appName"`
+	AppVersion  StringConfig      `json:"appVersion"  yaml:"appVersion"`
+	Sha1Version StringConfig      `json:"sha1Version" yaml:"sha1Version"`
+	BuildTime   StringConfig      `json:"buildTime"   yaml:"buildTime"`
+	Profile     StringConfig      `json:"profile"     yaml:"profile"`
+	Revision    StringConfig      `json:"revision"    yaml:"revision"`
+	Port        StringConfig      `json:"port"        yaml:"port"`
+	Config      ConfigSource      `json:"config"      yaml:"config"`
+	Log         LogConfig         `json:"log"         yaml:"log"`
+	Db          DbConfig          `json:"db"          yaml:"db"`
+	RabbitMQ    QueueConfig       `json:"rabbitmq"    yaml:"rabbitmq"`
+	Kafka       KafkaConfig       `json:"kafka"       yaml:"kafka"`
+	Catalog     CatalogConfig     `json:"catalog"    yaml:"catalog"`
+	Idempotency IdempotencyConfig `json:"idempotency" yaml:"idempotency"`
+	Docs        DocsConfig        `json:"docs"        yaml:"docs"`
+}
+
+// IdempotencyConfig holds the DSN-019 REST idempotency knobs. The
+// store choice is wired in cmd/main.go (in-memory today; DSN-021
+// will plug Redis in); TTL is configurable here.
+type IdempotencyConfig struct {
+	TTLMinutes  IntConfig `json:"ttlMinutes"  yaml:"ttlMinutes"`
+	Description string    `json:"description" yaml:"description"`
 }
 
 // CatalogConfig holds the outbound-REST client knobs introduced in
@@ -257,6 +266,7 @@ func bindSensitiveEnv() {
 		"catalog.timeoutMs",
 		"catalog.perAttemptMs",
 		"catalog.maxAttempts",
+		"idempotency.ttlMinutes",
 	} {
 		// Errors here would mean a programming error in the key list —
 		// viper.BindEnv only fails on empty input.
@@ -546,6 +556,9 @@ func setupDefaults(config *Config) {
 	config.Catalog.Timeout = IntConfig{Value: 3000, Default: 3000, Description: "Total deadline for one Lookup call including retries, in milliseconds."}
 	config.Catalog.PerAttemptTimeout = IntConfig{Value: 1000, Default: 1000, Description: "Per-attempt HTTP timeout in milliseconds."}
 	config.Catalog.MaxAttempts = IntConfig{Value: 3, Default: 3, Description: "Total catalog Lookup attempts including the first call (1 initial + N-1 retries)."}
+
+	config.Idempotency.Description = "DSN-019: REST Idempotency-Key cache. Retains cached responses for ttlMinutes so retries replay byte-for-byte."
+	config.Idempotency.TTLMinutes = IntConfig{Value: 24 * 60, Default: 24 * 60, Description: "Retention window for cached responses, in minutes. Stripe-style 24h default."}
 
 	config.Config.Description = "Settings for where and how the application should get its configurations."
 	config.Config.Print = BoolConfig{Value: false, Default: false, Description: "Print configurations on startup."}

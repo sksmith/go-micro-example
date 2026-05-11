@@ -29,12 +29,20 @@ type InventoryService interface {
 }
 
 type InventoryApi struct {
-	service InventoryService
-	catalog catalog.Client
+	service     InventoryService
+	catalog     catalog.Client
+	idempotency func(http.Handler) http.Handler
 }
 
 func NewInventoryApi(service InventoryService) *InventoryApi {
 	return &InventoryApi{service: service}
+}
+
+// SetIdempotency installs the optional Idempotency-Key middleware
+// (DSN-019). When set, the productionEvent route requires the header
+// and replays cached responses on retry. A nil argument is a no-op.
+func (a *InventoryApi) SetIdempotency(mw func(http.Handler) http.Handler) {
+	a.idempotency = mw
 }
 
 // SetCatalog installs the optional outbound catalog client (DSN-018).
@@ -59,7 +67,17 @@ func (a *InventoryApi) ConfigureRouter(r chi.Router) {
 
 		r.Route("/{sku}", func(r chi.Router) {
 			r.Use(a.ProductCtx)
-			r.Put("/productionEvent", a.CreateProductionEvent)
+			// productionEvent is the canonical write-path the
+			// DSN-019 demo step exercises. Wrapping it with the
+			// Idempotency-Key middleware (when wired) makes safe
+			// retries replay the original response instead of
+			// double-applying production.
+			prod := http.HandlerFunc(a.CreateProductionEvent)
+			if a.idempotency != nil {
+				r.Method(http.MethodPut, "/productionEvent", a.idempotency(prod))
+			} else {
+				r.Put("/productionEvent", prod.ServeHTTP)
+			}
 			r.Get("/", a.GetProductInventory)
 		})
 	})

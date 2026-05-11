@@ -45,6 +45,11 @@ var Steps = []Step{
 		Name:       "Catalog enrichment via outbound REST",
 		Run:        runCatalogEnrichment,
 	},
+	{
+		Capability: "DSN-019",
+		Name:       "REST Idempotency-Key replay + conflict",
+		Run:        runRESTIdempotency,
+	},
 }
 
 // runRESTRoundTrip exchanges admin Basic credentials for a JWT,
