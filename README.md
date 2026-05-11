@@ -47,6 +47,33 @@ make build
 docker-compose up
 ```
 
+This brings up Postgres, RabbitMQ, the app, and a one-shot **demo
+orchestrator** (DSN-015). After the app's `/ready` returns 200, the
+orchestrator runs every registered capability step against the live
+app and prints a summary table on its way out.
+
+#### What you'll see
+
+The `demo` service log ends with a table like:
+
+```text
+demo summary
+────────────────────────────────────────────────────────────────────────
+CAPABILITY     STEP                              STATUS    LATENCY TRACE
+DSN-026        REST create + read via gener…     pass         32ms abc123…
+────────────────────────────────────────────────────────────────────────
+```
+
+One row per registered step. `pass` everywhere means every advertised
+capability fired end-to-end; the demo container exits 0. Any `fail`
+includes the underlying error reason on the next line and the demo
+container exits non-zero (the app keeps running for further poking).
+
+Each capability ticket (DSN-016 through DSN-027) plugs into the
+orchestrator by appending a `Step` to
+[cmd/demo/steps.go](cmd/demo/steps.go). If the API breaks, the demo
+breaks — it's a contract test as much as a demo.
+
 ## Application Features
 
 ### RESTful API

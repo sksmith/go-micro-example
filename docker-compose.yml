@@ -12,6 +12,11 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-go-micro-example-db}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
 
   pgadmin:
     image: dpage/pgadmin4
@@ -32,3 +37,51 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-guest}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-guest}
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  app:
+    build:
+      context: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      GME_DB_USER: ${POSTGRES_USER:-postgres}
+      GME_DB_PASS: ${POSTGRES_PASSWORD:-postgres}
+      GME_RABBITMQ_USER: ${RABBITMQ_DEFAULT_USER:-guest}
+      GME_RABBITMQ_PASS: ${RABBITMQ_DEFAULT_PASS:-guest}
+      # DSN-015: deterministic admin so the demo orchestrator can
+      # exchange Basic creds for a JWT without scraping logs.
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-admin}
+    # No in-container healthcheck: the scratch image has no shell or
+    # wget. The demo container polls /ready itself before running
+    # steps (cmd/demo/main.go: waitReady), so the gate is enforced
+    # there rather than via Docker's HEALTHCHECK.
+
+  demo:
+    # DSN-015: orchestrator that runs each capability step end-to-end
+    # against the live app and prints a summary table. Exits 0 on
+    # success, non-zero on any step failure.
+    build:
+      context: .
+      dockerfile: Dockerfile.demo
+    depends_on:
+      app:
+        condition: service_started
+    environment:
+      DEMO_BASE_URL: http://app:8080
+      DEMO_ADMIN_USER: admin
+      DEMO_ADMIN_PASS: ${BOOTSTRAP_ADMIN_PASSWORD:-admin}
+    # The container exits when the demo finishes (0 on success, non-0
+    # on any step failure). 'docker-compose up' shows the summary in
+    # the demo service's log stream; the app keeps running for
+    # interactive use afterwards.
+    restart: "no"
