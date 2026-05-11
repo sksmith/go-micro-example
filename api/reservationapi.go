@@ -91,6 +91,19 @@ func (a *ReservationApi) Subscribe(w http.ResponseWriter, r *http.Request) {
 	}()
 }
 
+// Get returns a single reservation by ID.
+//
+//	@Summary	Get a reservation
+//	@Tags		reservation
+//	@Produce	json
+//	@Param		ID	path		int	true	"reservation ID"
+//	@Success	200	{object}	ReservationResponse
+//	@Failure	400	{object}	Problem
+//	@Failure	401	{object}	Problem
+//	@Failure	404	{object}	Problem
+//	@Failure	500	{object}	Problem
+//	@Router		/api/v1/reservation/{ID} [get]
+//	@Security	BearerAuth
 func (a *ReservationApi) Get(w http.ResponseWriter, r *http.Request) {
 	res := r.Context().Value(CtxKeyReservation).(inventory.Reservation)
 
@@ -99,6 +112,20 @@ func (a *ReservationApi) Get(w http.ResponseWriter, r *http.Request) {
 	Render(w, r, resp)
 }
 
+// Create reserves inventory for a SKU.
+//
+//	@Summary	Create a reservation
+//	@Tags		reservation
+//	@Accept		json
+//	@Produce	json
+//	@Param		reservation	body		ReservationRequest	true	"reservation request"
+//	@Success	201			{object}	ReservationResponse
+//	@Failure	400			{object}	Problem
+//	@Failure	401			{object}	Problem
+//	@Failure	404			{object}	Problem
+//	@Failure	500			{object}	Problem
+//	@Router		/api/v1/reservation [post]
+//	@Security	BearerAuth
 func (a *ReservationApi) Create(w http.ResponseWriter, r *http.Request) {
 	data := &ReservationRequest{}
 	if err := render.Bind(r, data); err != nil {
@@ -164,6 +191,23 @@ func (a *ReservationApi) ReservationCtx(next http.Handler) http.Handler {
 	})
 }
 
+// List returns reservations, optionally filtered by sku and state.
+//
+//	@Summary	List reservations
+//	@Tags		reservation
+//	@Produce	json
+//	@Param		sku		query		string	false	"filter by SKU"
+//	@Param		state	query		string	false	"filter by state"	Enums(Open, Closed)
+//	@Param		limit	query		int		false	"max items per page (≤ 200)"	default(50)
+//	@Param		offset	query		int		false	"page offset"					default(0)
+//	@Success	200		{array}		ReservationResponse
+//	@Failure	400		{object}	Problem
+//	@Failure	401		{object}	Problem
+//	@Failure	404		{object}	Problem
+//	@Failure	500		{object}	Problem
+//	@Header		200		{string}	Link	"RFC 8288 next/prev links"
+//	@Router		/api/v1/reservation [get]
+//	@Security	BearerAuth
 func (a *ReservationApi) List(w http.ResponseWriter, r *http.Request) {
 	p := PaginationFrom(r.Context())
 

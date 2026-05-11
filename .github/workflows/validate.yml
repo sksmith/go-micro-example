@@ -19,9 +19,11 @@ jobs:
     uses: ./.github/workflows/trivy.yml
   test:
     uses: ./.github/workflows/test.yml
+  openapi:
+    uses: ./.github/workflows/openapi.yml
   notify:
     name: Notification
-    needs: [lint, security, vuln, secret, trivy, test]
+    needs: [lint, security, vuln, secret, trivy, test, openapi]
     runs-on: ubuntu-latest
     steps:
       - uses: sarisia/actions-status-discord@v1

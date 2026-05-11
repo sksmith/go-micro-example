@@ -1,0 +1,1236 @@
+{
+    "components": {
+        "schemas": {
+            "api.CreateProductRequest": {
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "sku": {
+                        "type": "string"
+                    },
+                    "upc": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "api.CreateProductionEventRequest": {
+                "properties": {
+                    "created": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "integer"
+                    },
+                    "quantity": {
+                        "type": "integer"
+                    },
+                    "requestID": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "api.CreateUserRequestDto": {
+                "properties": {
+                    "isAdmin": {
+                        "type": "boolean"
+                    },
+                    "password": {
+                        "type": "string"
+                    },
+                    "username": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "api.EnvResponse": {
+                "properties": {
+                    "appName": {
+                        "$ref": "#/components/schemas/config.StringConfig"
+                    },
+                    "appVersion": {
+                        "$ref": "#/components/schemas/config.StringConfig"
+                    },
+                    "buildTime": {
+                        "$ref": "#/components/schemas/config.StringConfig"
+                    },
+                    "config": {
+                        "$ref": "#/components/schemas/config.ConfigSource"
+                    },
+                    "db": {
+                        "$ref": "#/components/schemas/config.DbConfig"
+                    },
+                    "docs": {
+                        "$ref": "#/components/schemas/config.DocsConfig"
+                    },
+                    "log": {
+                        "$ref": "#/components/schemas/config.LogConfig"
+                    },
+                    "port": {
+                        "$ref": "#/components/schemas/config.StringConfig"
+                    },
+                    "profile": {
+                        "$ref": "#/components/schemas/config.StringConfig"
+                    },
+                    "rabbitmq": {
+                        "$ref": "#/components/schemas/config.QueueConfig"
+                    },
+                    "revision": {
+                        "$ref": "#/components/schemas/config.StringConfig"
+                    },
+                    "sha1Version": {
+                        "$ref": "#/components/schemas/config.StringConfig"
+                    }
+                },
+                "type": "object"
+            },
+            "api.FieldProblem": {
+                "properties": {
+                    "detail": {
+                        "type": "string"
+                    },
+                    "field": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "api.Problem": {
+                "properties": {
+                    "detail": {
+                        "type": "string"
+                    },
+                    "errors": {
+                        "items": {
+                            "$ref": "#/components/schemas/api.FieldProblem"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "instance": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "integer"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "type": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "api.ProductResponse": {
+                "properties": {
+                    "available": {
+                        "type": "integer"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "sku": {
+                        "type": "string"
+                    },
+                    "upc": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "api.ProductionEventResponse": {
+                "type": "object"
+            },
+            "api.ReservationRequest": {
+                "properties": {
+                    "quantity": {
+                        "type": "integer"
+                    },
+                    "requestId": {
+                        "type": "string"
+                    },
+                    "requester": {
+                        "type": "string"
+                    },
+                    "sku": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "api.ReservationResponse": {
+                "properties": {
+                    "created": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "integer"
+                    },
+                    "requestId": {
+                        "type": "string"
+                    },
+                    "requestedQuantity": {
+                        "type": "integer"
+                    },
+                    "requester": {
+                        "type": "string"
+                    },
+                    "reservedQuantity": {
+                        "type": "integer"
+                    },
+                    "sku": {
+                        "type": "string"
+                    },
+                    "state": {
+                        "$ref": "#/components/schemas/github_com_sksmith_go-micro-example_core_inventory.ReserveState"
+                    }
+                },
+                "type": "object"
+            },
+            "api.TokenResponse": {
+                "properties": {
+                    "access_token": {
+                        "type": "string"
+                    },
+                    "expires_in": {
+                        "type": "integer"
+                    },
+                    "token_type": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "config.BoolConfig": {
+                "properties": {
+                    "default": {
+                        "type": "boolean"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "value": {
+                        "type": "boolean"
+                    }
+                },
+                "type": "object"
+            },
+            "config.ConfigSource": {
+                "properties": {
+                    "description": {
+                        "type": "string"
+                    },
+                    "print": {
+                        "$ref": "#/components/schemas/config.BoolConfig"
+                    },
+                    "source": {
+                        "$ref": "#/components/schemas/config.StringConfig"
+                    },
+                    "spring": {
+                        "$ref": "#/components/schemas/config.SpringConfig"
+                    }
+                },
+                "type": "object"
+            },
+            "config.DbConfig": {
+                "properties": {
+                    "clean": {
+                        "$ref": "#/components/schemas/config.BoolConfig"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "host": {
+                        "$ref": "#/components/schemas/config.StringConfig"
+                    },
+                    "logLevel": {
+                        "$ref": "#/components/schemas/config.StringConfig"
+                    },
+                    "migrate": {
+                        "$ref": "#/components/schemas/config.BoolConfig"
+                    },
+                    "migrationFolder": {
+                        "$ref": "#/components/schemas/config.StringConfig"
+                    },
+                    "name": {
+                        "$ref": "#/components/schemas/config.StringConfig"
+                    },
+                    "pass": {
+                        "$ref": "#/components/schemas/config.StringConfig"
+                    },
+                    "pool": {
+                        "$ref": "#/components/schemas/config.DbPoolConfig"
+                    },
+                    "port": {
+                        "$ref": "#/components/schemas/config.StringConfig"
+                    },
+                    "user": {
+                        "$ref": "#/components/schemas/config.StringConfig"
+                    }
+                },
+                "type": "object"
+            },
+            "config.DbPoolConfig": {
+                "properties": {
+                    "description": {
+                        "type": "string"
+                    },
+                    "healthCheckPeriod": {
+                        "$ref": "#/components/schemas/config.IntConfig"
+                    },
+                    "maxConnIdle": {
+                        "$ref": "#/components/schemas/config.IntConfig"
+                    },
+                    "maxConnLife": {
+                        "$ref": "#/components/schemas/config.IntConfig"
+                    },
+                    "maxPoolSize": {
+                        "$ref": "#/components/schemas/config.IntConfig"
+                    },
+                    "minPoolSize": {
+                        "$ref": "#/components/schemas/config.IntConfig"
+                    }
+                },
+                "type": "object"
+            },
+            "config.DocsConfig": {
+                "properties": {
+                    "description": {
+                        "type": "string"
+                    },
+                    "enabled": {
+                        "$ref": "#/components/schemas/config.BoolConfig"
+                    }
+                },
+                "type": "object"
+            },
+            "config.IntConfig": {
+                "properties": {
+                    "default": {
+                        "type": "integer"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "value": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "config.InventoryQueueConfig": {
+                "properties": {
+                    "description": {
+                        "type": "string"
+                    },
+                    "exchange": {
+                        "$ref": "#/components/schemas/config.StringConfig"
+                    }
+                },
+                "type": "object"
+            },
+            "config.LogConfig": {
+                "properties": {
+                    "description": {
+                        "type": "string"
+                    },
+                    "level": {
+                        "$ref": "#/components/schemas/config.StringConfig"
+                    },
+                    "structured": {
+                        "$ref": "#/components/schemas/config.BoolConfig"
+                    }
+                },
+                "type": "object"
+            },
+            "config.ProductQueueConfig": {
+                "properties": {
+                    "description": {
+                        "type": "string"
+                    },
+                    "dlt": {
+                        "$ref": "#/components/schemas/config.ProductQueueDltConfig"
+                    },
+                    "queue": {
+                        "$ref": "#/components/schemas/config.StringConfig"
+                    }
+                },
+                "type": "object"
+            },
+            "config.ProductQueueDltConfig": {
+                "properties": {
+                    "description": {
+                        "type": "string"
+                    },
+                    "exchange": {
+                        "$ref": "#/components/schemas/config.StringConfig"
+                    }
+                },
+                "type": "object"
+            },
+            "config.QueueConfig": {
+                "properties": {
+                    "description": {
+                        "type": "string"
+                    },
+                    "host": {
+                        "$ref": "#/components/schemas/config.StringConfig"
+                    },
+                    "inventory": {
+                        "$ref": "#/components/schemas/config.InventoryQueueConfig"
+                    },
+                    "pass": {
+                        "$ref": "#/components/schemas/config.StringConfig"
+                    },
+                    "port": {
+                        "$ref": "#/components/schemas/config.StringConfig"
+                    },
+                    "product": {
+                        "$ref": "#/components/schemas/config.ProductQueueConfig"
+                    },
+                    "reservation": {
+                        "$ref": "#/components/schemas/config.ReservationQueueConfig"
+                    },
+                    "user": {
+                        "$ref": "#/components/schemas/config.StringConfig"
+                    }
+                },
+                "type": "object"
+            },
+            "config.ReservationQueueConfig": {
+                "properties": {
+                    "description": {
+                        "type": "string"
+                    },
+                    "exchange": {
+                        "$ref": "#/components/schemas/config.StringConfig"
+                    }
+                },
+                "type": "object"
+            },
+            "config.SpringConfig": {
+                "properties": {
+                    "branch": {
+                        "$ref": "#/components/schemas/config.StringConfig"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "pass": {
+                        "$ref": "#/components/schemas/config.StringConfig"
+                    },
+                    "url": {
+                        "$ref": "#/components/schemas/config.StringConfig"
+                    },
+                    "user": {
+                        "$ref": "#/components/schemas/config.StringConfig"
+                    }
+                },
+                "type": "object"
+            },
+            "config.StringConfig": {
+                "properties": {
+                    "default": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "value": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "github_com_sksmith_go-micro-example_core_inventory.ReserveState": {
+                "enum": [
+                    "Open",
+                    "Closed",
+                    ""
+                ],
+                "type": "string",
+                "x-enum-varnames": [
+                    "Open",
+                    "Closed",
+                    "None"
+                ]
+            }
+        },
+        "securitySchemes": {
+            "BearerAuth": {
+                "description": "Bearer JWT issued by POST /auth/token. To obtain one, send HTTP Basic credentials to /auth/token.",
+                "in": "header",
+                "name": "Authorization",
+                "type": "apiKey"
+            }
+        }
+    },
+    "info": {
+        "description": "Reference API for the go-micro-example service: inventory, reservations, users, and an admin/env probe.\nAll errors use RFC 7807 (application/problem+json).",
+        "title": "go-micro-example API",
+        "version": "1.0"
+    },
+    "externalDocs": {
+        "description": "",
+        "url": ""
+    },
+    "paths": {
+        "/api/v1/admin/env": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.EnvResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.Problem"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "Get redacted runtime config",
+                "tags": [
+                    "admin"
+                ]
+            }
+        },
+        "/api/v1/inventory": {
+            "get": {
+                "parameters": [
+                    {
+                        "description": "max items per page (≤ 200)",
+                        "in": "query",
+                        "name": "limit",
+                        "schema": {
+                            "default": 50,
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "page offset",
+                        "in": "query",
+                        "name": "offset",
+                        "schema": {
+                            "default": 0,
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "$ref": "#/components/schemas/api.ProductResponse"
+                                    },
+                                    "type": "array"
+                                }
+                            }
+                        },
+                        "description": "OK",
+                        "headers": {
+                            "Link": {
+                                "description": "RFC 8288 next/prev links",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.Problem"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.Problem"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.Problem"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "List product inventory",
+                "tags": [
+                    "inventory"
+                ]
+            },
+            "put": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/api.CreateProductRequest",
+                                        "summary": "product",
+                                        "description": "product to create"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "product to create",
+                    "required": true
+                },
+                "responses": {
+                    "201": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ProductResponse"
+                                }
+                            }
+                        },
+                        "description": "Created"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.Problem"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.Problem"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.Problem"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "Create a product",
+                "tags": [
+                    "inventory"
+                ]
+            }
+        },
+        "/api/v1/inventory/{sku}": {
+            "get": {
+                "parameters": [
+                    {
+                        "description": "product SKU",
+                        "in": "path",
+                        "name": "sku",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ProductResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.Problem"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.Problem"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.Problem"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "Get product inventory",
+                "tags": [
+                    "inventory"
+                ]
+            }
+        },
+        "/api/v1/inventory/{sku}/productionEvent": {
+            "put": {
+                "parameters": [
+                    {
+                        "description": "product SKU",
+                        "in": "path",
+                        "name": "sku",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/api.CreateProductionEventRequest",
+                                        "summary": "event",
+                                        "description": "production event"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "production event",
+                    "required": true
+                },
+                "responses": {
+                    "201": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ProductionEventResponse"
+                                }
+                            }
+                        },
+                        "description": "Created"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.Problem"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.Problem"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.Problem"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.Problem"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "Record a production event",
+                "tags": [
+                    "inventory"
+                ]
+            }
+        },
+        "/api/v1/reservation": {
+            "get": {
+                "parameters": [
+                    {
+                        "description": "filter by SKU",
+                        "in": "query",
+                        "name": "sku",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "filter by state",
+                        "in": "query",
+                        "name": "state",
+                        "schema": {
+                            "enum": [
+                                "Open",
+                                "Closed"
+                            ],
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "max items per page (≤ 200)",
+                        "in": "query",
+                        "name": "limit",
+                        "schema": {
+                            "default": 50,
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "page offset",
+                        "in": "query",
+                        "name": "offset",
+                        "schema": {
+                            "default": 0,
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "$ref": "#/components/schemas/api.ReservationResponse"
+                                    },
+                                    "type": "array"
+                                }
+                            }
+                        },
+                        "description": "OK",
+                        "headers": {
+                            "Link": {
+                                "description": "RFC 8288 next/prev links",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.Problem"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.Problem"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.Problem"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.Problem"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "List reservations",
+                "tags": [
+                    "reservation"
+                ]
+            },
+            "post": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/api.ReservationRequest",
+                                        "summary": "reservation",
+                                        "description": "reservation request"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "reservation request",
+                    "required": true
+                },
+                "responses": {
+                    "201": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ReservationResponse"
+                                }
+                            }
+                        },
+                        "description": "Created"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.Problem"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.Problem"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.Problem"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.Problem"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "Create a reservation",
+                "tags": [
+                    "reservation"
+                ]
+            }
+        },
+        "/api/v1/reservation/{ID}": {
+            "get": {
+                "parameters": [
+                    {
+                        "description": "reservation ID",
+                        "in": "path",
+                        "name": "ID",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ReservationResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.Problem"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.Problem"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.Problem"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.Problem"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "Get a reservation",
+                "tags": [
+                    "reservation"
+                ]
+            }
+        },
+        "/api/v1/user": {
+            "post": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/api.CreateUserRequestDto",
+                                        "summary": "user",
+                                        "description": "new user"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "new user",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "created"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.Problem"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.Problem"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.Problem"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "Create a user",
+                "tags": [
+                    "user"
+                ]
+            }
+        },
+        "/auth/token": {
+            "post": {
+                "description": "Requires HTTP Basic credentials (RFC 6749 §2.3.1 OAuth2 client_credentials flow).",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.TokenResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.Problem"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.Problem"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "summary": "Issue a bearer token",
+                "tags": [
+                    "auth"
+                ]
+            }
+        }
+    },
+    "openapi": "3.1.0",
+    "servers": [
+        {
+            "url": "/"
+        }
+    ]
+}

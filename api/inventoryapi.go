@@ -97,6 +97,20 @@ func (a *InventoryApi) Subscribe(w http.ResponseWriter, r *http.Request) {
 	}()
 }
 
+// List returns a page of product inventory.
+//
+//	@Summary	List product inventory
+//	@Tags		inventory
+//	@Produce	json
+//	@Param		limit	query		int	false	"max items per page (≤ 200)"	default(50)
+//	@Param		offset	query		int	false	"page offset"					default(0)
+//	@Success	200		{array}		ProductResponse
+//	@Failure	400		{object}	Problem
+//	@Failure	401		{object}	Problem
+//	@Failure	500		{object}	Problem
+//	@Header		200		{string}	Link	"RFC 8288 next/prev links"
+//	@Router		/api/v1/inventory [get]
+//	@Security	BearerAuth
 func (a *InventoryApi) List(w http.ResponseWriter, r *http.Request) {
 	p := PaginationFrom(r.Context())
 
@@ -111,6 +125,19 @@ func (a *InventoryApi) List(w http.ResponseWriter, r *http.Request) {
 	RenderList(w, r, NewProductListResponse(products))
 }
 
+// CreateProduct registers a new product.
+//
+//	@Summary	Create a product
+//	@Tags		inventory
+//	@Accept		json
+//	@Produce	json
+//	@Param		product	body		CreateProductRequest	true	"product to create"
+//	@Success	201		{object}	ProductResponse
+//	@Failure	400		{object}	Problem
+//	@Failure	401		{object}	Problem
+//	@Failure	500		{object}	Problem
+//	@Router		/api/v1/inventory [put]
+//	@Security	BearerAuth
 func (a *InventoryApi) CreateProduct(w http.ResponseWriter, r *http.Request) {
 	data := &CreateProductRequest{}
 	if err := render.Bind(r, data); err != nil {
@@ -160,6 +187,21 @@ func (a *InventoryApi) ProductCtx(next http.Handler) http.Handler {
 	})
 }
 
+// CreateProductionEvent records production of a SKU.
+//
+//	@Summary	Record a production event
+//	@Tags		inventory
+//	@Accept		json
+//	@Produce	json
+//	@Param		sku		path		string							true	"product SKU"
+//	@Param		event	body		CreateProductionEventRequest	true	"production event"
+//	@Success	201		{object}	ProductionEventResponse
+//	@Failure	400		{object}	Problem
+//	@Failure	401		{object}	Problem
+//	@Failure	404		{object}	Problem
+//	@Failure	500		{object}	Problem
+//	@Router		/api/v1/inventory/{sku}/productionEvent [put]
+//	@Security	BearerAuth
 func (a *InventoryApi) CreateProductionEvent(w http.ResponseWriter, r *http.Request) {
 	product := r.Context().Value(CtxKeyProduct).(inventory.Product)
 
@@ -183,6 +225,18 @@ func (a *InventoryApi) CreateProductionEvent(w http.ResponseWriter, r *http.Requ
 	Render(w, r, &ProductionEventResponse{})
 }
 
+// GetProductInventory returns the current inventory for a SKU.
+//
+//	@Summary	Get product inventory
+//	@Tags		inventory
+//	@Produce	json
+//	@Param		sku	path		string	true	"product SKU"
+//	@Success	200	{object}	ProductResponse
+//	@Failure	401	{object}	Problem
+//	@Failure	404	{object}	Problem
+//	@Failure	500	{object}	Problem
+//	@Router		/api/v1/inventory/{sku} [get]
+//	@Security	BearerAuth
 func (a *InventoryApi) GetProductInventory(w http.ResponseWriter, r *http.Request) {
 	product := r.Context().Value(CtxKeyProduct).(inventory.Product)
 

@@ -21,6 +21,9 @@ const (
 	ReadinessEndpoint = "/ready"
 	MetricsEndpoint   = "/metrics"
 
+	OpenAPIEndpoint = "/openapi.yaml"
+	DocsEndpoint    = "/docs"
+
 	ApiPath         = "/api/v1"
 	InventoryPath   = "/inventory"
 	ReservationPath = "/reservation"
@@ -66,6 +69,11 @@ func ConfigureRouter(cfg *config.Config, invSvc InventoryService, resSvc Reserva
 	r.Handle(LivenessEndpoint, LivenessHandler())
 	r.Handle(ReadinessEndpoint, ReadinessHandler(readinessDeps))
 	r.Handle(MetricsEndpoint, promhttp.Handler())
+
+	if cfg.Docs.Enabled.Value {
+		r.Handle(OpenAPIEndpoint, OpenAPIHandler())
+		r.Mount(DocsEndpoint, SwaggerUIHandler(cfg.AppName.Value))
+	}
 
 	if signer != nil {
 		r.Route(AuthPath, NewAuthApi(userService, signer).ConfigureRouter)

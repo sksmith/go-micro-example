@@ -70,6 +70,12 @@ type Config struct {
 	Log         LogConfig    `json:"log"         yaml:"log"`
 	Db          DbConfig     `json:"db"          yaml:"db"`
 	RabbitMQ    QueueConfig  `json:"rabbitmq"    yaml:"rabbitmq"`
+	Docs        DocsConfig   `json:"docs"        yaml:"docs"`
+}
+
+type DocsConfig struct {
+	Enabled     BoolConfig `json:"enabled"     yaml:"enabled"`
+	Description string     `json:"description" yaml:"description"`
 }
 
 type ConfigSource struct {
@@ -168,6 +174,8 @@ func init() {
 
 	viper.SetDefault("port", def.Port.Default)
 	viper.SetDefault("profile", def.Profile.Default)
+
+	viper.SetDefault("docs.enabled", def.Docs.Enabled.Default)
 
 	viper.SetDefault("config.print", def.Config.Print.Default)
 	viper.SetDefault("config.source", def.Config.Source.Default)
@@ -483,6 +491,9 @@ func setupDefaults(config *Config) {
 	config.Profile = StringConfig{Value: "local", Default: "local", Description: "Running profile of the application, can assist with sensible defaults or change behavior. Examples: local, dev, prod"}
 	config.Revision = StringConfig{Value: Revision, Default: Revision, Description: "A hard coded revision handy for quickly determining if local changes are running. Examples: 1, Two, 9999"}
 	config.Port = StringConfig{Value: "8080", Default: "8080", Description: "Port that the application will bind to on startup. Examples: 8080, 3000"}
+
+	config.Docs.Description = "Settings for the OpenAPI spec + Swagger UI exposed at /openapi.yaml and /docs."
+	config.Docs.Enabled = BoolConfig{Value: true, Default: true, Description: "Serve /openapi.yaml and /docs. Default true; flip to false in prod to keep the spec internal."}
 
 	config.Config.Description = "Settings for where and how the application should get its configurations."
 	config.Config.Print = BoolConfig{Value: false, Default: false, Description: "Print configurations on startup."}
