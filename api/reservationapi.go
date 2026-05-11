@@ -27,11 +27,19 @@ type ReservationService interface {
 }
 
 type ReservationApi struct {
-	service ReservationService
+	service     ReservationService
+	idempotency func(http.Handler) http.Handler
 }
 
 func NewReservationApi(service ReservationService) *ReservationApi {
 	return &ReservationApi{service: service}
+}
+
+// SetIdempotency installs the optional Idempotency-Key middleware
+// (DSN-019) on the reservation Create route. nil disables the
+// middleware entirely.
+func (a *ReservationApi) SetIdempotency(mw func(http.Handler) http.Handler) {
+	a.idempotency = mw
 }
 
 const (
@@ -43,7 +51,12 @@ func (ra *ReservationApi) ConfigureRouter(r chi.Router) {
 
 	r.Route("/", func(r chi.Router) {
 		r.With(Paginate).Get("/", ra.List)
-		r.Put("/", ra.Create)
+		create := http.HandlerFunc(ra.Create)
+		if ra.idempotency != nil {
+			r.Method(http.MethodPut, "/", ra.idempotency(create))
+		} else {
+			r.Put("/", create.ServeHTTP)
+		}
 
 		r.Route("/{ID}", func(r chi.Router) {
 			r.Use(ra.ReservationCtx)

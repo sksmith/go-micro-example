@@ -40,6 +40,7 @@ import (
 	"github.com/sksmith/go-micro-example/db/usrrepo"
 	"github.com/sksmith/go-micro-example/events"
 	"github.com/sksmith/go-micro-example/idempotency"
+	restidempotency "github.com/sksmith/go-micro-example/idempotency/rest"
 	gmekafka "github.com/sksmith/go-micro-example/kafka"
 	"github.com/sksmith/go-micro-example/queue"
 
@@ -121,7 +122,8 @@ func main() {
 	// connectivity check; tracked alongside TST-003.
 	readinessDeps := map[string]api.Pinger{"db": dbPool}
 	catalogClient := buildCatalogClient(cfg)
-	r := api.ConfigureRouter(cfg, invService, invService, userService, signer, readinessDeps, catalogClient)
+	idempotencyMw := buildIdempotencyMiddleware(cfg)
+	r := api.ConfigureRouter(cfg, invService, invService, userService, signer, readinessDeps, catalogClient, idempotencyMw)
 
 	_ = queue.NewProductQueue(ctx, cfg, invService)
 
@@ -164,6 +166,23 @@ func main() {
 	}
 
 	shutdown(srv, dbPool, tracingShutdown)
+}
+
+// buildIdempotencyMiddleware constructs the DSN-019 Idempotency-Key
+// middleware backed by an in-memory store. The store is per-process,
+// so retries that hit a different replica after a load balancer
+// failover will miss the cache — DSN-021 swaps the in-memory backing
+// for Redis, which fixes that. The middleware enforces Idempotency-Key
+// presence on the mutating routes it wraps.
+func buildIdempotencyMiddleware(cfg *config.Config) func(http.Handler) http.Handler {
+	ttl := time.Duration(cfg.Idempotency.TTLMinutes.Value) * time.Minute
+	store := restidempotency.NewMemoryStore()
+	log.Info().Dur("ttl", ttl).Msg("rest idempotency middleware ready (in-memory store)")
+	return restidempotency.Middleware(restidempotency.Config{
+		Store:    store,
+		TTL:      ttl,
+		Required: true,
+	})
 }
 
 // buildCatalogClient constructs the outbound REST client for the

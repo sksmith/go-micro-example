@@ -699,6 +699,7 @@ export interface components {
             config?: components["schemas"]["config.ConfigSource"];
             db?: components["schemas"]["config.DbConfig"];
             docs?: components["schemas"]["config.DocsConfig"];
+            idempotency?: components["schemas"]["config.IdempotencyConfig"];
             kafka?: components["schemas"]["config.KafkaConfig"];
             log?: components["schemas"]["config.LogConfig"];
             port?: components["schemas"]["config.StringConfig"];
@@ -790,6 +791,10 @@ export interface components {
         "config.DocsConfig": {
             description?: string;
             enabled?: components["schemas"]["config.BoolConfig"];
+        };
+        "config.IdempotencyConfig": {
+            description?: string;
+            ttlMinutes?: components["schemas"]["config.IntConfig"];
         };
         "config.IntConfig": {
             default?: number;

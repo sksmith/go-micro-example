@@ -135,6 +135,46 @@ The TS step shells out to `npx openapi-typescript@7` — it needs Node
 locally and is intentionally out of CI's Go-only matrix. Reviewers spot
 TS drift by hand for now.
 
+### REST idempotency (Idempotency-Key)
+
+Mutating routes (`PUT /api/v1/inventory/{sku}/productionEvent`, `PUT
+/api/v1/reservation`) require an `Idempotency-Key` request header
+(DSN-019). The middleware
+([idempotency/rest](idempotency/rest/middleware.go)) caches the
+response under the `(key, sha256(body))` pair with a configurable
+TTL (default 24h, matching Stripe's contract):
+
+| Scenario | Response |
+| --- | --- |
+| First request with a key | Handler runs; status + body + curated headers recorded. |
+| Same key, same body, within TTL | Cached response replayed byte-for-byte. `Idempotent-Replay: true` is set so the client can tell. |
+| Same key, different body | 409 `application/problem+json` (Stripe-style conflict). |
+| Key missing | 400 `application/problem+json` (header is required on mutating routes). |
+| TTL expired | Treated as a first request — handler re-runs. |
+| Handler returned 5xx | Not cached — the next retry gets a fresh attempt. |
+
+The middleware is pluggable: today it uses an in-memory store, which
+is sufficient for single-replica deployments. DSN-021 will swap the
+backing store for Redis so the cache survives across replicas. The
+store contract is in [idempotency/rest/store.go](idempotency/rest/store.go).
+
+Two layers of dedupe sit on top of each other deliberately: the
+middleware guards safe retries by replaying the original *response*,
+while the inventory service's existing `request_id` guard guarantees
+that even if the middleware mis-fires (process restart, replica
+failover before DSN-021 lands) a duplicate production won't post.
+
+Config (env vars):
+
+| env var | default | meaning |
+| --- | --- | --- |
+| `GME_IDEMPOTENCY_TTLMINUTES` | `1440` | Retention window for cached responses, in minutes. |
+
+Prometheus counters: `rest_idempotency_hits_total`,
+`rest_idempotency_saves_total`,
+`rest_idempotency_conflicts_total`,
+`rest_idempotency_missing_header_total`.
+
 ### Outbound REST client (catalog)
 
 The inventory `GET /api/v1/inventory/{sku}` response is optionally
