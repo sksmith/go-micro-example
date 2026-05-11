@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -82,58 +81,29 @@ func Paginate(next http.Handler) http.Handler {
 	})
 }
 
-type UserAccess interface {
-	Login(ctx context.Context, username, password string) (user.User, error)
-}
-
-// Authenticate accepts either an HTTP Basic credential or a Bearer JWT
-// (SEC-002a). Both modes populate CtxKeyUser. SEC-002c will remove the
-// Basic Auth path once usage is at zero.
+// Authenticate requires a Bearer JWT (SEC-002c). HTTP Basic credentials
+// are no longer accepted on protected routes; callers must exchange
+// credentials at /auth/token (SEC-002a) and present the issued JWT.
 //
-// signer may be nil, in which case only Basic Auth is accepted.
-//
-// The header decides which path runs: a request that says "Bearer ..."
-// is never tried as Basic, even if the JWT is malformed — so a typo'd
-// JWT does not silently degrade to a 401-from-missing-Basic-creds.
-func Authenticate(ua UserAccess, signer *auth.Signer) func(http.Handler) http.Handler {
-	// Ensure the auth counters exist even if Metrics() never runs first
-	// (defensive — in normal wiring Metrics() is registered before
-	// Authenticate, but tests sometimes mount Authenticate alone).
+// Bcrypt now runs only on the token-issue path.
+func Authenticate(signer *auth.Signer) func(http.Handler) http.Handler {
 	metricsOnce.Do(initMetrics)
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			header := r.Header.Get("Authorization")
-			switch {
-			case signer != nil && strings.HasPrefix(header, "Bearer "):
-				u, err := authenticateBearer(strings.TrimPrefix(header, "Bearer "), signer)
-				if err != nil {
-					log.Ctx(r.Context()).Debug().Err(err).Msg("bearer token rejected")
-					authErr(w)
-					return
-				}
-				authJWTCounter.Inc()
-				ctx := context.WithValue(r.Context(), CtxKeyUser, u)
-				next.ServeHTTP(w, r.WithContext(ctx))
-			default:
-				username, password, ok := r.BasicAuth()
-				if !ok {
-					authErr(w)
-					return
-				}
-				u, err := ua.Login(r.Context(), username, password)
-				if err != nil {
-					if errors.Is(err, user.ErrInvalidCredentials) {
-						authErr(w)
-					} else {
-						log.Ctx(r.Context()).Error().Err(err).Str("username", username).Msg("error acquiring user")
-						Render(w, r, ErrInternalServer)
-					}
-					return
-				}
-				authBasicCounter.Inc()
-				ctx := context.WithValue(r.Context(), CtxKeyUser, u)
-				next.ServeHTTP(w, r.WithContext(ctx))
+			if signer == nil || !strings.HasPrefix(header, "Bearer ") {
+				authErr(w)
+				return
 			}
+			u, err := authenticateBearer(strings.TrimPrefix(header, "Bearer "), signer)
+			if err != nil {
+				log.Ctx(r.Context()).Debug().Err(err).Msg("bearer token rejected")
+				authErr(w)
+				return
+			}
+			authJWTCounter.Inc()
+			ctx := context.WithValue(r.Context(), CtxKeyUser, u)
+			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }
@@ -166,6 +136,11 @@ func AdminOnly(next http.Handler) http.Handler {
 }
 
 func authErr(w http.ResponseWriter) {
+	w.Header().Set("WWW-Authenticate", `Bearer realm="restricted"`)
+	http.Error(w, "Unauthorized", http.StatusUnauthorized)
+}
+
+func basicAuthErr(w http.ResponseWriter) {
 	w.Header().Set("WWW-Authenticate", `Basic realm="restricted", charset="UTF-8"`)
 	http.Error(w, "Unauthorized", http.StatusUnauthorized)
 }
@@ -221,7 +196,7 @@ func initMetrics() {
 
 	authBasicCounter = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "auth_basic_requests_total",
-		Help: "Number of requests authenticated via HTTP Basic Auth. Tracked per SEC-002b so SEC-002c can remove the Basic Auth path when this rate drops to zero.",
+		Help: "Successful HTTP Basic Auth requests. Retained post-SEC-002c for migration visibility; expected to stay flat at zero since Basic Auth is no longer accepted on protected routes.",
 	})
 	authJWTCounter = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "auth_jwt_requests_total",

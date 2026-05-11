@@ -9,17 +9,21 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/sksmith/go-micro-example/api"
+	"github.com/sksmith/go-micro-example/core/auth"
 	"github.com/sksmith/go-micro-example/core/user"
 	"github.com/sksmith/go-micro-example/testutil"
 )
 
 func TestUserCreate(t *testing.T) {
-	ts, mockSvc := setupUserTestServer()
+	ts, mockSvc, signer := setupUserTestServer(t)
 	defer ts.Close()
+
+	adminTok := issueToken(t, signer, "someadmin", true)
+	nonAdminTok := issueToken(t, signer, "someuser", false)
 
 	tests := []struct {
 		name           string
-		loginFunc      func(ctx context.Context, username, password string) (user.User, error)
+		token          string
 		createFunc     func(ctx context.Context, user user.CreateUserRequest) (user.User, error)
 		url            string
 		request        interface{}
@@ -27,10 +31,8 @@ func TestUserCreate(t *testing.T) {
 		wantStatusCode int
 	}{
 		{
-			name: "admin users can create valid user",
-			loginFunc: func(ctx context.Context, username, password string) (user.User, error) {
-				return createUser("someadmin", "", true), nil
-			},
+			name:  "admin users can create valid user",
+			token: adminTok,
 			createFunc: func(ctx context.Context, usr user.CreateUserRequest) (user.User, error) {
 				return createUser(usr.Username, "somepasswordhash", usr.IsAdmin), nil
 			},
@@ -40,10 +42,8 @@ func TestUserCreate(t *testing.T) {
 			wantStatusCode: http.StatusOK,
 		},
 		{
-			name: "non-admin users are unable to create users",
-			loginFunc: func(ctx context.Context, username, password string) (user.User, error) {
-				return createUser("someadmin", "", false), nil
-			},
+			name:  "non-admin users are unable to create users",
+			token: nonAdminTok,
 			createFunc: func(ctx context.Context, usr user.CreateUserRequest) (user.User, error) {
 				return createUser(usr.Username, "somepasswordhash", usr.IsAdmin), nil
 			},
@@ -53,34 +53,26 @@ func TestUserCreate(t *testing.T) {
 			wantStatusCode: http.StatusUnauthorized,
 		},
 		{
-			name: "when the creating user has invalid credentials, server returns unauthorized",
-			loginFunc: func(ctx context.Context, username, password string) (user.User, error) {
-				return user.User{}, user.ErrInvalidCredentials
-			},
-			createFunc: func(ctx context.Context, usr user.CreateUserRequest) (user.User, error) {
-				return createUser(usr.Username, "somepasswordhash", usr.IsAdmin), nil
-			},
-			url:            ts.URL,
-			request:        createUserReq("someuser", "somepass", false),
-			wantResponse:   nil,
-			wantStatusCode: http.StatusUnauthorized,
-		},
-		{
-			name: "when an unexpected error occurs logging in, an internal server error is returned",
-			loginFunc: func(ctx context.Context, username, password string) (user.User, error) {
-				return user.User{}, errors.New("some unexpected error")
-			},
+			name:           "requests without a bearer token are rejected",
+			token:          "",
 			createFunc:     nil,
 			url:            ts.URL,
 			request:        createUserReq("someuser", "somepass", false),
-			wantResponse:   api.ErrInternalServer,
-			wantStatusCode: http.StatusInternalServerError,
+			wantResponse:   nil,
+			wantStatusCode: http.StatusUnauthorized,
 		},
 		{
-			name: "when an error occurs creating the user, an internal server error is returned",
-			loginFunc: func(ctx context.Context, username, password string) (user.User, error) {
-				return createUser("someadmin", "", true), nil
-			},
+			name:           "requests with a tampered bearer token are rejected",
+			token:          adminTok + "tamper",
+			createFunc:     nil,
+			url:            ts.URL,
+			request:        createUserReq("someuser", "somepass", false),
+			wantResponse:   nil,
+			wantStatusCode: http.StatusUnauthorized,
+		},
+		{
+			name:  "when an error occurs creating the user, an internal server error is returned",
+			token: adminTok,
 			createFunc: func(ctx context.Context, usr user.CreateUserRequest) (user.User, error) {
 				return user.User{}, errors.New("some unexpected error")
 			},
@@ -93,10 +85,9 @@ func TestUserCreate(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			mockSvc.LoginFunc = test.loginFunc
 			mockSvc.CreateFunc = test.createFunc
 
-			res := testutil.Post(test.url, test.request, t, testutil.RequestOptions{Username: "someuser", Password: "somepass"})
+			res := testutil.Post(test.url, test.request, t, testutil.RequestOptions{Token: test.token})
 
 			if res.StatusCode != test.wantStatusCode {
 				t.Errorf("status code got=%d want=%d", res.StatusCode, test.wantStatusCode)
@@ -129,14 +120,28 @@ func createUserReq(username, password string, isAdmin bool) api.CreateUserReques
 	return api.CreateUserRequestDto{CreateUserRequest: &user.CreateUserRequest{Username: username, IsAdmin: isAdmin}, Password: password}
 }
 
-func setupUserTestServer() (*httptest.Server, *user.MockUserService) {
+func setupUserTestServer(t *testing.T) (*httptest.Server, *user.MockUserService, *auth.Signer) {
+	t.Helper()
 	svc := user.NewMockUserService()
 	usrApi := api.NewUserApi(svc)
+	signer, err := auth.NewSigner(nil, 0, false)
+	if err != nil {
+		t.Fatal(err)
+	}
 	r := chi.NewRouter()
-	r.With(api.Authenticate(svc, nil)).Route("/", func(r chi.Router) {
+	r.With(api.Authenticate(signer)).Route("/", func(r chi.Router) {
 		usrApi.ConfigureRouter(r)
 	})
 	ts := httptest.NewServer(r)
 
-	return ts, svc
+	return ts, svc, signer
+}
+
+func issueToken(t *testing.T, signer *auth.Signer, username string, isAdmin bool) string {
+	t.Helper()
+	tok, _, err := signer.Issue(user.User{Username: username, IsAdmin: isAdmin})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return tok
 }

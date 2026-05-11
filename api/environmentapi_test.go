@@ -1,7 +1,6 @@
 package api_test
 
 import (
-	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -87,20 +86,21 @@ func TestEnvEndpointRedactsSensitiveValues(t *testing.T) {
 }
 
 func TestEnvEndpointRequiresAdmin(t *testing.T) {
-	r, usrSvc := newTestRouter()
-	usrSvc.LoginFunc = func(ctx context.Context, username, password string) (user.User, error) {
-		return user.User{Username: "regular", IsAdmin: false}, nil
-	}
+	r, _, signer := newTestRouterWithSigner()
 	ts := httptest.NewServer(r)
 	defer ts.Close()
 
 	envURL := ts.URL + api.ApiPath + api.AdminPath + api.EnvPath
 
+	tok, _, err := signer.Issue(user.User{Username: "regular", IsAdmin: false})
+	if err != nil {
+		t.Fatal(err)
+	}
 	req, err := http.NewRequest(http.MethodGet, envURL, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	req.SetBasicAuth("regular", "pw")
+	req.Header.Set("Authorization", "Bearer "+tok)
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)

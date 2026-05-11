@@ -1,7 +1,6 @@
 package api_test
 
 import (
-	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -10,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/sksmith/go-micro-example/api"
-	"github.com/sksmith/go-micro-example/core"
 	"github.com/sksmith/go-micro-example/core/user"
 )
 
@@ -44,13 +42,10 @@ func readCounter(t *testing.T, ts *httptest.Server, name string) float64 {
 }
 
 func TestAuthCountersMoveOnSuccessOnly(t *testing.T) {
-	r, usrSvc, signer := newTestRouterWithSigner()
-	usrSvc.LoginFunc = func(ctx context.Context, username, password string) (user.User, error) {
-		if username == "alice" && password == "pw" {
-			return user.User{Username: "alice", IsAdmin: true}, nil
-		}
-		return user.User{}, core.ErrNotFound
-	}
+	// SEC-002c: Basic Auth is rejected on protected routes, so
+	// auth_basic_requests_total never increments. The counter is
+	// retained for migration visibility and must stay flat at zero.
+	r, _, signer := newTestRouterWithSigner()
 	ts := httptest.NewServer(r)
 	defer ts.Close()
 
@@ -60,7 +55,7 @@ func TestAuthCountersMoveOnSuccessOnly(t *testing.T) {
 		t.Fatalf("expected counters to exist, basic=%v jwt=%v", basicBefore, jwtBefore)
 	}
 
-	// Successful Basic Auth → basic counter should advance, jwt should not.
+	// Basic Auth attempt → rejected with 401, no counter movement.
 	req, _ := http.NewRequest(http.MethodGet, ts.URL+api.ApiPath+api.InventoryPath, nil)
 	req.SetBasicAuth("alice", "pw")
 	res, err := http.DefaultClient.Do(req)
@@ -68,40 +63,34 @@ func TestAuthCountersMoveOnSuccessOnly(t *testing.T) {
 		t.Fatal(err)
 	}
 	res.Body.Close()
+	if res.StatusCode != http.StatusUnauthorized {
+		t.Errorf("Basic Auth attempt should be 401, got %d", res.StatusCode)
+	}
 
-	// Failed Basic Auth → no counter movement.
+	// Successful Bearer → jwt counter should advance, basic should not.
+	tok, _, _ := signer.Issue(user.User{Username: "alice", IsAdmin: true})
 	req2, _ := http.NewRequest(http.MethodGet, ts.URL+api.ApiPath+api.InventoryPath, nil)
-	req2.SetBasicAuth("alice", "wrong")
+	req2.Header.Set("Authorization", "Bearer "+tok)
 	res2, err := http.DefaultClient.Do(req2)
 	if err != nil {
 		t.Fatal(err)
 	}
 	res2.Body.Close()
 
-	// Successful Bearer → jwt counter should advance, basic should not.
-	tok, _, _ := signer.Issue(user.User{Username: "alice", IsAdmin: true})
+	// Failed Bearer → no counter movement.
 	req3, _ := http.NewRequest(http.MethodGet, ts.URL+api.ApiPath+api.InventoryPath, nil)
-	req3.Header.Set("Authorization", "Bearer "+tok)
+	req3.Header.Set("Authorization", "Bearer not-a-real-token")
 	res3, err := http.DefaultClient.Do(req3)
 	if err != nil {
 		t.Fatal(err)
 	}
 	res3.Body.Close()
 
-	// Failed Bearer → no counter movement.
-	req4, _ := http.NewRequest(http.MethodGet, ts.URL+api.ApiPath+api.InventoryPath, nil)
-	req4.Header.Set("Authorization", "Bearer not-a-real-token")
-	res4, err := http.DefaultClient.Do(req4)
-	if err != nil {
-		t.Fatal(err)
-	}
-	res4.Body.Close()
-
 	basicAfter := readCounter(t, ts, "auth_basic_requests_total")
 	jwtAfter := readCounter(t, ts, "auth_jwt_requests_total")
 
-	if basicAfter-basicBefore != 1 {
-		t.Errorf("auth_basic_requests_total moved by %v, want 1", basicAfter-basicBefore)
+	if basicAfter-basicBefore != 0 {
+		t.Errorf("auth_basic_requests_total moved by %v, want 0 post-SEC-002c", basicAfter-basicBefore)
 	}
 	if jwtAfter-jwtBefore != 1 {
 		t.Errorf("auth_jwt_requests_total moved by %v, want 1", jwtAfter-jwtBefore)

@@ -12,8 +12,9 @@ import (
 	"github.com/sksmith/go-micro-example/core/auth"
 )
 
-// AuthApi exposes the /auth/token exchange (SEC-002a). Callers POST
-// HTTP Basic credentials and receive a short-lived bearer JWT.
+// AuthApi exposes the /auth/token exchange. Callers POST HTTP Basic
+// credentials and receive a short-lived bearer JWT — the only accepted
+// credential on protected routes after SEC-002c.
 type AuthApi struct {
 	users  UserService
 	signer *auth.Signer
@@ -41,14 +42,14 @@ func (a *AuthApi) ConfigureRouter(r chi.Router) {
 func (a *AuthApi) Token(w http.ResponseWriter, r *http.Request) {
 	username, password, ok := r.BasicAuth()
 	if !ok {
-		authErr(w)
+		basicAuthErr(w)
 		return
 	}
 
 	u, err := a.users.Login(r.Context(), username, password)
 	if err != nil {
 		if errors.Is(err, core.ErrNotFound) {
-			authErr(w)
+			basicAuthErr(w)
 			return
 		}
 		log.Ctx(r.Context()).Error().Err(err).Str("username", username).Msg("error acquiring user during token issuance")

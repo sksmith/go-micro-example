@@ -156,8 +156,8 @@ func TestProtectedRouteRejectsTamperedBearer(t *testing.T) {
 	}
 }
 
-func TestProtectedRouteStillAcceptsBasicAuth(t *testing.T) {
-	// SEC-002a is additive — Basic Auth must keep working until SEC-002c.
+func TestProtectedRouteRejectsBasicAuth(t *testing.T) {
+	// SEC-002c: Basic Auth is no longer accepted on protected routes.
 	r, usrSvc, _ := newTestRouterWithSigner()
 	usrSvc.LoginFunc = func(ctx context.Context, username, password string) (user.User, error) {
 		if username == "alice" && password == "pw" {
@@ -175,8 +175,11 @@ func TestProtectedRouteStillAcceptsBasicAuth(t *testing.T) {
 		t.Fatal(err)
 	}
 	res.Body.Close()
-	if res.StatusCode == http.StatusUnauthorized {
-		t.Errorf("expected basic auth to still work, got 401")
+	if res.StatusCode != http.StatusUnauthorized {
+		t.Errorf("expected 401 for Basic-Auth attempt, got %d", res.StatusCode)
+	}
+	if got := res.Header.Get("WWW-Authenticate"); !strings.HasPrefix(got, "Bearer") {
+		t.Errorf("expected WWW-Authenticate: Bearer, got %q", got)
 	}
 }
 

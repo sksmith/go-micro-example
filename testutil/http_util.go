@@ -23,8 +23,7 @@ func Unmarshal(res *http.Response, v interface{}, t *testing.T) {
 }
 
 type RequestOptions struct {
-	Username string
-	Password string
+	Token string
 }
 
 func Put(url string, request interface{}, t *testing.T, op ...RequestOptions) *http.Response {
@@ -46,8 +45,8 @@ func SendRequest(method, url string, request interface{}, t *testing.T, op ...Re
 		t.Fatal(err)
 	}
 
-	if len(op) > 0 {
-		req.SetBasicAuth(op[0].Username, op[0].Password)
+	if len(op) > 0 && op[0].Token != "" {
+		req.Header.Set("Authorization", "Bearer "+op[0].Token)
 	}
 
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
