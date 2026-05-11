@@ -66,7 +66,7 @@ func (a *InventoryApi) Subscribe(w http.ResponseWriter, r *http.Request) {
 	conn, _, _, err := ws.UpgradeHTTP(r, w)
 	if err != nil {
 		log.Ctx(r.Context()).Error().Err(err).Msg("failed to establish inventory subscription connection")
-		Render(w, r, ErrInternalServer)
+		Render(w, r, InternalServerProblem(err))
 		return
 	}
 	go func() {
@@ -104,7 +104,7 @@ func (a *InventoryApi) List(w http.ResponseWriter, r *http.Request) {
 	products, err := a.service.GetAllProductInventory(r.Context(), limit, offset)
 	if err != nil {
 		log.Ctx(r.Context()).Error().Err(err).Int("limit", limit).Int("offset", offset).Msg("failed to list product inventory")
-		Render(w, r, ErrInternalServer)
+		Render(w, r, InternalServerProblem(err))
 		return
 	}
 
@@ -114,17 +114,17 @@ func (a *InventoryApi) List(w http.ResponseWriter, r *http.Request) {
 func (a *InventoryApi) CreateProduct(w http.ResponseWriter, r *http.Request) {
 	data := &CreateProductRequest{}
 	if err := render.Bind(r, data); err != nil {
-		Render(w, r, BadRequestResponse(err))
+		Render(w, r, BadRequestProblem(err))
 		return
 	}
 
 	if err := a.service.CreateProduct(r.Context(), data.Product); err != nil {
 		if errors.Is(err, inventory.ErrInvalidInput) {
-			Render(w, r, BadRequestResponse(err))
+			Render(w, r, BadRequestProblem(err))
 			return
 		}
 		log.Ctx(r.Context()).Error().Err(err).Str("sku", data.Product.Sku).Msg("failed to create product")
-		Render(w, r, ErrInternalServer)
+		Render(w, r, InternalServerProblem(err))
 		return
 	}
 
@@ -139,7 +139,7 @@ func (a *InventoryApi) ProductCtx(next http.Handler) http.Handler {
 
 		sku := chi.URLParam(r, "sku")
 		if sku == "" {
-			Render(w, r, BadRequestResponse(errors.New("sku is required")))
+			Render(w, r, BadRequestProblem(errors.New("sku is required")))
 			return
 		}
 
@@ -147,10 +147,10 @@ func (a *InventoryApi) ProductCtx(next http.Handler) http.Handler {
 
 		if err != nil {
 			if errors.Is(err, core.ErrNotFound) {
-				Render(w, r, ErrNotFound)
+				Render(w, r, NotFoundProblem())
 			} else {
 				log.Ctx(r.Context()).Error().Err(err).Str("sku", sku).Msg("error acquiring product")
-				Render(w, r, ErrInternalServer)
+				Render(w, r, InternalServerProblem(err))
 			}
 			return
 		}
@@ -165,17 +165,17 @@ func (a *InventoryApi) CreateProductionEvent(w http.ResponseWriter, r *http.Requ
 
 	data := &CreateProductionEventRequest{}
 	if err := render.Bind(r, data); err != nil {
-		Render(w, r, BadRequestResponse(err))
+		Render(w, r, BadRequestProblem(err))
 		return
 	}
 
 	if err := a.service.Produce(r.Context(), product, *data.ProductionRequest); err != nil {
 		if errors.Is(err, inventory.ErrInvalidInput) {
-			Render(w, r, BadRequestResponse(err))
+			Render(w, r, BadRequestProblem(err))
 			return
 		}
 		log.Ctx(r.Context()).Error().Err(err).Str("sku", product.Sku).Str("requestId", data.ProductionRequest.RequestID).Msg("failed to record production event")
-		Render(w, r, ErrInternalServer)
+		Render(w, r, InternalServerProblem(err))
 		return
 	}
 
@@ -190,10 +190,10 @@ func (a *InventoryApi) GetProductInventory(w http.ResponseWriter, r *http.Reques
 
 	if err != nil {
 		if errors.Is(err, core.ErrNotFound) {
-			Render(w, r, ErrNotFound)
+			Render(w, r, NotFoundProblem())
 		} else {
 			log.Ctx(r.Context()).Error().Err(err).Str("sku", product.Sku).Msg("failed to get product inventory")
-			Render(w, r, ErrInternalServer)
+			Render(w, r, InternalServerProblem(err))
 		}
 		return
 	}

@@ -53,14 +53,14 @@ func (a *AuthApi) Token(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		log.Ctx(r.Context()).Error().Err(err).Str("username", username).Msg("error acquiring user during token issuance")
-		Render(w, r, ErrInternalServer)
+		Render(w, r, InternalServerProblem(err))
 		return
 	}
 
 	signed, expiresAt, err := a.signer.Issue(u)
 	if err != nil {
 		log.Ctx(r.Context()).Error().Err(err).Str("username", username).Msg("error signing token")
-		Render(w, r, ErrInternalServer)
+		Render(w, r, InternalServerProblem(err))
 		return
 	}
 
