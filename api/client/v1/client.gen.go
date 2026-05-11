@@ -105,6 +105,7 @@ type ApiEnvResponse struct {
 	Port        *ConfigStringConfig      `json:"port,omitempty"`
 	Profile     *ConfigStringConfig      `json:"profile,omitempty"`
 	Rabbitmq    *ConfigQueueConfig       `json:"rabbitmq,omitempty"`
+	Redis       *ConfigRedisConfig       `json:"redis,omitempty"`
 	Revision    *ConfigStringConfig      `json:"revision,omitempty"`
 	Sha1Version *ConfigStringConfig      `json:"sha1Version,omitempty"`
 }
@@ -283,6 +284,13 @@ type ConfigQueueConfig struct {
 	Product     *ConfigProductQueueConfig     `json:"product,omitempty"`
 	Reservation *ConfigReservationQueueConfig `json:"reservation,omitempty"`
 	User        *ConfigStringConfig           `json:"user,omitempty"`
+}
+
+// ConfigRedisConfig defines model for config.RedisConfig.
+type ConfigRedisConfig struct {
+	CacheTtlMinutes *ConfigIntConfig    `json:"cacheTtlMinutes,omitempty"`
+	Description     *string             `json:"description,omitempty"`
+	Url             *ConfigStringConfig `json:"url,omitempty"`
 }
 
 // ConfigReservationQueueConfig defines model for config.ReservationQueueConfig.

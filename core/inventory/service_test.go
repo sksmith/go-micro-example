@@ -11,6 +11,7 @@ import (
 	"errors"
 	"github.com/jackc/pgx/v5"
 	"github.com/sksmith/go-micro-example/core"
+	"github.com/sksmith/go-micro-example/core/cache"
 	"github.com/sksmith/go-micro-example/core/inventory"
 	"github.com/sksmith/go-micro-example/db"
 	"github.com/sksmith/go-micro-example/db/invrepo"
@@ -1292,5 +1293,105 @@ func getReservations() []inventory.Reservation {
 		{ID: 1, RequestID: "request2", Requester: "requester2", Sku: "sku1", State: inventory.Closed, ReservedQuantity: 3, RequestedQuantity: 3},
 		{ID: 2, RequestID: "request3", Requester: "requester1", Sku: "sku2", State: inventory.Closed, ReservedQuantity: 10, RequestedQuantity: 10},
 		{ID: 3, RequestID: "request4", Requester: "requester1", Sku: "sku3", State: inventory.Open, ReservedQuantity: 2, RequestedQuantity: 10},
+	}
+}
+
+// TestGetProductInventoryCacheHitSkipsRepo covers the DSN-020
+// cache-aside read: a populated cache means the repository is never
+// touched.
+func TestGetProductInventoryCacheHitSkipsRepo(t *testing.T) {
+	pi := inventory.ProductInventory{Available: 5, Product: inventory.Product{Sku: "sku1", Upc: "upc", Name: "n"}}
+
+	mockRepo := invrepo.NewMockRepo()
+	var repoCalls int
+	mockRepo.GetProductInventoryFunc = func(ctx context.Context, sku string, options ...core.QueryOptions) (inventory.ProductInventory, error) {
+		repoCalls++
+		return pi, nil
+	}
+	mq := queue.NewMockQueue()
+	svc := inventory.NewService(mockRepo, mq)
+
+	c := cache.NewMemoryCache()
+	svc.SetCache(c, time.Minute)
+	// Prime the cache so the first call to the service sees a hit.
+	if err := cache.Set(context.Background(), c, "inv:product:sku1:v1", pi, time.Minute); err != nil {
+		t.Fatalf("prime cache: %v", err)
+	}
+
+	got, err := svc.GetProductInventory(context.Background(), "sku1")
+	if err != nil {
+		t.Fatalf("GetProductInventory: %v", err)
+	}
+	if got.Available != pi.Available || got.Sku != pi.Sku {
+		t.Errorf("got=%+v want=%+v", got, pi)
+	}
+	if repoCalls != 0 {
+		t.Errorf("repo called %d times on cache hit; want 0", repoCalls)
+	}
+}
+
+// TestGetProductInventoryCacheMissPopulatesCache covers the
+// cache-fill side of cache-aside: a miss falls through to the
+// repository, then the result is written back so the next read hits.
+func TestGetProductInventoryCacheMissPopulatesCache(t *testing.T) {
+	pi := inventory.ProductInventory{Available: 7, Product: inventory.Product{Sku: "sku2", Upc: "upc", Name: "n"}}
+
+	mockRepo := invrepo.NewMockRepo()
+	mockRepo.GetProductInventoryFunc = func(ctx context.Context, sku string, options ...core.QueryOptions) (inventory.ProductInventory, error) {
+		return pi, nil
+	}
+	svc := inventory.NewService(mockRepo, queue.NewMockQueue())
+
+	c := cache.NewMemoryCache()
+	svc.SetCache(c, time.Minute)
+
+	if _, err := svc.GetProductInventory(context.Background(), "sku2"); err != nil {
+		t.Fatalf("GetProductInventory: %v", err)
+	}
+
+	if c.Size() != 1 {
+		t.Errorf("cache size=%d after miss; want 1 (cache should have been populated)", c.Size())
+	}
+	got, ok, err := cache.Get[inventory.ProductInventory](context.Background(), c, "inv:product:sku2:v1")
+	if err != nil || !ok {
+		t.Fatalf("cache Get: ok=%v err=%v", ok, err)
+	}
+	if got.Available != pi.Available {
+		t.Errorf("cached available=%d want=%d", got.Available, pi.Available)
+	}
+}
+
+// TestProduceInvalidatesCache covers the write-side of the DSN-020
+// contract: a successful Produce reaches publishInventory after the
+// transaction commits, which is where the cache key is dropped.
+func TestProduceInvalidatesCache(t *testing.T) {
+	pi := inventory.ProductInventory{Available: 1, Product: inventory.Product{Sku: "sku3", Upc: "upc", Name: "n"}}
+	mockRepo := invrepo.NewMockRepo()
+	mockRepo.GetProductionEventByRequestIDFunc = func(ctx context.Context, requestID string, options ...core.QueryOptions) (inventory.ProductionEvent, error) {
+		return inventory.ProductionEvent{}, core.ErrNotFound
+	}
+	mockRepo.GetProductInventoryFunc = func(ctx context.Context, sku string, options ...core.QueryOptions) (inventory.ProductInventory, error) {
+		return pi, nil
+	}
+	mockRepo.GetReservationsFunc = func(ctx context.Context, options inventory.GetReservationsOptions, limit, offset int, queryOptions ...core.QueryOptions) ([]inventory.Reservation, error) {
+		return nil, nil
+	}
+
+	svc := inventory.NewService(mockRepo, queue.NewMockQueue())
+	c := cache.NewMemoryCache()
+	svc.SetCache(c, time.Minute)
+
+	// Plant a cached entry so we can confirm Produce dropped it.
+	_ = cache.Set(context.Background(), c, "inv:product:sku3:v1", pi, time.Minute)
+	if c.Size() != 1 {
+		t.Fatalf("setup: size=%d, want 1", c.Size())
+	}
+
+	err := svc.Produce(context.Background(), pi.Product, inventory.ProductionRequest{RequestID: "r-1", Quantity: 2})
+	if err != nil {
+		t.Fatalf("Produce: %v", err)
+	}
+	if c.Size() != 0 {
+		t.Errorf("cache size=%d after Produce; want 0 (invalidation should have dropped sku3)", c.Size())
 	}
 }

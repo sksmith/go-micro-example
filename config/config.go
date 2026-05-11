@@ -73,7 +73,18 @@ type Config struct {
 	Kafka       KafkaConfig       `json:"kafka"       yaml:"kafka"`
 	Catalog     CatalogConfig     `json:"catalog"    yaml:"catalog"`
 	Idempotency IdempotencyConfig `json:"idempotency" yaml:"idempotency"`
+	Redis       RedisConfig       `json:"redis"       yaml:"redis"`
 	Docs        DocsConfig        `json:"docs"        yaml:"docs"`
+}
+
+// RedisConfig holds the DSN-020 Redis connection knobs. An empty URL
+// disables the cache; the inventory API then serves every read from
+// the database. The same client (once DSN-021 lands) will back the
+// rate limiter, idempotency store, and user cache.
+type RedisConfig struct {
+	URL             StringConfig `json:"url"            yaml:"url"            sensitive:"true"`
+	CacheTTLMinutes IntConfig    `json:"cacheTtlMinutes" yaml:"cacheTtlMinutes"`
+	Description     string       `json:"description"    yaml:"description"`
 }
 
 // IdempotencyConfig holds the DSN-019 REST idempotency knobs. The
@@ -267,6 +278,8 @@ func bindSensitiveEnv() {
 		"catalog.perAttemptMs",
 		"catalog.maxAttempts",
 		"idempotency.ttlMinutes",
+		"redis.url",
+		"redis.cacheTtlMinutes",
 	} {
 		// Errors here would mean a programming error in the key list —
 		// viper.BindEnv only fails on empty input.
@@ -559,6 +572,10 @@ func setupDefaults(config *Config) {
 
 	config.Idempotency.Description = "DSN-019: REST Idempotency-Key cache. Retains cached responses for ttlMinutes so retries replay byte-for-byte."
 	config.Idempotency.TTLMinutes = IntConfig{Value: 24 * 60, Default: 24 * 60, Description: "Retention window for cached responses, in minutes. Stripe-style 24h default."}
+
+	config.Redis.Description = "DSN-020: Redis URL for the inventory read-path cache. Empty disables the client entirely."
+	config.Redis.URL = StringConfig{Value: "", Default: "", Description: "Redis connection URL (redis://host:port/db). Empty disables the cache."}
+	config.Redis.CacheTTLMinutes = IntConfig{Value: 5, Default: 5, Description: "TTL for cached ProductInventory entries, in minutes. Short by default so missed invalidations self-heal."}
 
 	config.Config.Description = "Settings for where and how the application should get its configurations."
 	config.Config.Print = BoolConfig{Value: false, Default: false, Description: "Print configurations on startup."}
