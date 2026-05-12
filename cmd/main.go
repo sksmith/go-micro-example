@@ -117,6 +117,12 @@ func main() {
 	}
 
 	ur := usrrepo.NewPostgresRepo(dbPool)
+	if redisClient != nil {
+		// DSN-021c: Redis-backed user cache replaces the in-process
+		// LRU. Short TTL so revocations propagate without explicit
+		// cache-bust on the user-management endpoints.
+		ur.SetCache(cache.NewRedisCache(redisClient), time.Duration(cfg.Redis.UserCacheTTLSeconds.Value)*time.Second)
+	}
 
 	userService := user.NewService(ur)
 

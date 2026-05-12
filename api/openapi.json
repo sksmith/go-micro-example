@@ -523,6 +523,9 @@
                     },
                     "url": {
                         "$ref": "#/components/schemas/config.StringConfig"
+                    },
+                    "userCacheTtlSeconds": {
+                        "$ref": "#/components/schemas/config.IntConfig"
                     }
                 },
                 "type": "object"

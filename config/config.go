@@ -83,9 +83,10 @@ type Config struct {
 // the database. The same client backs the DSN-021 family (rate
 // limiter, idempotency store, user cache).
 type RedisConfig struct {
-	URL             StringConfig `json:"url"            yaml:"url"            sensitive:"true"`
-	CacheTTLMinutes IntConfig    `json:"cacheTtlMinutes" yaml:"cacheTtlMinutes"`
-	Description     string       `json:"description"    yaml:"description"`
+	URL                 StringConfig `json:"url"                 yaml:"url"                 sensitive:"true"`
+	CacheTTLMinutes     IntConfig    `json:"cacheTtlMinutes"     yaml:"cacheTtlMinutes"`
+	UserCacheTTLSeconds IntConfig    `json:"userCacheTtlSeconds" yaml:"userCacheTtlSeconds"`
+	Description         string       `json:"description"         yaml:"description"`
 }
 
 // RateLimitConfig configures the DSN-021b auth-token rate limiter.
@@ -291,6 +292,7 @@ func bindSensitiveEnv() {
 		"idempotency.ttlMinutes",
 		"redis.url",
 		"redis.cacheTtlMinutes",
+		"redis.userCacheTtlSeconds",
 		"rateLimit.authRatePerSecond",
 		"rateLimit.authBurst",
 	} {
@@ -589,6 +591,7 @@ func setupDefaults(config *Config) {
 	config.Redis.Description = "DSN-020: Redis URL for the inventory read-path cache. Empty disables the client entirely."
 	config.Redis.URL = StringConfig{Value: "", Default: "", Description: "Redis connection URL (redis://host:port/db). Empty disables the cache."}
 	config.Redis.CacheTTLMinutes = IntConfig{Value: 5, Default: 5, Description: "TTL for cached ProductInventory entries, in minutes. Short by default so missed invalidations self-heal."}
+	config.Redis.UserCacheTTLSeconds = IntConfig{Value: 60, Default: 60, Description: "TTL for cached User rows, in seconds. Short so admin/role revocations propagate without explicit cache-bust."}
 
 	config.RateLimit.Description = "DSN-021b: per-IP rate limit for /auth/token (brute-force throttle). Requires redis.url; disabled when Redis isn't configured."
 	config.RateLimit.AuthRatePerSecond = FloatConfig{Value: 1.0, Default: 1.0, Description: "Token refill rate (tokens/sec) for the /auth/token bucket."}

@@ -853,6 +853,7 @@ export interface components {
             cacheTtlMinutes?: components["schemas"]["config.IntConfig"];
             description?: string;
             url?: components["schemas"]["config.StringConfig"];
+            userCacheTtlSeconds?: components["schemas"]["config.IntConfig"];
         };
         "config.ReservationQueueConfig": {
             description?: string;
