@@ -303,9 +303,10 @@ type ConfigRateLimitConfig struct {
 
 // ConfigRedisConfig defines model for config.RedisConfig.
 type ConfigRedisConfig struct {
-	CacheTtlMinutes *ConfigIntConfig    `json:"cacheTtlMinutes,omitempty"`
-	Description     *string             `json:"description,omitempty"`
-	Url             *ConfigStringConfig `json:"url,omitempty"`
+	CacheTtlMinutes     *ConfigIntConfig    `json:"cacheTtlMinutes,omitempty"`
+	Description         *string             `json:"description,omitempty"`
+	Url                 *ConfigStringConfig `json:"url,omitempty"`
+	UserCacheTtlSeconds *ConfigIntConfig    `json:"userCacheTtlSeconds,omitempty"`
 }
 
 // ConfigReservationQueueConfig defines model for config.ReservationQueueConfig.

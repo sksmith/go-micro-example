@@ -168,6 +168,31 @@ Prometheus metrics: `ratelimit_allowed_total{scope}`,
 Other routes (`PUT /api/v1/...`, etc.) are not throttled today —
 SEC-007 will tune per-route policy.
 
+### Redis user cache
+
+`db/usrrepo` reads users through a Redis cache (DSN-021c), replacing
+the previous in-process `hashicorp/golang-lru` cache. Same
+cache-aside shape as the inventory read-path:
+
+- `Get` checks the cache first; miss falls through to Postgres and
+  populates the cache with a short TTL (default 60s).
+- `Create` populates the cache with the new row.
+- `Delete` invalidates the cached entry.
+- TTL is the safety net: admin/role revocations propagate
+  automatically when the cached row expires, without needing
+  explicit cache-bust on the user-management endpoints.
+
+The cache is opt-in via `usrrepo.dbRepo.SetCache(c, ttl)`; cmd/main
+wires it when `GME_REDIS_URL` is set. An empty URL or a Redis outage
+falls back to direct DB reads — auth still works, just slower.
+
+| env var | default | meaning |
+| --- | --- | --- |
+| `GME_REDIS_USERCACHETTLSECONDS` | `60` | TTL for cached user rows, in seconds. |
+
+Key shape: `user:{username}:v1`. Bumping the `v1` suffix drops every
+cached row when the cached shape changes.
+
 ### Redis cache (inventory read-path)
 
 `GET /api/v1/inventory/{sku}` reads through a Redis cache
