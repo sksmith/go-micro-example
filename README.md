@@ -135,6 +135,39 @@ The TS step shells out to `npx openapi-typescript@7` — it needs Node
 locally and is intentionally out of CI's Go-only matrix. Reviewers spot
 TS drift by hand for now.
 
+### Rate limiting (auth-token)
+
+`/auth/token` is throttled by a distributed token-bucket rate
+limiter ([core/ratelimit](core/ratelimit/limiter.go), DSN-021b)
+backed by Redis. The bucket math runs inside a Lua script so the
+read-refill-subtract-write sequence is atomic against concurrent
+callers across replicas. Buckets are keyed per source IP
+(`X-Forwarded-For` is honoured when present, with `RemoteAddr` as
+the fallback).
+
+Behaviour:
+
+| Scenario | Response |
+| --- | --- |
+| Under rate | Request forwarded. `X-RateLimit-Remaining` set on the response. |
+| Over rate | 429 `application/problem+json`. `Retry-After` (seconds, minimum 1) and `X-RateLimit-Remaining` set. |
+| Redis unreachable | Limiter degrades open — request forwarded with a `ratelimit_errors_total` increment. The alternative (deny-on-error) turns a Redis blip into an outage. |
+| `GME_REDIS_URL` empty | Middleware not installed; `/auth/token` runs un-throttled. |
+
+Config (env vars):
+
+| env var | default | meaning |
+| --- | --- | --- |
+| `GME_RATELIMIT_AUTHRATEPERSECOND` | `1.0` | Token refill rate (per second). |
+| `GME_RATELIMIT_AUTHBURST` | `5` | Bucket capacity. |
+
+Prometheus metrics: `ratelimit_allowed_total{scope}`,
+`ratelimit_denied_total{scope}`, `ratelimit_errors_total`,
+`ratelimit_eval_duration_ms`.
+
+Other routes (`PUT /api/v1/...`, etc.) are not throttled today —
+SEC-007 will tune per-route policy.
+
 ### Redis cache (inventory read-path)
 
 `GET /api/v1/inventory/{sku}` reads through a Redis cache

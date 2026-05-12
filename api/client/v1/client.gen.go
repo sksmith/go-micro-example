@@ -105,6 +105,7 @@ type ApiEnvResponse struct {
 	Port        *ConfigStringConfig      `json:"port,omitempty"`
 	Profile     *ConfigStringConfig      `json:"profile,omitempty"`
 	Rabbitmq    *ConfigQueueConfig       `json:"rabbitmq,omitempty"`
+	RateLimit   *ConfigRateLimitConfig   `json:"rateLimit,omitempty"`
 	Redis       *ConfigRedisConfig       `json:"redis,omitempty"`
 	Revision    *ConfigStringConfig      `json:"revision,omitempty"`
 	Sha1Version *ConfigStringConfig      `json:"sha1Version,omitempty"`
@@ -225,6 +226,13 @@ type ConfigDocsConfig struct {
 	Enabled     *ConfigBoolConfig `json:"enabled,omitempty"`
 }
 
+// ConfigFloatConfig defines model for config.FloatConfig.
+type ConfigFloatConfig struct {
+	Default     *float32 `json:"default,omitempty"`
+	Description *string  `json:"description,omitempty"`
+	Value       *float32 `json:"value,omitempty"`
+}
+
 // ConfigIdempotencyConfig defines model for config.IdempotencyConfig.
 type ConfigIdempotencyConfig struct {
 	Description *string          `json:"description,omitempty"`
@@ -284,6 +292,13 @@ type ConfigQueueConfig struct {
 	Product     *ConfigProductQueueConfig     `json:"product,omitempty"`
 	Reservation *ConfigReservationQueueConfig `json:"reservation,omitempty"`
 	User        *ConfigStringConfig           `json:"user,omitempty"`
+}
+
+// ConfigRateLimitConfig defines model for config.RateLimitConfig.
+type ConfigRateLimitConfig struct {
+	AuthBurst         *ConfigIntConfig   `json:"authBurst,omitempty"`
+	AuthRatePerSecond *ConfigFloatConfig `json:"authRatePerSecond,omitempty"`
+	Description       *string            `json:"description,omitempty"`
 }
 
 // ConfigRedisConfig defines model for config.RedisConfig.

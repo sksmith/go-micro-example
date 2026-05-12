@@ -99,6 +99,9 @@
                     "rabbitmq": {
                         "$ref": "#/components/schemas/config.QueueConfig"
                     },
+                    "rateLimit": {
+                        "$ref": "#/components/schemas/config.RateLimitConfig"
+                    },
                     "redis": {
                         "$ref": "#/components/schemas/config.RedisConfig"
                     },
@@ -355,6 +358,20 @@
                 },
                 "type": "object"
             },
+            "config.FloatConfig": {
+                "properties": {
+                    "default": {
+                        "type": "number"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "value": {
+                        "type": "number"
+                    }
+                },
+                "type": "object"
+            },
             "config.IdempotencyConfig": {
                 "properties": {
                     "description": {
@@ -478,6 +495,20 @@
                     },
                     "user": {
                         "$ref": "#/components/schemas/config.StringConfig"
+                    }
+                },
+                "type": "object"
+            },
+            "config.RateLimitConfig": {
+                "properties": {
+                    "authBurst": {
+                        "$ref": "#/components/schemas/config.IntConfig"
+                    },
+                    "authRatePerSecond": {
+                        "$ref": "#/components/schemas/config.FloatConfig"
+                    },
+                    "description": {
+                        "type": "string"
                     }
                 },
                 "type": "object"

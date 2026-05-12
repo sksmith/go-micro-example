@@ -55,6 +55,11 @@ var Steps = []Step{
 		Name:       "Redis cache: second read is a hit",
 		Run:        runCacheRead,
 	},
+	{
+		Capability: "DSN-021b",
+		Name:       "Auth-token burst trips rate limiter (429)",
+		Run:        runRateLimitBurst,
+	},
 }
 
 // runRESTRoundTrip exchanges admin Basic credentials for a JWT,

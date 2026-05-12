@@ -74,17 +74,28 @@ type Config struct {
 	Catalog     CatalogConfig     `json:"catalog"    yaml:"catalog"`
 	Idempotency IdempotencyConfig `json:"idempotency" yaml:"idempotency"`
 	Redis       RedisConfig       `json:"redis"       yaml:"redis"`
+	RateLimit   RateLimitConfig   `json:"rateLimit"   yaml:"rateLimit"`
 	Docs        DocsConfig        `json:"docs"        yaml:"docs"`
 }
 
 // RedisConfig holds the DSN-020 Redis connection knobs. An empty URL
 // disables the cache; the inventory API then serves every read from
-// the database. The same client (once DSN-021 lands) will back the
-// rate limiter, idempotency store, and user cache.
+// the database. The same client backs the DSN-021 family (rate
+// limiter, idempotency store, user cache).
 type RedisConfig struct {
 	URL             StringConfig `json:"url"            yaml:"url"            sensitive:"true"`
 	CacheTTLMinutes IntConfig    `json:"cacheTtlMinutes" yaml:"cacheTtlMinutes"`
 	Description     string       `json:"description"    yaml:"description"`
+}
+
+// RateLimitConfig configures the DSN-021b auth-token rate limiter.
+// Empty or zero values fall through to package defaults. When
+// redis.url is empty the limiter is disabled regardless of these
+// values — the middleware needs Redis to function.
+type RateLimitConfig struct {
+	AuthRatePerSecond FloatConfig `json:"authRatePerSecond" yaml:"authRatePerSecond"`
+	AuthBurst         IntConfig   `json:"authBurst"         yaml:"authBurst"`
+	Description       string      `json:"description"       yaml:"description"`
 }
 
 // IdempotencyConfig holds the DSN-019 REST idempotency knobs. The
@@ -280,6 +291,8 @@ func bindSensitiveEnv() {
 		"idempotency.ttlMinutes",
 		"redis.url",
 		"redis.cacheTtlMinutes",
+		"rateLimit.authRatePerSecond",
+		"rateLimit.authBurst",
 	} {
 		// Errors here would mean a programming error in the key list —
 		// viper.BindEnv only fails on empty input.
@@ -576,6 +589,10 @@ func setupDefaults(config *Config) {
 	config.Redis.Description = "DSN-020: Redis URL for the inventory read-path cache. Empty disables the client entirely."
 	config.Redis.URL = StringConfig{Value: "", Default: "", Description: "Redis connection URL (redis://host:port/db). Empty disables the cache."}
 	config.Redis.CacheTTLMinutes = IntConfig{Value: 5, Default: 5, Description: "TTL for cached ProductInventory entries, in minutes. Short by default so missed invalidations self-heal."}
+
+	config.RateLimit.Description = "DSN-021b: per-IP rate limit for /auth/token (brute-force throttle). Requires redis.url; disabled when Redis isn't configured."
+	config.RateLimit.AuthRatePerSecond = FloatConfig{Value: 1.0, Default: 1.0, Description: "Token refill rate (tokens/sec) for the /auth/token bucket."}
+	config.RateLimit.AuthBurst = IntConfig{Value: 5, Default: 5, Description: "Bucket size for the /auth/token rate limiter (burst capacity)."}
 
 	config.Config.Description = "Settings for where and how the application should get its configurations."
 	config.Config.Print = BoolConfig{Value: false, Default: false, Description: "Print configurations on startup."}

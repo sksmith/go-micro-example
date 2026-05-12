@@ -34,7 +34,7 @@ func newTestRouterWithSigner() (chi.Router, *user.MockUserService, *auth.Signer)
 	if err != nil {
 		panic(err)
 	}
-	return api.ConfigureRouter(cfg, invSvc, resSvc, usrSvc, signer, nil, nil, nil), usrSvc, signer
+	return api.ConfigureRouter(cfg, invSvc, resSvc, usrSvc, signer, nil, nil, nil, nil), usrSvc, signer
 }
 
 func TestCorsConfig(t *testing.T) {

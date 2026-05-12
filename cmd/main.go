@@ -35,6 +35,7 @@ import (
 	"github.com/sksmith/go-micro-example/core/catalog"
 	"github.com/sksmith/go-micro-example/core/inventory"
 	"github.com/sksmith/go-micro-example/core/observability"
+	"github.com/sksmith/go-micro-example/core/ratelimit"
 	"github.com/sksmith/go-micro-example/core/secrets"
 	"github.com/sksmith/go-micro-example/core/user"
 	"github.com/sksmith/go-micro-example/db"
@@ -135,7 +136,8 @@ func main() {
 	}
 	catalogClient := buildCatalogClient(cfg)
 	idempotencyMw := buildIdempotencyMiddleware(cfg, redisClient)
-	r := api.ConfigureRouter(cfg, invService, invService, userService, signer, readinessDeps, catalogClient, idempotencyMw)
+	authRateLimitMw := buildAuthRateLimitMiddleware(cfg, redisClient)
+	r := api.ConfigureRouter(cfg, invService, invService, userService, signer, readinessDeps, catalogClient, idempotencyMw, authRateLimitMw)
 
 	_ = queue.NewProductQueue(ctx, cfg, invService)
 
@@ -215,6 +217,27 @@ func buildRedisClient(cfg *config.Config) *redis.Client {
 	client := redis.NewClient(opts)
 	log.Info().Str("addr", opts.Addr).Int("db", opts.DB).Msg("redis client ready")
 	return client
+}
+
+// buildAuthRateLimitMiddleware constructs the DSN-021b rate limiter
+// for /auth/token, bucketed per source IP. Returning a pass-through
+// when Redis isn't wired keeps every-other-route's behaviour
+// unchanged; the rate limiter needs a shared store to be useful and
+// degrades transparently when one isn't there.
+func buildAuthRateLimitMiddleware(cfg *config.Config, redisClient *redis.Client) func(http.Handler) http.Handler {
+	if redisClient == nil {
+		log.Info().Msg("auth-token rate limiter disabled (no redis client)")
+		return func(next http.Handler) http.Handler { return next }
+	}
+	limiter := ratelimit.New(redisClient, ratelimit.Config{
+		Rate:  cfg.RateLimit.AuthRatePerSecond.Value,
+		Burst: int(cfg.RateLimit.AuthBurst.Value),
+	})
+	log.Info().
+		Float64("rate", cfg.RateLimit.AuthRatePerSecond.Value).
+		Int64("burst", cfg.RateLimit.AuthBurst.Value).
+		Msg("auth-token rate limiter ready")
+	return ratelimit.Middleware(limiter, ratelimit.IPKey)
 }
 
 // buildIdempotencyMiddleware constructs the DSN-019 Idempotency-Key
