@@ -69,6 +69,8 @@ components:
           $ref: '#/components/schemas/config.StringConfig'
         rabbitmq:
           $ref: '#/components/schemas/config.QueueConfig'
+        rateLimit:
+          $ref: '#/components/schemas/config.RateLimitConfig'
         redis:
           $ref: '#/components/schemas/config.RedisConfig'
         revision:
@@ -235,6 +237,15 @@ components:
         enabled:
           $ref: '#/components/schemas/config.BoolConfig'
       type: object
+    config.FloatConfig:
+      properties:
+        default:
+          type: number
+        description:
+          type: string
+        value:
+          type: number
+      type: object
     config.IdempotencyConfig:
       properties:
         description:
@@ -316,6 +327,15 @@ components:
           $ref: '#/components/schemas/config.ReservationQueueConfig'
         user:
           $ref: '#/components/schemas/config.StringConfig'
+      type: object
+    config.RateLimitConfig:
+      properties:
+        authBurst:
+          $ref: '#/components/schemas/config.IntConfig'
+        authRatePerSecond:
+          $ref: '#/components/schemas/config.FloatConfig'
+        description:
+          type: string
       type: object
     config.RedisConfig:
       properties:

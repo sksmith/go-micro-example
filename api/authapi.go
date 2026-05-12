@@ -16,6 +16,8 @@ import (
 // credentials and receive a short-lived bearer JWT — the only accepted
 // credential on protected routes after SEC-002c.
 type AuthApi struct {
+	rateLimit func(http.Handler) http.Handler
+
 	users  UserService
 	signer *auth.Signer
 }
@@ -35,8 +37,19 @@ func NewAuthApi(users UserService, signer *auth.Signer) *AuthApi {
 	return &AuthApi{users: users, signer: signer}
 }
 
+// SetRateLimit installs the optional DSN-021b rate-limit middleware
+// applied to /auth/token. nil disables throttling on that route.
+func (a *AuthApi) SetRateLimit(mw func(http.Handler) http.Handler) {
+	a.rateLimit = mw
+}
+
 func (a *AuthApi) ConfigureRouter(r chi.Router) {
-	r.Post("/token", a.Token)
+	token := http.HandlerFunc(a.Token)
+	if a.rateLimit != nil {
+		r.Method(http.MethodPost, "/token", a.rateLimit(token))
+	} else {
+		r.Post("/token", token.ServeHTTP)
+	}
 }
 
 // Token exchanges HTTP Basic credentials for a short-lived bearer JWT.

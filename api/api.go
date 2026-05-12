@@ -46,7 +46,10 @@ const (
 // idempotencyMw is the optional DSN-019 Idempotency-Key middleware.
 // nil leaves the mutating routes unwrapped; non-nil applies it to
 // productionEvent and the reservation Create route.
-func ConfigureRouter(cfg *config.Config, invSvc InventoryService, resSvc ReservationService, userService UserService, signer *auth.Signer, readinessDeps map[string]Pinger, catalogClient catalog.Client, idempotencyMw func(http.Handler) http.Handler) chi.Router {
+//
+// authRateLimitMw is the optional DSN-021b rate-limit middleware
+// applied to /auth/token. nil leaves the route un-throttled.
+func ConfigureRouter(cfg *config.Config, invSvc InventoryService, resSvc ReservationService, userService UserService, signer *auth.Signer, readinessDeps map[string]Pinger, catalogClient catalog.Client, idempotencyMw func(http.Handler) http.Handler, authRateLimitMw func(http.Handler) http.Handler) chi.Router {
 	log.Info().Msg("configuring router...")
 	r := chi.NewRouter()
 
@@ -83,7 +86,9 @@ func ConfigureRouter(cfg *config.Config, invSvc InventoryService, resSvc Reserva
 	}
 
 	if signer != nil {
-		r.Route(AuthPath, NewAuthApi(userService, signer).ConfigureRouter)
+		authApi := NewAuthApi(userService, signer)
+		authApi.SetRateLimit(authRateLimitMw)
+		r.Route(AuthPath, authApi.ConfigureRouter)
 	}
 
 	r.With(Authenticate(signer)).Route(ApiPath, func(r chi.Router) {
