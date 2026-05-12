@@ -25,7 +25,7 @@ require (
 	github.com/swaggest/swgui v1.8.7
 	github.com/twmb/franz-go v1.21.1
 	github.com/twmb/franz-go/plugin/kotel v1.6.0
-	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.61.0
+	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.68.0
 	go.opentelemetry.io/otel v1.43.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.43.0
 	go.opentelemetry.io/otel/sdk v1.43.0
