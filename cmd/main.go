@@ -134,7 +134,7 @@ func main() {
 		readinessDeps["redis"] = redisPinger{client: redisClient}
 	}
 	catalogClient := buildCatalogClient(cfg)
-	idempotencyMw := buildIdempotencyMiddleware(cfg)
+	idempotencyMw := buildIdempotencyMiddleware(cfg, redisClient)
 	r := api.ConfigureRouter(cfg, invService, invService, userService, signer, readinessDeps, catalogClient, idempotencyMw)
 
 	_ = queue.NewProductQueue(ctx, cfg, invService)
@@ -218,15 +218,22 @@ func buildRedisClient(cfg *config.Config) *redis.Client {
 }
 
 // buildIdempotencyMiddleware constructs the DSN-019 Idempotency-Key
-// middleware backed by an in-memory store. The store is per-process,
-// so retries that hit a different replica after a load balancer
-// failover will miss the cache — DSN-021 swaps the in-memory backing
-// for Redis, which fixes that. The middleware enforces Idempotency-Key
-// presence on the mutating routes it wraps.
-func buildIdempotencyMiddleware(cfg *config.Config) func(http.Handler) http.Handler {
+// middleware. When a Redis client is available (DSN-021a) it backs
+// the store with Redis so retries that hit a different replica after
+// a load balancer failover still replay the cached response;
+// otherwise it falls back to the in-memory store and the cache stays
+// per-process. The middleware enforces Idempotency-Key presence on
+// the mutating routes it wraps either way.
+func buildIdempotencyMiddleware(cfg *config.Config, redisClient *redis.Client) func(http.Handler) http.Handler {
 	ttl := time.Duration(cfg.Idempotency.TTLMinutes.Value) * time.Minute
-	store := restidempotency.NewMemoryStore()
-	log.Info().Dur("ttl", ttl).Msg("rest idempotency middleware ready (in-memory store)")
+	var store restidempotency.Store
+	if redisClient != nil {
+		store = restidempotency.NewRedisStore(redisClient)
+		log.Info().Dur("ttl", ttl).Msg("rest idempotency middleware ready (Redis store)")
+	} else {
+		store = restidempotency.NewMemoryStore()
+		log.Info().Dur("ttl", ttl).Msg("rest idempotency middleware ready (in-memory store; cross-replica retries will miss)")
+	}
 	return restidempotency.Middleware(restidempotency.Config{
 		Store:    store,
 		TTL:      ttl,
