@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/sksmith/go-micro-example/api"
 	"github.com/sksmith/go-micro-example/core/inventory"
+	"github.com/sksmith/go-micro-example/internal/platform/httpx"
 )
 
 func paginationTestServer(t *testing.T) (*httptest.Server, *inventory.MockInventoryService) {
@@ -55,7 +56,7 @@ func TestPaginationRejectsInvalidInput(t *testing.T) {
 				t.Errorf("content-type got=%q", got)
 			}
 			body, _ := io.ReadAll(res.Body)
-			var p api.Problem
+			var p httpx.Problem
 			if err := json.Unmarshal(body, &p); err != nil {
 				t.Fatalf("unmarshal: %v", err)
 			}

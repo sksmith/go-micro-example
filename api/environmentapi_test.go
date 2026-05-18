@@ -10,7 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/sksmith/go-micro-example/api"
 	"github.com/sksmith/go-micro-example/config"
-	"github.com/sksmith/go-micro-example/core/user"
+	"github.com/sksmith/go-micro-example/internal/user"
 	"github.com/sksmith/go-micro-example/testutil"
 )
 

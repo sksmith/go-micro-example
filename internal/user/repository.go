@@ -1,4 +1,4 @@
-package usrrepo
+package user
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/core"
 	"github.com/sksmith/go-micro-example/core/cache"
-	"github.com/sksmith/go-micro-example/core/user"
 	"github.com/sksmith/go-micro-example/db"
 )
 
@@ -46,29 +45,29 @@ func (r *dbRepo) SetCache(c cache.Cache, ttl time.Duration) {
 // to drop every entry without touching Redis directly.
 func userCacheKey(username string) string { return "user:" + username + ":v1" }
 
-func (r *dbRepo) Create(ctx context.Context, user *user.User, txs ...core.UpdateOptions) error {
+func (r *dbRepo) Create(ctx context.Context, u *User, txs ...core.UpdateOptions) error {
 	m := db.StartMetric("Create")
 	tx := db.GetUpdateOptions(r.conn, txs...)
 
 	_, err := tx.Exec(ctx, `
 		INSERT INTO users (username, password, is_admin, created_at)
                       VALUES ($1, $2, $3, $4);`,
-		user.Username, user.HashedPassword, user.IsAdmin, user.Created)
+		u.Username, u.HashedPassword, u.IsAdmin, u.Created)
 	if err != nil {
 		m.Complete(err)
 		return err
 	}
-	r.populateCache(ctx, *user)
+	r.populateCache(ctx, *u)
 	m.Complete(nil)
 	return nil
 }
 
-func (r *dbRepo) Get(ctx context.Context, username string, txs ...core.QueryOptions) (user.User, error) {
+func (r *dbRepo) Get(ctx context.Context, username string, txs ...core.QueryOptions) (User, error) {
 	m := db.StartMetric("GetUser")
 	tx, forUpdate := db.GetQueryOptions(r.conn, txs...)
 
 	if r.cache != nil {
-		if u, ok, err := cache.Get[user.User](ctx, r.cache, userCacheKey(username)); err == nil && ok {
+		if u, ok, err := cache.Get[User](ctx, r.cache, userCacheKey(username)); err == nil && ok {
 			m.Complete(nil)
 			return u, nil
 		} else if err != nil {
@@ -79,15 +78,15 @@ func (r *dbRepo) Get(ctx context.Context, username string, txs ...core.QueryOpti
 	query := `SELECT username, password, is_admin, created_at FROM users WHERE username = $1 ` + forUpdate
 	log.Ctx(ctx).Debug().Str("query", query).Str("username", username).Msg("getting user")
 
-	var u user.User
+	var u User
 	err := tx.QueryRow(ctx, query, username).
 		Scan(&u.Username, &u.HashedPassword, &u.IsAdmin, &u.Created)
 	if err != nil {
 		m.Complete(err)
 		if errors.Is(err, pgx.ErrNoRows) {
-			return user.User{}, core.ErrNotFound
+			return User{}, core.ErrNotFound
 		}
-		return user.User{}, err
+		return User{}, err
 	}
 
 	r.populateCache(ctx, u)
@@ -114,7 +113,7 @@ func (r *dbRepo) Delete(ctx context.Context, username string, txs ...core.Update
 	return nil
 }
 
-func (r *dbRepo) populateCache(ctx context.Context, u user.User) {
+func (r *dbRepo) populateCache(ctx context.Context, u User) {
 	if r.cache == nil {
 		return
 	}

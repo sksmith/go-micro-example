@@ -8,7 +8,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/sksmith/go-micro-example/core/auth"
-	"github.com/sksmith/go-micro-example/core/user"
+	"github.com/sksmith/go-micro-example/internal/user"
 )
 
 const validKey = "0123456789abcdef0123456789abcdef" // 32 bytes

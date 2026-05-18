@@ -37,13 +37,12 @@ import (
 	"github.com/sksmith/go-micro-example/core/observability"
 	"github.com/sksmith/go-micro-example/core/ratelimit"
 	"github.com/sksmith/go-micro-example/core/secrets"
-	"github.com/sksmith/go-micro-example/core/user"
 	"github.com/sksmith/go-micro-example/db"
 	"github.com/sksmith/go-micro-example/db/invrepo"
-	"github.com/sksmith/go-micro-example/db/usrrepo"
 	"github.com/sksmith/go-micro-example/events"
 	"github.com/sksmith/go-micro-example/idempotency"
 	restidempotency "github.com/sksmith/go-micro-example/idempotency/rest"
+	"github.com/sksmith/go-micro-example/internal/user"
 	gmekafka "github.com/sksmith/go-micro-example/kafka"
 	"github.com/sksmith/go-micro-example/queue"
 
@@ -116,7 +115,7 @@ func main() {
 		invService.SetCache(cache.NewRedisCache(redisClient), time.Duration(cfg.Redis.CacheTTLMinutes.Value)*time.Minute)
 	}
 
-	ur := usrrepo.NewPostgresRepo(dbPool)
+	ur := user.NewPostgresRepo(dbPool)
 	if redisClient != nil {
 		// DSN-021c: Redis-backed user cache replaces the in-process
 		// LRU. Short TTL so revocations propagate without explicit

@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/sksmith/go-micro-example/api"
-	"github.com/sksmith/go-micro-example/core/user"
+	"github.com/sksmith/go-micro-example/internal/user"
 )
 
 // readCounter scrapes /metrics and returns the value of the named

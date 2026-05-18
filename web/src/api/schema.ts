@@ -36,7 +36,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["api.Problem"];
+                        "application/json": components["schemas"]["Problem"];
                     };
                 };
             };
@@ -88,7 +88,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["api.Problem"];
+                        "application/json": components["schemas"]["Problem"];
                     };
                 };
                 /** @description Unauthorized */
@@ -97,7 +97,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["api.Problem"];
+                        "application/json": components["schemas"]["Problem"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -106,7 +106,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["api.Problem"];
+                        "application/json": components["schemas"]["Problem"];
                     };
                 };
             };
@@ -141,7 +141,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["api.Problem"];
+                        "application/json": components["schemas"]["Problem"];
                     };
                 };
                 /** @description Unauthorized */
@@ -150,7 +150,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["api.Problem"];
+                        "application/json": components["schemas"]["Problem"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -159,7 +159,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["api.Problem"];
+                        "application/json": components["schemas"]["Problem"];
                     };
                 };
             };
@@ -206,7 +206,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["api.Problem"];
+                        "application/json": components["schemas"]["Problem"];
                     };
                 };
                 /** @description Not Found */
@@ -215,7 +215,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["api.Problem"];
+                        "application/json": components["schemas"]["Problem"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -224,7 +224,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["api.Problem"];
+                        "application/json": components["schemas"]["Problem"];
                     };
                 };
             };
@@ -278,7 +278,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["api.Problem"];
+                        "application/json": components["schemas"]["Problem"];
                     };
                 };
                 /** @description Unauthorized */
@@ -287,7 +287,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["api.Problem"];
+                        "application/json": components["schemas"]["Problem"];
                     };
                 };
                 /** @description Not Found */
@@ -296,7 +296,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["api.Problem"];
+                        "application/json": components["schemas"]["Problem"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -305,7 +305,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["api.Problem"];
+                        "application/json": components["schemas"]["Problem"];
                     };
                 };
             };
@@ -360,7 +360,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["api.Problem"];
+                        "application/json": components["schemas"]["Problem"];
                     };
                 };
                 /** @description Unauthorized */
@@ -369,7 +369,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["api.Problem"];
+                        "application/json": components["schemas"]["Problem"];
                     };
                 };
                 /** @description Not Found */
@@ -378,7 +378,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["api.Problem"];
+                        "application/json": components["schemas"]["Problem"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -387,7 +387,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["api.Problem"];
+                        "application/json": components["schemas"]["Problem"];
                     };
                 };
             };
@@ -423,7 +423,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["api.Problem"];
+                        "application/json": components["schemas"]["Problem"];
                     };
                 };
                 /** @description Unauthorized */
@@ -432,7 +432,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["api.Problem"];
+                        "application/json": components["schemas"]["Problem"];
                     };
                 };
                 /** @description Not Found */
@@ -441,7 +441,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["api.Problem"];
+                        "application/json": components["schemas"]["Problem"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -450,7 +450,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["api.Problem"];
+                        "application/json": components["schemas"]["Problem"];
                     };
                 };
             };
@@ -496,7 +496,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["api.Problem"];
+                        "application/json": components["schemas"]["Problem"];
                     };
                 };
                 /** @description Unauthorized */
@@ -505,7 +505,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["api.Problem"];
+                        "application/json": components["schemas"]["Problem"];
                     };
                 };
                 /** @description Not Found */
@@ -514,7 +514,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["api.Problem"];
+                        "application/json": components["schemas"]["Problem"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -523,7 +523,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["api.Problem"];
+                        "application/json": components["schemas"]["Problem"];
                     };
                 };
             };
@@ -556,7 +556,7 @@ export interface paths {
             /** @description new user */
             requestBody: {
                 content: {
-                    "application/json": Record<string, never> | components["schemas"]["api.CreateUserRequestDto"];
+                    "application/json": Record<string, never> | components["schemas"]["internal_user.CreateUserRequestDto"];
                 };
             };
             responses: {
@@ -575,7 +575,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["api.Problem"];
+                        "application/json": components["schemas"]["Problem"];
                     };
                 };
                 /** @description Unauthorized */
@@ -584,7 +584,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["api.Problem"];
+                        "application/json": components["schemas"]["Problem"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -593,7 +593,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["api.Problem"];
+                        "application/json": components["schemas"]["Problem"];
                     };
                 };
             };
@@ -641,7 +641,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["api.Problem"];
+                        "application/json": components["schemas"]["Problem"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -650,7 +650,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["api.Problem"];
+                        "application/json": components["schemas"]["Problem"];
                     };
                 };
             };
@@ -665,6 +665,18 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        FieldProblem: {
+            detail?: string;
+            field?: string;
+        };
+        Problem: {
+            detail?: string;
+            errors?: components["schemas"]["FieldProblem"][];
+            instance?: string;
+            status?: number;
+            title?: string;
+            type?: string;
+        };
         /**
          * @description Catalog is the optional enrichment from the upstream catalog
          *     service (DSN-018). Omitted when the catalog client is disabled
@@ -686,11 +698,6 @@ export interface components {
             quantity?: number;
             requestID?: string;
         };
-        "api.CreateUserRequestDto": {
-            isAdmin?: boolean;
-            password?: string;
-            username?: string;
-        };
         "api.EnvResponse": {
             appName?: components["schemas"]["config.StringConfig"];
             appVersion?: components["schemas"]["config.StringConfig"];
@@ -709,18 +716,6 @@ export interface components {
             redis?: components["schemas"]["config.RedisConfig"];
             revision?: components["schemas"]["config.StringConfig"];
             sha1Version?: components["schemas"]["config.StringConfig"];
-        };
-        "api.FieldProblem": {
-            detail?: string;
-            field?: string;
-        };
-        "api.Problem": {
-            detail?: string;
-            errors?: components["schemas"]["api.FieldProblem"][];
-            instance?: string;
-            status?: number;
-            title?: string;
-            type?: string;
         };
         "api.ProductResponse": {
             available?: number;
@@ -873,6 +868,11 @@ export interface components {
         };
         /** @enum {string} */
         "github_com_sksmith_go-micro-example_core_inventory.ReserveState": "Open" | "Closed" | "";
+        "internal_user.CreateUserRequestDto": {
+            isAdmin?: boolean;
+            password?: string;
+            username?: string;
+        };
     };
     responses: never;
     parameters: never;

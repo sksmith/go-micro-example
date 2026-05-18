@@ -1,6 +1,44 @@
 {
     "components": {
         "schemas": {
+            "FieldProblem": {
+                "properties": {
+                    "detail": {
+                        "type": "string"
+                    },
+                    "field": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "Problem": {
+                "properties": {
+                    "detail": {
+                        "type": "string"
+                    },
+                    "errors": {
+                        "items": {
+                            "$ref": "#/components/schemas/FieldProblem"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "instance": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "integer"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "type": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "api.CatalogInfo": {
                 "description": "Catalog is the optional enrichment from the upstream catalog\nservice (DSN-018). Omitted when the catalog client is disabled\nor when the upstream is unreachable — the inventory response\nstill succeeds in that case.",
                 "properties": {
@@ -39,20 +77,6 @@
                         "type": "integer"
                     },
                     "requestID": {
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "api.CreateUserRequestDto": {
-                "properties": {
-                    "isAdmin": {
-                        "type": "boolean"
-                    },
-                    "password": {
-                        "type": "string"
-                    },
-                    "username": {
                         "type": "string"
                     }
                 },
@@ -110,44 +134,6 @@
                     },
                     "sha1Version": {
                         "$ref": "#/components/schemas/config.StringConfig"
-                    }
-                },
-                "type": "object"
-            },
-            "api.FieldProblem": {
-                "properties": {
-                    "detail": {
-                        "type": "string"
-                    },
-                    "field": {
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "api.Problem": {
-                "properties": {
-                    "detail": {
-                        "type": "string"
-                    },
-                    "errors": {
-                        "items": {
-                            "$ref": "#/components/schemas/api.FieldProblem"
-                        },
-                        "type": "array",
-                        "uniqueItems": false
-                    },
-                    "instance": {
-                        "type": "string"
-                    },
-                    "status": {
-                        "type": "integer"
-                    },
-                    "title": {
-                        "type": "string"
-                    },
-                    "type": {
-                        "type": "string"
                     }
                 },
                 "type": "object"
@@ -587,6 +573,20 @@
                     "Closed",
                     "None"
                 ]
+            },
+            "internal_user.CreateUserRequestDto": {
+                "properties": {
+                    "isAdmin": {
+                        "type": "boolean"
+                    },
+                    "password": {
+                        "type": "string"
+                    },
+                    "username": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
             }
         },
         "securitySchemes": {
@@ -625,7 +625,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/api.Problem"
+                                    "$ref": "#/components/schemas/Problem"
                                 }
                             }
                         },
@@ -691,7 +691,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/api.Problem"
+                                    "$ref": "#/components/schemas/Problem"
                                 }
                             }
                         },
@@ -701,7 +701,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/api.Problem"
+                                    "$ref": "#/components/schemas/Problem"
                                 }
                             }
                         },
@@ -711,7 +711,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/api.Problem"
+                                    "$ref": "#/components/schemas/Problem"
                                 }
                             }
                         },
@@ -764,7 +764,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/api.Problem"
+                                    "$ref": "#/components/schemas/Problem"
                                 }
                             }
                         },
@@ -774,7 +774,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/api.Problem"
+                                    "$ref": "#/components/schemas/Problem"
                                 }
                             }
                         },
@@ -784,7 +784,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/api.Problem"
+                                    "$ref": "#/components/schemas/Problem"
                                 }
                             }
                         },
@@ -830,7 +830,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/api.Problem"
+                                    "$ref": "#/components/schemas/Problem"
                                 }
                             }
                         },
@@ -840,7 +840,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/api.Problem"
+                                    "$ref": "#/components/schemas/Problem"
                                 }
                             }
                         },
@@ -850,7 +850,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/api.Problem"
+                                    "$ref": "#/components/schemas/Problem"
                                 }
                             }
                         },
@@ -916,7 +916,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/api.Problem"
+                                    "$ref": "#/components/schemas/Problem"
                                 }
                             }
                         },
@@ -926,7 +926,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/api.Problem"
+                                    "$ref": "#/components/schemas/Problem"
                                 }
                             }
                         },
@@ -936,7 +936,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/api.Problem"
+                                    "$ref": "#/components/schemas/Problem"
                                 }
                             }
                         },
@@ -946,7 +946,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/api.Problem"
+                                    "$ref": "#/components/schemas/Problem"
                                 }
                             }
                         },
@@ -1032,7 +1032,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/api.Problem"
+                                    "$ref": "#/components/schemas/Problem"
                                 }
                             }
                         },
@@ -1042,7 +1042,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/api.Problem"
+                                    "$ref": "#/components/schemas/Problem"
                                 }
                             }
                         },
@@ -1052,7 +1052,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/api.Problem"
+                                    "$ref": "#/components/schemas/Problem"
                                 }
                             }
                         },
@@ -1062,7 +1062,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/api.Problem"
+                                    "$ref": "#/components/schemas/Problem"
                                 }
                             }
                         },
@@ -1115,7 +1115,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/api.Problem"
+                                    "$ref": "#/components/schemas/Problem"
                                 }
                             }
                         },
@@ -1125,7 +1125,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/api.Problem"
+                                    "$ref": "#/components/schemas/Problem"
                                 }
                             }
                         },
@@ -1135,7 +1135,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/api.Problem"
+                                    "$ref": "#/components/schemas/Problem"
                                 }
                             }
                         },
@@ -1145,7 +1145,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/api.Problem"
+                                    "$ref": "#/components/schemas/Problem"
                                 }
                             }
                         },
@@ -1191,7 +1191,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/api.Problem"
+                                    "$ref": "#/components/schemas/Problem"
                                 }
                             }
                         },
@@ -1201,7 +1201,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/api.Problem"
+                                    "$ref": "#/components/schemas/Problem"
                                 }
                             }
                         },
@@ -1211,7 +1211,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/api.Problem"
+                                    "$ref": "#/components/schemas/Problem"
                                 }
                             }
                         },
@@ -1221,7 +1221,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/api.Problem"
+                                    "$ref": "#/components/schemas/Problem"
                                 }
                             }
                         },
@@ -1250,7 +1250,7 @@
                                         "type": "object"
                                     },
                                     {
-                                        "$ref": "#/components/schemas/api.CreateUserRequestDto",
+                                        "$ref": "#/components/schemas/internal_user.CreateUserRequestDto",
                                         "summary": "user",
                                         "description": "new user"
                                     }
@@ -1276,7 +1276,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/api.Problem"
+                                    "$ref": "#/components/schemas/Problem"
                                 }
                             }
                         },
@@ -1286,7 +1286,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/api.Problem"
+                                    "$ref": "#/components/schemas/Problem"
                                 }
                             }
                         },
@@ -1296,7 +1296,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/api.Problem"
+                                    "$ref": "#/components/schemas/Problem"
                                 }
                             }
                         },
@@ -1332,7 +1332,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/api.Problem"
+                                    "$ref": "#/components/schemas/Problem"
                                 }
                             }
                         },
@@ -1342,7 +1342,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/api.Problem"
+                                    "$ref": "#/components/schemas/Problem"
                                 }
                             }
                         },

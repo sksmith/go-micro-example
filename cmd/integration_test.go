@@ -15,10 +15,9 @@ import (
 	"github.com/sksmith/go-micro-example/api"
 	"github.com/sksmith/go-micro-example/config"
 	"github.com/sksmith/go-micro-example/core/inventory"
-	"github.com/sksmith/go-micro-example/core/user"
 	"github.com/sksmith/go-micro-example/db"
 	"github.com/sksmith/go-micro-example/db/invrepo"
-	"github.com/sksmith/go-micro-example/db/usrrepo"
+	"github.com/sksmith/go-micro-example/internal/user"
 	"github.com/sksmith/go-micro-example/queue"
 	"github.com/sksmith/go-micro-example/testutil"
 )
@@ -53,7 +52,7 @@ func TestMain(m *testing.M) {
 
 	invService := inventory.NewService(ir, iq)
 
-	ur := usrrepo.NewPostgresRepo(dbPool)
+	ur := user.NewPostgresRepo(dbPool)
 
 	userService := user.NewService(ur)
 

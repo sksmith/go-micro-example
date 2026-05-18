@@ -1,14 +1,12 @@
-package api
+package user
 
 import (
 	"errors"
 	"net/http"
-
-	"github.com/sksmith/go-micro-example/core/user"
 )
 
 type CreateUserRequestDto struct {
-	*user.CreateUserRequest
+	*CreateUserRequest
 	Password string `json:"password,omitempty"`
 }
 

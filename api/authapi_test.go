@@ -11,7 +11,7 @@ import (
 
 	"github.com/sksmith/go-micro-example/api"
 	"github.com/sksmith/go-micro-example/core"
-	"github.com/sksmith/go-micro-example/core/user"
+	"github.com/sksmith/go-micro-example/internal/user"
 )
 
 func TestTokenEndpointIssuesJWTForValidCredentials(t *testing.T) {

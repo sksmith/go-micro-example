@@ -1,5 +1,30 @@
 components:
   schemas:
+    FieldProblem:
+      properties:
+        detail:
+          type: string
+        field:
+          type: string
+      type: object
+    Problem:
+      properties:
+        detail:
+          type: string
+        errors:
+          items:
+            $ref: '#/components/schemas/FieldProblem'
+          type: array
+          uniqueItems: false
+        instance:
+          type: string
+        status:
+          type: integer
+        title:
+          type: string
+        type:
+          type: string
+      type: object
     api.CatalogInfo:
       description: |-
         Catalog is the optional enrichment from the upstream catalog
@@ -30,15 +55,6 @@ components:
         quantity:
           type: integer
         requestID:
-          type: string
-      type: object
-    api.CreateUserRequestDto:
-      properties:
-        isAdmin:
-          type: boolean
-        password:
-          type: string
-        username:
           type: string
       type: object
     api.EnvResponse:
@@ -77,31 +93,6 @@ components:
           $ref: '#/components/schemas/config.StringConfig'
         sha1Version:
           $ref: '#/components/schemas/config.StringConfig'
-      type: object
-    api.FieldProblem:
-      properties:
-        detail:
-          type: string
-        field:
-          type: string
-      type: object
-    api.Problem:
-      properties:
-        detail:
-          type: string
-        errors:
-          items:
-            $ref: '#/components/schemas/api.FieldProblem'
-          type: array
-          uniqueItems: false
-        instance:
-          type: string
-        status:
-          type: integer
-        title:
-          type: string
-        type:
-          type: string
       type: object
     api.ProductResponse:
       properties:
@@ -387,6 +378,15 @@ components:
       - Open
       - Closed
       - None
+    internal_user.CreateUserRequestDto:
+      properties:
+        isAdmin:
+          type: boolean
+        password:
+          type: string
+        username:
+          type: string
+      type: object
   securitySchemes:
     BearerAuth:
       description: Bearer JWT issued by POST /auth/token. To obtain one, send HTTP
@@ -418,7 +418,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.Problem'
+                $ref: '#/components/schemas/Problem'
           description: Unauthorized
       security:
       - BearerAuth: []
@@ -458,19 +458,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.Problem'
+                $ref: '#/components/schemas/Problem'
           description: Bad Request
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.Problem'
+                $ref: '#/components/schemas/Problem'
           description: Unauthorized
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.Problem'
+                $ref: '#/components/schemas/Problem'
           description: Internal Server Error
       security:
       - BearerAuth: []
@@ -500,19 +500,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.Problem'
+                $ref: '#/components/schemas/Problem'
           description: Bad Request
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.Problem'
+                $ref: '#/components/schemas/Problem'
           description: Unauthorized
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.Problem'
+                $ref: '#/components/schemas/Problem'
           description: Internal Server Error
       security:
       - BearerAuth: []
@@ -539,19 +539,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.Problem'
+                $ref: '#/components/schemas/Problem'
           description: Unauthorized
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.Problem'
+                $ref: '#/components/schemas/Problem'
           description: Not Found
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.Problem'
+                $ref: '#/components/schemas/Problem'
           description: Internal Server Error
       security:
       - BearerAuth: []
@@ -589,25 +589,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.Problem'
+                $ref: '#/components/schemas/Problem'
           description: Bad Request
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.Problem'
+                $ref: '#/components/schemas/Problem'
           description: Unauthorized
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.Problem'
+                $ref: '#/components/schemas/Problem'
           description: Not Found
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.Problem'
+                $ref: '#/components/schemas/Problem'
           description: Internal Server Error
       security:
       - BearerAuth: []
@@ -660,25 +660,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.Problem'
+                $ref: '#/components/schemas/Problem'
           description: Bad Request
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.Problem'
+                $ref: '#/components/schemas/Problem'
           description: Unauthorized
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.Problem'
+                $ref: '#/components/schemas/Problem'
           description: Not Found
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.Problem'
+                $ref: '#/components/schemas/Problem'
           description: Internal Server Error
       security:
       - BearerAuth: []
@@ -708,25 +708,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.Problem'
+                $ref: '#/components/schemas/Problem'
           description: Bad Request
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.Problem'
+                $ref: '#/components/schemas/Problem'
           description: Unauthorized
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.Problem'
+                $ref: '#/components/schemas/Problem'
           description: Not Found
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.Problem'
+                $ref: '#/components/schemas/Problem'
           description: Internal Server Error
       security:
       - BearerAuth: []
@@ -753,25 +753,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.Problem'
+                $ref: '#/components/schemas/Problem'
           description: Bad Request
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.Problem'
+                $ref: '#/components/schemas/Problem'
           description: Unauthorized
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.Problem'
+                $ref: '#/components/schemas/Problem'
           description: Not Found
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.Problem'
+                $ref: '#/components/schemas/Problem'
           description: Internal Server Error
       security:
       - BearerAuth: []
@@ -786,7 +786,7 @@ paths:
             schema:
               oneOf:
               - type: object
-              - $ref: '#/components/schemas/api.CreateUserRequestDto'
+              - $ref: '#/components/schemas/internal_user.CreateUserRequestDto'
                 description: new user
                 summary: user
         description: new user
@@ -802,19 +802,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.Problem'
+                $ref: '#/components/schemas/Problem'
           description: Bad Request
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.Problem'
+                $ref: '#/components/schemas/Problem'
           description: Unauthorized
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.Problem'
+                $ref: '#/components/schemas/Problem'
           description: Internal Server Error
       security:
       - BearerAuth: []
@@ -836,13 +836,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.Problem'
+                $ref: '#/components/schemas/Problem'
           description: Unauthorized
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.Problem'
+                $ref: '#/components/schemas/Problem'
           description: Internal Server Error
       summary: Issue a bearer token
       tags:

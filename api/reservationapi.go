@@ -14,6 +14,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/core"
 	"github.com/sksmith/go-micro-example/core/inventory"
+	"github.com/sksmith/go-micro-example/internal/platform/httpx"
 )
 
 type ReservationService interface {
@@ -72,7 +73,7 @@ func (a *ReservationApi) Subscribe(w http.ResponseWriter, r *http.Request) {
 	conn, _, _, err := ws.UpgradeHTTP(r, w)
 	if err != nil {
 		log.Ctx(r.Context()).Error().Err(err).Msg("failed to establish reservation subscription connection")
-		Render(w, r, InternalServerProblem(err))
+		httpx.Render(w, r, httpx.InternalServerProblem(err))
 		return
 	}
 	go func() {
@@ -111,10 +112,10 @@ func (a *ReservationApi) Subscribe(w http.ResponseWriter, r *http.Request) {
 //	@Produce	json
 //	@Param		ID	path		int	true	"reservation ID"
 //	@Success	200	{object}	ReservationResponse
-//	@Failure	400	{object}	Problem
-//	@Failure	401	{object}	Problem
-//	@Failure	404	{object}	Problem
-//	@Failure	500	{object}	Problem
+//	@Failure	400	{object}	httpx.Problem
+//	@Failure	401	{object}	httpx.Problem
+//	@Failure	404	{object}	httpx.Problem
+//	@Failure	500	{object}	httpx.Problem
 //	@Router		/api/v1/reservation/{ID} [get]
 //	@Security	BearerAuth
 func (a *ReservationApi) Get(w http.ResponseWriter, r *http.Request) {
@@ -122,7 +123,7 @@ func (a *ReservationApi) Get(w http.ResponseWriter, r *http.Request) {
 
 	resp := &ReservationResponse{Reservation: res}
 	render.Status(r, http.StatusOK)
-	Render(w, r, resp)
+	httpx.Render(w, r, resp)
 }
 
 // Create reserves inventory for a SKU.
@@ -133,16 +134,16 @@ func (a *ReservationApi) Get(w http.ResponseWriter, r *http.Request) {
 //	@Produce	json
 //	@Param		reservation	body		ReservationRequest	true	"reservation request"
 //	@Success	201			{object}	ReservationResponse
-//	@Failure	400			{object}	Problem
-//	@Failure	401			{object}	Problem
-//	@Failure	404			{object}	Problem
-//	@Failure	500			{object}	Problem
+//	@Failure	400			{object}	httpx.Problem
+//	@Failure	401			{object}	httpx.Problem
+//	@Failure	404			{object}	httpx.Problem
+//	@Failure	500			{object}	httpx.Problem
 //	@Router		/api/v1/reservation [post]
 //	@Security	BearerAuth
 func (a *ReservationApi) Create(w http.ResponseWriter, r *http.Request) {
 	data := &ReservationRequest{}
 	if err := render.Bind(r, data); err != nil {
-		Render(w, r, BadRequestProblem(err))
+		httpx.Render(w, r, httpx.BadRequestProblem(err))
 		return
 	}
 
@@ -151,19 +152,19 @@ func (a *ReservationApi) Create(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch {
 		case errors.Is(err, core.ErrNotFound):
-			Render(w, r, NotFoundProblem())
+			httpx.Render(w, r, httpx.NotFoundProblem())
 		case errors.Is(err, inventory.ErrInvalidInput):
-			Render(w, r, BadRequestProblem(err))
+			httpx.Render(w, r, httpx.BadRequestProblem(err))
 		default:
 			log.Ctx(r.Context()).Error().Err(err).Interface("reservationRequest", data).Msg("failed to reserve")
-			Render(w, r, InternalServerProblem(err))
+			httpx.Render(w, r, httpx.InternalServerProblem(err))
 		}
 		return
 	}
 
 	resp := &ReservationResponse{Reservation: res}
 	render.Status(r, http.StatusCreated)
-	Render(w, r, resp)
+	httpx.Render(w, r, resp)
 }
 
 func (a *ReservationApi) Cancel(_ http.ResponseWriter, _ *http.Request) {
@@ -176,14 +177,14 @@ func (a *ReservationApi) ReservationCtx(next http.Handler) http.Handler {
 
 		IDStr := chi.URLParam(r, "ID")
 		if IDStr == "" {
-			Render(w, r, BadRequestProblem(errors.New("reservation id is required")))
+			httpx.Render(w, r, httpx.BadRequestProblem(errors.New("reservation id is required")))
 			return
 		}
 
 		ID, err := strconv.ParseUint(IDStr, 10, 64)
 		if err != nil {
 			log.Ctx(r.Context()).Error().Err(err).Str("ID", IDStr).Msg("invalid reservation id")
-			Render(w, r, BadRequestProblem(errors.New("invalid reservation id")))
+			httpx.Render(w, r, httpx.BadRequestProblem(errors.New("invalid reservation id")))
 			return
 		}
 
@@ -191,10 +192,10 @@ func (a *ReservationApi) ReservationCtx(next http.Handler) http.Handler {
 
 		if err != nil {
 			if errors.Is(err, core.ErrNotFound) {
-				Render(w, r, NotFoundProblem())
+				httpx.Render(w, r, httpx.NotFoundProblem())
 			} else {
 				log.Ctx(r.Context()).Error().Err(err).Str("id", IDStr).Msg("error acquiring product")
-				Render(w, r, InternalServerProblem(err))
+				httpx.Render(w, r, httpx.InternalServerProblem(err))
 			}
 			return
 		}
@@ -214,10 +215,10 @@ func (a *ReservationApi) ReservationCtx(next http.Handler) http.Handler {
 //	@Param		limit	query		int		false	"max items per page (≤ 200)"	default(50)
 //	@Param		offset	query		int		false	"page offset"					default(0)
 //	@Success	200		{array}		ReservationResponse
-//	@Failure	400		{object}	Problem
-//	@Failure	401		{object}	Problem
-//	@Failure	404		{object}	Problem
-//	@Failure	500		{object}	Problem
+//	@Failure	400		{object}	httpx.Problem
+//	@Failure	401		{object}	httpx.Problem
+//	@Failure	404		{object}	httpx.Problem
+//	@Failure	500		{object}	httpx.Problem
 //	@Header		200		{string}	Link	"RFC 8288 next/prev links"
 //	@Router		/api/v1/reservation [get]
 //	@Security	BearerAuth
@@ -228,7 +229,7 @@ func (a *ReservationApi) List(w http.ResponseWriter, r *http.Request) {
 
 	state, err := inventory.ParseReserveState(r.URL.Query().Get("state"))
 	if err != nil {
-		Render(w, r, BadRequestProblem(errors.New("invalid state")))
+		httpx.Render(w, r, httpx.BadRequestProblem(errors.New("invalid state")))
 		return
 	}
 
@@ -236,10 +237,10 @@ func (a *ReservationApi) List(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		if errors.Is(err, core.ErrNotFound) {
-			Render(w, r, NotFoundProblem())
+			httpx.Render(w, r, httpx.NotFoundProblem())
 		} else {
 			log.Ctx(r.Context()).Error().Err(err).Str("sku", sku).Str("state", string(state)).Msg("failed to list reservations")
-			Render(w, r, InternalServerProblem(err))
+			httpx.Render(w, r, httpx.InternalServerProblem(err))
 		}
 		return
 	}
@@ -248,5 +249,5 @@ func (a *ReservationApi) List(w http.ResponseWriter, r *http.Request) {
 
 	resList := NewReservationListResponse(res)
 	render.Status(r, http.StatusOK)
-	RenderList(w, r, resList)
+	httpx.RenderList(w, r, resList)
 }

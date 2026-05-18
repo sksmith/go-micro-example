@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sksmith/go-micro-example/api"
 	"github.com/sksmith/go-micro-example/core/inventory"
+	"github.com/sksmith/go-micro-example/internal/platform/httpx"
 )
 
 // TestProblemResponseConformsToRFC7807 covers the contract bits DSN-010
@@ -44,7 +44,7 @@ func TestProblemResponseConformsToRFC7807(t *testing.T) {
 		t.Errorf("ISE body leaked underlying error: %s", body)
 	}
 
-	var p api.Problem
+	var p httpx.Problem
 	if err := json.Unmarshal(body, &p); err != nil {
 		t.Fatalf("unmarshal problem: %v", err)
 	}
@@ -59,21 +59,5 @@ func TestProblemResponseConformsToRFC7807(t *testing.T) {
 	}
 	if p.Instance == "" {
 		t.Errorf("instance missing: %+v", p)
-	}
-}
-
-func TestValidationProblemCarriesFieldErrors(t *testing.T) {
-	p := api.ValidationProblem(
-		api.FieldProblem{Field: "sku", Detail: "required"},
-		api.FieldProblem{Field: "qty", Detail: "must be > 0"},
-	)
-	if p.Status != http.StatusBadRequest {
-		t.Errorf("status got=%d want=400", p.Status)
-	}
-	if len(p.Errors) != 2 {
-		t.Errorf("errors len got=%d want=2", len(p.Errors))
-	}
-	if p.Errors[0].Field != "sku" || p.Errors[0].Detail != "required" {
-		t.Errorf("field[0] got=%+v", p.Errors[0])
 	}
 }
