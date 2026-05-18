@@ -77,6 +77,22 @@ type Config struct {
 	RateLimit   RateLimitConfig   `json:"rateLimit"   yaml:"rateLimit"`
 	Docs        DocsConfig        `json:"docs"        yaml:"docs"`
 	TLS         TLSConfig         `json:"tls"         yaml:"tls"`
+	CORS        CORSConfig        `json:"cors"        yaml:"cors"`
+}
+
+// CORSConfig drives SEC-006. The previous implementation hard-coded
+// wildcarded origins (http://localhost:*, https://*.seanksmith.me)
+// together with AllowCredentials=true — a footgun because a credentialed
+// request from any matching subdomain (including one that doesn't exist
+// yet) would be reflected. The list is now an explicit, comma-separated
+// set of exact origins driven by config/env. An empty list disables
+// CORS entirely (no Access-Control-Allow-Origin header on any request)
+// which is the right posture for a service that fronts a same-origin
+// UI or only serves first-party clients.
+type CORSConfig struct {
+	AllowedOrigins   StringConfig `json:"allowedOrigins"   yaml:"allowedOrigins"`
+	AllowCredentials BoolConfig   `json:"allowCredentials" yaml:"allowCredentials"`
+	Description      string       `json:"description"      yaml:"description"`
 }
 
 // TLSConfig drives SEC-005. In production TLS is terminated by an
@@ -316,6 +332,8 @@ func bindSensitiveEnv() {
 		"tls.enabled",
 		"tls.certFile",
 		"tls.keyFile",
+		"cors.allowedOrigins",
+		"cors.allowCredentials",
 	} {
 		// Errors here would mean a programming error in the key list —
 		// viper.BindEnv only fails on empty input.
@@ -613,6 +631,10 @@ func setupDefaults(config *Config) {
 	config.Redis.URL = StringConfig{Value: "", Default: "", Description: "Redis connection URL (redis://host:port/db). Empty disables the cache."}
 	config.Redis.CacheTTLMinutes = IntConfig{Value: 5, Default: 5, Description: "TTL for cached ProductInventory entries, in minutes. Short by default so missed invalidations self-heal."}
 	config.Redis.UserCacheTTLSeconds = IntConfig{Value: 60, Default: 60, Description: "TTL for cached User rows, in seconds. Short so admin/role revocations propagate without explicit cache-bust."}
+
+	config.CORS.Description = "SEC-006: browser CORS policy. AllowedOrigins is a comma-separated list of EXACT origins (scheme://host[:port]); wildcards are intentionally not supported. Empty disables CORS entirely. AllowCredentials reflects only matching origins."
+	config.CORS.AllowedOrigins = StringConfig{Value: "http://localhost:8080,https://localhost", Default: "http://localhost:8080,https://localhost", Description: "Comma-separated exact origins permitted to make credentialed cross-origin requests. Empty disables CORS. Override in prod via GME_CORS_ALLOWEDORIGINS with your real front-end origins."}
+	config.CORS.AllowCredentials = BoolConfig{Value: true, Default: true, Description: "Send Access-Control-Allow-Credentials: true for matching origins. Safe only because AllowedOrigins is an exact list — never set this true alongside a wildcard origin."}
 
 	config.TLS.Description = "SEC-005: optional in-process TLS termination. Production deployments terminate TLS at the ingress/sidecar and leave Enabled=false; set Enabled=true with cert/key paths for standalone hosts."
 	config.TLS.Enabled = BoolConfig{Value: false, Default: false, Description: "Serve HTTPS directly via http.Server.ListenAndServeTLS. Default false; production should terminate TLS upstream."}

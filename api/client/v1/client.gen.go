@@ -90,6 +90,7 @@ type EnvResponse struct {
 	BuildTime   *ConfigStringConfig      `json:"buildTime,omitempty"`
 	Catalog     *ConfigCatalogConfig     `json:"catalog,omitempty"`
 	Config      *ConfigConfigSource      `json:"config,omitempty"`
+	Cors        *ConfigCORSConfig        `json:"cors,omitempty"`
 	Db          *ConfigDbConfig          `json:"db,omitempty"`
 	Docs        *ConfigDocsConfig        `json:"docs,omitempty"`
 	Idempotency *ConfigIdempotencyConfig `json:"idempotency,omitempty"`
@@ -173,6 +174,13 @@ type ConfigBoolConfig struct {
 	Default     *bool   `json:"default,omitempty"`
 	Description *string `json:"description,omitempty"`
 	Value       *bool   `json:"value,omitempty"`
+}
+
+// ConfigCORSConfig defines model for config.CORSConfig.
+type ConfigCORSConfig struct {
+	AllowCredentials *ConfigBoolConfig   `json:"allowCredentials,omitempty"`
+	AllowedOrigins   *ConfigStringConfig `json:"allowedOrigins,omitempty"`
+	Description      *string             `json:"description,omitempty"`
 }
 
 // ConfigCatalogConfig defines model for config.CatalogConfig.

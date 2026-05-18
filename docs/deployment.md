@@ -91,6 +91,51 @@ container persists its locally-generated CA in a named volume so the
 cert stays stable across restarts — `docker compose down -v` wipes
 it.
 
+## CORS
+
+The service supports browser cross-origin requests through an
+explicit, environment-driven allowlist. The previous configuration
+combined wildcarded origins (`http://localhost:*`,
+`https://*.seanksmith.me`) with `Access-Control-Allow-Credentials:
+true`, which is a footgun — a credentialed fetch from any subdomain
+that ever exists (or is taken over) would have succeeded. SEC-006
+replaces it with exact-match origins:
+
+```yaml
+cors:
+  allowedOrigins: "https://app.example.com,https://admin.example.com"
+  allowCredentials: true
+```
+
+Or via env (overrides the file):
+
+```sh
+GME_CORS_ALLOWEDORIGINS=https://app.example.com,https://admin.example.com
+GME_CORS_ALLOWCREDENTIALS=true
+```
+
+Notes:
+
+- Entries are exact origins (`scheme://host[:port]`). Wildcards are
+  intentionally not supported — any `*` in an entry will simply fail
+  to match any real origin.
+- An empty `allowedOrigins` disables CORS entirely: the middleware is
+  not mounted and no `Access-Control-Allow-Origin` header is emitted.
+  This is the right default for a same-origin UI or a first-party-only
+  API.
+- `allowCredentials: true` is safe only because the list is exact.
+  Never re-introduce wildcard origins while credentials are allowed.
+- `X-CSRF-Token` was dropped from `Access-Control-Allow-Headers`:
+  SEC-002c moved the project to bearer-token auth, and no CSRF
+  strategy currently issues or validates that header. Re-add when a
+  real CSRF mechanism lands.
+
+The defaults (`http://localhost:8080,https://localhost`) cover the
+plain app listener and the Caddy HTTPS terminator described above, so
+local dev works out of the box. Production deployments should
+override `GME_CORS_ALLOWEDORIGINS` with the real front-end origins
+(or set it to an empty string if no cross-origin clients exist).
+
 ## Production checklist
 
 - TLS terminator (ingress / sidecar) handles certs and sits in front
@@ -103,3 +148,5 @@ it.
   deployment intentionally serves HTTPS directly.
 - The terminator's TLS profile is at least as strict as the in-process
   one: TLS 1.2+, AEAD ciphers only, modern curves.
+- `GME_CORS_ALLOWEDORIGINS` is set to the explicit front-end origins
+  (or left empty for first-party-only APIs); wildcards are never used.

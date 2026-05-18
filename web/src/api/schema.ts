@@ -692,6 +692,7 @@ export interface components {
             buildTime?: components["schemas"]["config.StringConfig"];
             catalog?: components["schemas"]["config.CatalogConfig"];
             config?: components["schemas"]["config.ConfigSource"];
+            cors?: components["schemas"]["config.CORSConfig"];
             db?: components["schemas"]["config.DbConfig"];
             docs?: components["schemas"]["config.DocsConfig"];
             idempotency?: components["schemas"]["config.IdempotencyConfig"];
@@ -753,6 +754,11 @@ export interface components {
             default?: boolean;
             description?: string;
             value?: boolean;
+        };
+        "config.CORSConfig": {
+            allowCredentials?: components["schemas"]["config.BoolConfig"];
+            allowedOrigins?: components["schemas"]["config.StringConfig"];
+            description?: string;
         };
         "config.CatalogConfig": {
             baseUrl?: components["schemas"]["config.StringConfig"];
