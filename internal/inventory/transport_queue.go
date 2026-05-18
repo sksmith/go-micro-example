@@ -3,7 +3,10 @@ package inventory
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"sync/atomic"
+	"time"
 
 	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/config"
@@ -12,13 +15,30 @@ import (
 	"github.com/sksmith/go-micro-example/internal/platform/observability"
 )
 
+// amqpSessionStaleAfter bounds how long a publish/subscribe loop may
+// go without obtaining a fresh AMQP session before the queue reports
+// unready. Aligns with the DSN-002 readiness budget (DEFAULT 2s
+// per-dep) — anything beyond ~10s means redial has stalled and the
+// pod should not receive new work (TST-004).
+const amqpSessionStaleAfter = 10 * time.Second
+
+// errAMQPNeverConnected signals the publish/subscribe loops have not
+// yet obtained a session since process start. Surfaced via Ping so
+// /readyz returns 503 during startup before AMQP comes up.
+var errAMQPNeverConnected = errors.New("amqp: no session yet")
+
 // InventoryQueue publishes inventory and reservation events onto
 // their configured AMQP exchanges. The broker plumbing (publish loop,
 // reconnect) lives in internal/platform/messaging/amqp.
+//
+// lastSessionAt records the most-recent unix-nano timestamp at which
+// any of its publish loops obtained a fresh AMQP session, used by
+// Ping for /readyz (TST-004).
 type InventoryQueue struct {
-	cfg         *config.Config
-	inventory   chan<- amqp.Message
-	reservation chan<- amqp.Message
+	cfg           *config.Config
+	inventory     chan<- amqp.Message
+	reservation   chan<- amqp.Message
+	lastSessionAt atomic.Int64
 }
 
 func NewInventoryQueue(ctx context.Context, cfg *config.Config) *InventoryQueue {
@@ -35,17 +55,29 @@ func NewInventoryQueue(ctx context.Context, cfg *config.Config) *InventoryQueue 
 
 	go func() {
 		invExch := cfg.RabbitMQ.Inventory.Exchange.Value
-		amqp.Publish(amqp.Redial(ctx, url), invExch, invChan)
+		amqp.Publish(amqp.Redial(ctx, url), invExch, invChan, iq.sessionOK)
 		ctx.Done()
 	}()
 
 	go func() {
 		resExch := cfg.RabbitMQ.Reservation.Exchange.Value
-		amqp.Publish(amqp.Redial(ctx, url), resExch, resChan)
+		amqp.Publish(amqp.Redial(ctx, url), resExch, resChan, iq.sessionOK)
 		ctx.Done()
 	}()
 
 	return iq
+}
+
+// sessionOK is invoked by the AMQP publish loops each time they
+// successfully open a fresh (connection, channel) pair.
+func (i *InventoryQueue) sessionOK() {
+	i.lastSessionAt.Store(time.Now().UnixNano())
+}
+
+// Ping satisfies app.Pinger. Reports unready until the first session
+// arrives and again after amqpSessionStaleAfter without one.
+func (i *InventoryQueue) Ping(_ context.Context) error {
+	return pingFromLastSession(i.lastSessionAt.Load())
 }
 
 func (i *InventoryQueue) PublishInventory(ctx context.Context, productInventory ProductInventory) error {
@@ -69,10 +101,15 @@ func (i *InventoryQueue) PublishReservation(ctx context.Context, reservation Res
 // ProductQueue consumes inbound product-created events off AMQP and
 // dispatches them to a ProductHandler. Invalid envelopes and
 // unsupported event types route to the DLT exchange.
+//
+// lastSessionAt mirrors InventoryQueue's tracking field; the
+// subscribe and DLT-publish loops both feed it so Ping reports ready
+// only while at least one loop is holding a session (TST-004).
 type ProductQueue struct {
-	cfg        *config.Config
-	product    <-chan amqp.Message
-	productDlt chan<- amqp.Message
+	cfg           *config.Config
+	product       <-chan amqp.Message
+	productDlt    chan<- amqp.Message
+	lastSessionAt atomic.Int64
 }
 
 func NewProductQueue(ctx context.Context, cfg *config.Config, handler ProductHandler) *ProductQueue {
@@ -97,17 +134,42 @@ func NewProductQueue(ctx context.Context, cfg *config.Config, handler ProductHan
 
 	go func() {
 		prodQueue := cfg.RabbitMQ.Product.Queue.Value
-		amqp.Subscribe(amqp.Redial(ctx, url), prodQueue, prodChan)
+		amqp.Subscribe(amqp.Redial(ctx, url), prodQueue, prodChan, pq.sessionOK)
 		ctx.Done()
 	}()
 
 	go func() {
 		dltExch := cfg.RabbitMQ.Product.Dlt.Exchange.Value
-		amqp.Publish(amqp.Redial(ctx, url), dltExch, prodDltChan)
+		amqp.Publish(amqp.Redial(ctx, url), dltExch, prodDltChan, pq.sessionOK)
 		ctx.Done()
 	}()
 
 	return pq
+}
+
+// sessionOK is invoked by the AMQP subscribe + DLT publish loops each
+// time a fresh session is established.
+func (p *ProductQueue) sessionOK() {
+	p.lastSessionAt.Store(time.Now().UnixNano())
+}
+
+// Ping satisfies app.Pinger.
+func (p *ProductQueue) Ping(_ context.Context) error {
+	return pingFromLastSession(p.lastSessionAt.Load())
+}
+
+// pingFromLastSession encodes the InventoryQueue/ProductQueue shared
+// readiness rule. Extracted so both queues compute the same thing and
+// tests can pin the staleness boundary without touching real time.
+func pingFromLastSession(lastNanos int64) error {
+	if lastNanos == 0 {
+		return errAMQPNeverConnected
+	}
+	age := time.Since(time.Unix(0, lastNanos))
+	if age > amqpSessionStaleAfter {
+		return fmt.Errorf("amqp: no session in %s", age.Truncate(time.Second))
+	}
+	return nil
 }
 
 type ProductHandler interface {

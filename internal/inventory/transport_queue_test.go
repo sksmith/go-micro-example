@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/sksmith/go-micro-example/internal/platform/events"
 	"github.com/sksmith/go-micro-example/internal/platform/messaging/amqp"
@@ -106,5 +107,51 @@ func TestHandleProductMessage_HandlerErrorRoutesToDLT(t *testing.T) {
 	}
 	if len(pq.productDlt) != 1 {
 		t.Errorf("handler error should send to DLT, DLT has %d", len(pq.productDlt))
+	}
+}
+
+// TestInventoryQueue_PingFlow pins the TST-004 contract end-to-end on
+// the InventoryQueue side: zero-value state is unready, sessionOK
+// flips it to ready immediately, and a backdated session falls back
+// to unready once it crosses the staleness window. Driving the
+// atomic directly avoids real-time sleeps in CI.
+func TestInventoryQueue_PingFlow(t *testing.T) {
+	iq := &InventoryQueue{}
+
+	if err := iq.Ping(context.Background()); !errors.Is(err, errAMQPNeverConnected) {
+		t.Errorf("ping before first session = %v, want errAMQPNeverConnected", err)
+	}
+
+	iq.sessionOK()
+	if err := iq.Ping(context.Background()); err != nil {
+		t.Errorf("ping right after sessionOK = %v, want nil", err)
+	}
+
+	// Backdate to just past the staleness boundary.
+	iq.lastSessionAt.Store(time.Now().Add(-amqpSessionStaleAfter - time.Second).UnixNano())
+	if err := iq.Ping(context.Background()); err == nil {
+		t.Error("ping past staleness window = nil, want stale-session error")
+	}
+}
+
+// TestProductQueue_PingFlow mirrors the InventoryQueue test for the
+// consumer side: a single queue value tracks both the Subscribe loop
+// and the DLT publish loop, so Ping reports ready as soon as either
+// has obtained a session.
+func TestProductQueue_PingFlow(t *testing.T) {
+	pq := &ProductQueue{}
+
+	if err := pq.Ping(context.Background()); !errors.Is(err, errAMQPNeverConnected) {
+		t.Errorf("ping before first session = %v, want errAMQPNeverConnected", err)
+	}
+
+	pq.sessionOK()
+	if err := pq.Ping(context.Background()); err != nil {
+		t.Errorf("ping right after sessionOK = %v, want nil", err)
+	}
+
+	pq.lastSessionAt.Store(time.Now().Add(-amqpSessionStaleAfter - time.Second).UnixNano())
+	if err := pq.Ping(context.Background()); err == nil {
+		t.Error("ping past staleness window = nil, want stale-session error")
 	}
 }
