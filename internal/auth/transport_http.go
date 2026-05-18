@@ -1,4 +1,4 @@
-package api
+package auth
 
 import (
 	"errors"
@@ -9,7 +9,6 @@ import (
 	"github.com/go-chi/render"
 	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/core"
-	"github.com/sksmith/go-micro-example/core/auth"
 	"github.com/sksmith/go-micro-example/internal/platform/httpx"
 	"github.com/sksmith/go-micro-example/internal/user"
 )
@@ -21,7 +20,7 @@ type AuthApi struct {
 	rateLimit func(http.Handler) http.Handler
 
 	users  user.UserService
-	signer *auth.Signer
+	signer *Signer
 }
 
 // TokenResponse mirrors the OAuth2 token-endpoint shape from RFC 6749 §5.1.
@@ -29,13 +28,13 @@ type TokenResponse struct {
 	AccessToken string `json:"access_token"`
 	TokenType   string `json:"token_type"`
 	ExpiresIn   int64  `json:"expires_in"`
-}
+} // @name TokenResponse
 
 // Render satisfies render.Renderer so the response can flow through
 // the project's existing render helper.
 func (TokenResponse) Render(_ http.ResponseWriter, _ *http.Request) error { return nil }
 
-func NewAuthApi(users user.UserService, signer *auth.Signer) *AuthApi {
+func NewAuthApi(users user.UserService, signer *Signer) *AuthApi {
 	return &AuthApi{users: users, signer: signer}
 }
 
@@ -97,4 +96,9 @@ func (a *AuthApi) Token(w http.ResponseWriter, r *http.Request) {
 		TokenType:   "Bearer",
 		ExpiresIn:   int64(time.Until(expiresAt).Seconds()),
 	})
+}
+
+func basicAuthErr(w http.ResponseWriter) {
+	w.Header().Set("WWW-Authenticate", `Basic realm="restricted", charset="UTF-8"`)
+	http.Error(w, "Unauthorized", http.StatusUnauthorized)
 }

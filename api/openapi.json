@@ -164,6 +164,20 @@
                     "None"
                 ]
             },
+            "TokenResponse": {
+                "properties": {
+                    "access_token": {
+                        "type": "string"
+                    },
+                    "expires_in": {
+                        "type": "integer"
+                    },
+                    "token_type": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "api.EnvResponse": {
                 "properties": {
                     "appName": {
@@ -216,20 +230,6 @@
                     },
                     "sha1Version": {
                         "$ref": "#/components/schemas/config.StringConfig"
-                    }
-                },
-                "type": "object"
-            },
-            "api.TokenResponse": {
-                "properties": {
-                    "access_token": {
-                        "type": "string"
-                    },
-                    "expires_in": {
-                        "type": "integer"
-                    },
-                    "token_type": {
-                        "type": "string"
                     }
                 },
                 "type": "object"
@@ -1322,7 +1322,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/api.TokenResponse"
+                                    "$ref": "#/components/schemas/TokenResponse"
                                 }
                             }
                         },

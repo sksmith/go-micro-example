@@ -112,6 +112,15 @@ components:
       - Open
       - Closed
       - None
+    TokenResponse:
+      properties:
+        access_token:
+          type: string
+        expires_in:
+          type: integer
+        token_type:
+          type: string
+      type: object
     api.EnvResponse:
       properties:
         appName:
@@ -148,15 +157,6 @@ components:
           $ref: '#/components/schemas/config.StringConfig'
         sha1Version:
           $ref: '#/components/schemas/config.StringConfig'
-      type: object
-    api.TokenResponse:
-      properties:
-        access_token:
-          type: string
-        expires_in:
-          type: integer
-        token_type:
-          type: string
       type: object
     config.BoolConfig:
       properties:
@@ -830,7 +830,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.TokenResponse'
+                $ref: '#/components/schemas/TokenResponse'
           description: OK
         "401":
           content:

@@ -11,7 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/sksmith/go-micro-example/api"
 	"github.com/sksmith/go-micro-example/config"
-	"github.com/sksmith/go-micro-example/core/auth"
+	"github.com/sksmith/go-micro-example/internal/auth"
 	"github.com/sksmith/go-micro-example/internal/inventory"
 	"github.com/sksmith/go-micro-example/internal/user"
 	"github.com/sksmith/go-micro-example/testutil"

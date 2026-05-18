@@ -13,7 +13,7 @@ import (
 
 	"github.com/gobwas/ws"
 	"github.com/sksmith/go-micro-example/core"
-	"github.com/sksmith/go-micro-example/core/catalog"
+	"github.com/sksmith/go-micro-example/internal/catalog"
 	"github.com/sksmith/go-micro-example/internal/inventory"
 	"github.com/sksmith/go-micro-example/internal/platform/httpx"
 	"github.com/sksmith/go-micro-example/testutil"

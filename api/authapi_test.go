@@ -11,6 +11,7 @@ import (
 
 	"github.com/sksmith/go-micro-example/api"
 	"github.com/sksmith/go-micro-example/core"
+	"github.com/sksmith/go-micro-example/internal/auth"
 	"github.com/sksmith/go-micro-example/internal/user"
 )
 
@@ -40,7 +41,7 @@ func TestTokenEndpointIssuesJWTForValidCredentials(t *testing.T) {
 		t.Fatalf("status=%d body=%s", res.StatusCode, body)
 	}
 
-	var resp api.TokenResponse
+	var resp auth.TokenResponse
 	if err := json.NewDecoder(res.Body).Decode(&resp); err != nil {
 		t.Fatal(err)
 	}

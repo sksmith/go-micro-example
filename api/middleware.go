@@ -13,8 +13,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/rs/zerolog/log"
-	"github.com/sksmith/go-micro-example/core/auth"
 	"github.com/sksmith/go-micro-example/core/observability"
+	"github.com/sksmith/go-micro-example/internal/auth"
 	"github.com/sksmith/go-micro-example/internal/user"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -101,11 +101,6 @@ func AdminOnly(next http.Handler) http.Handler {
 
 func authErr(w http.ResponseWriter) {
 	w.Header().Set("WWW-Authenticate", `Bearer realm="restricted"`)
-	http.Error(w, "Unauthorized", http.StatusUnauthorized)
-}
-
-func basicAuthErr(w http.ResponseWriter) {
-	w.Header().Set("WWW-Authenticate", `Basic realm="restricted", charset="UTF-8"`)
 	http.Error(w, "Unauthorized", http.StatusUnauthorized)
 }
 

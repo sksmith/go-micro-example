@@ -632,7 +632,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["api.TokenResponse"];
+                        "application/json": components["schemas"]["TokenResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -724,6 +724,11 @@ export interface components {
         };
         /** @enum {string} */
         ReserveState: "Open" | "Closed" | "";
+        TokenResponse: {
+            access_token?: string;
+            expires_in?: number;
+            token_type?: string;
+        };
         "api.EnvResponse": {
             appName?: components["schemas"]["config.StringConfig"];
             appVersion?: components["schemas"]["config.StringConfig"];
@@ -742,11 +747,6 @@ export interface components {
             redis?: components["schemas"]["config.RedisConfig"];
             revision?: components["schemas"]["config.StringConfig"];
             sha1Version?: components["schemas"]["config.StringConfig"];
-        };
-        "api.TokenResponse": {
-            access_token?: string;
-            expires_in?: number;
-            token_type?: string;
         };
         "config.BoolConfig": {
             default?: boolean;

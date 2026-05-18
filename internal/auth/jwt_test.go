@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
-	"github.com/sksmith/go-micro-example/core/auth"
+	"github.com/sksmith/go-micro-example/internal/auth"
 	"github.com/sksmith/go-micro-example/internal/user"
 )
 
