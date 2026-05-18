@@ -144,7 +144,8 @@ func (l *Limiter) Allow(ctx context.Context, key, scope string) (Decision, error
 		ttlSeconds = 60
 	}
 
-	res, err := luaScript.Run(ctx, l.client, []string{key},
+	res, err := luaScript.Run(
+		ctx, l.client, []string{key},
 		l.cfg.Rate, l.cfg.Burst, 1, nowMs, ttlSeconds,
 	).Result()
 	if err != nil {

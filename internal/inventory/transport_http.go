@@ -205,7 +205,6 @@ func (a *InventoryApi) ProductCtx(next http.Handler) http.Handler {
 		}
 
 		product, err = a.service.GetProduct(r.Context(), sku)
-
 		if err != nil {
 			if errors.Is(err, persistence.ErrNotFound) {
 				httpx.Render(w, r, httpx.NotFoundProblem())
@@ -275,7 +274,6 @@ func (a *InventoryApi) GetProductInventory(w http.ResponseWriter, r *http.Reques
 	product := r.Context().Value(CtxKeyProduct).(Product)
 
 	res, err := a.service.GetProductInventory(r.Context(), product.Sku)
-
 	if err != nil {
 		if errors.Is(err, persistence.ErrNotFound) {
 			httpx.Render(w, r, httpx.NotFoundProblem())

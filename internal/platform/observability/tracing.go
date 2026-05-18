@@ -70,7 +70,8 @@ func InitTracing(ctx context.Context, cfg TracingConfig) (ShutdownFunc, error) {
 		return func(context.Context) error { return nil }, nil
 	}
 
-	res, err := resource.New(ctx,
+	res, err := resource.New(
+		ctx,
 		resource.WithFromEnv(),
 		resource.WithProcess(),
 		resource.WithTelemetrySDK(),

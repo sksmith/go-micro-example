@@ -81,7 +81,6 @@ func (d *dbRepo) GetProduct(ctx context.Context, sku string, options ...persiste
 	product := Product{}
 	err := tx.QueryRow(ctx, `SELECT sku, upc, name FROM products WHERE sku = $1 `+forUpdate, sku).
 		Scan(&product.Sku, &product.Upc, &product.Name)
-
 	if err != nil {
 		m.Complete(err)
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -101,7 +100,6 @@ func (d *dbRepo) GetProductInventory(ctx context.Context, sku string, options ..
 	productInventory := ProductInventory{}
 	err := tx.QueryRow(ctx, `SELECT p.sku, p.upc, p.name, pi.available FROM products p, product_inventory pi WHERE p.sku = $1 AND p.sku = pi.sku `+forUpdate, sku).
 		Scan(&productInventory.Sku, &productInventory.Upc, &productInventory.Name, &productInventory.Available)
-
 	if err != nil {
 		m.Complete(err)
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -155,7 +153,6 @@ func (d *dbRepo) GetProductionEventByRequestID(ctx context.Context, requestID st
 	pe = ProductionEvent{}
 	err = tx.QueryRow(ctx, `SELECT id, request_id, sku, quantity, created FROM production_events `+forUpdate+` WHERE request_id = $1 `+forUpdate, requestID).
 		Scan(&pe.ID, &pe.RequestID, &pe.Sku, &pe.Quantity, &pe.Created)
-
 	if err != nil {
 		m.Complete(err)
 		if errors.Is(err, pgx.ErrNoRows) {

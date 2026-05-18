@@ -54,7 +54,6 @@ func (a *UserApi) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_, err := a.service.Create(r.Context(), *data.CreateUserRequest)
-
 	if err != nil {
 		if errors.Is(err, ErrInvalidInput) {
 			httpx.Render(w, r, httpx.BadRequestProblem(err))

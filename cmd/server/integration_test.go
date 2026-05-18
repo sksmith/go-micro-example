@@ -23,7 +23,6 @@ import (
 var cfg *config.Config
 
 func TestMain(m *testing.M) {
-
 	log.Info().Msg("configuring logging...")
 
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
@@ -151,7 +150,6 @@ func TestList(t *testing.T) {
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
 			res, err := http.Get(host() + test.url)
-
 			if err != nil {
 				t.Errorf("unexpected error got=%s", err)
 			}

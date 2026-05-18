@@ -50,7 +50,8 @@ func runKafkaDuplicateReplay(ctx context.Context, cfg Config) (string, error) {
 	sharedEventID := uuid.NewString()
 
 	publishCommand := func(requestID string) error {
-		env, err := events.NewEnvelope(sharedEventID, events.TypeRecordProduction, 1, time.Now(),
+		env, err := events.NewEnvelope(
+			sharedEventID, events.TypeRecordProduction, 1, time.Now(),
 			map[string]any{"sku": sku, "requestId": requestID, "quantity": quantity},
 		)
 		if err != nil {

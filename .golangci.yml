@@ -1,4 +1,10 @@
 version: "2"
+# OPS-003: gofumpt enforced as a formatter so the bundled
+# `golangci-lint fmt` and CI lint both flag drift. The full linter
+# surface stays narrow on purpose; widening it is OPS-010's job.
+formatters:
+  enable:
+    - gofumpt
 linters:
   default: standard
   enable:

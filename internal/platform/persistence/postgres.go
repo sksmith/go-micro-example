@@ -84,7 +84,6 @@ func addOptionsToConnStr(connStr string, options ...configOption) string {
 }
 
 func ConnectDb(ctx context.Context, cfg *config.Config) (*pgxpool.Pool, error) {
-
 	log.Info().Str("host", cfg.Db.Host.Value).Str("name", cfg.Db.Name.Value).Msg("connecting to the database...")
 	var err error
 

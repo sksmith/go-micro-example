@@ -147,7 +147,6 @@ func (a *ReservationApi) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	res, err := a.service.Reserve(r.Context(), *data.ReservationRequest)
-
 	if err != nil {
 		switch {
 		case errors.Is(err, persistence.ErrNotFound):
@@ -188,7 +187,6 @@ func (a *ReservationApi) ReservationCtx(next http.Handler) http.Handler {
 		}
 
 		reservation, err := a.service.GetReservation(r.Context(), ID)
-
 		if err != nil {
 			if errors.Is(err, persistence.ErrNotFound) {
 				httpx.Render(w, r, httpx.NotFoundProblem())
@@ -233,7 +231,6 @@ func (a *ReservationApi) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	res, err := a.service.GetReservations(r.Context(), GetReservationsOptions{Sku: sku, State: state}, p.Limit, p.Offset)
-
 	if err != nil {
 		if errors.Is(err, persistence.ErrNotFound) {
 			httpx.Render(w, r, httpx.NotFoundProblem())

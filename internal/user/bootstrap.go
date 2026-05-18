@@ -4,8 +4,8 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
-
 	"errors"
+
 	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/internal/platform/persistence"
 	"golang.org/x/crypto/bcrypt"

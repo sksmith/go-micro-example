@@ -45,8 +45,10 @@ func (s *service) SetEventEmitter(e EventEmitter) {
 	s.emitter = e
 }
 
-type InventorySubID string
-type ReservationsSubID string
+type (
+	InventorySubID    string
+	ReservationsSubID string
+)
 
 type GetReservationsOptions struct {
 	Sku   string

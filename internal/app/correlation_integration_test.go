@@ -2,11 +2,12 @@ package app_test
 
 import (
 	"bytes"
-	"github.com/sksmith/go-micro-example/internal/app"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/sksmith/go-micro-example/internal/app"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
