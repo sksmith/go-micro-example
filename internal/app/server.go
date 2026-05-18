@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"net/http"
@@ -120,7 +121,34 @@ func newWith(cfg *config.Config, deps Deps) *Server {
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       120 * time.Second,
 	}
+	if cfg.TLS.Enabled.Value {
+		srv.TLSConfig = modernTLSConfig()
+	}
 	return &Server{cfg: cfg, deps: deps, http: srv}
+}
+
+// modernTLSConfig returns the TLS settings the service uses when it
+// terminates HTTPS itself. The profile matches Mozilla's
+// "intermediate" recommendation: TLS 1.2+ only, AEAD cipher suites,
+// forward-secret key exchange. TLS 1.3 cipher suites and curves are
+// fixed by Go and need no explicit listing.
+func modernTLSConfig() *tls.Config {
+	return &tls.Config{
+		MinVersion: tls.VersionTLS12,
+		CurvePreferences: []tls.CurveID{
+			tls.X25519,
+			tls.CurveP256,
+			tls.CurveP384,
+		},
+		CipherSuites: []uint16{
+			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
+			tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,
+		},
+	}
 }
 
 // Handler exposes the chi router so tests can hit it via httptest
@@ -133,10 +161,27 @@ func (s *Server) Handler() http.Handler { return s.http.Handler }
 func (s *Server) Run(ctx context.Context) error {
 	start := time.Now()
 
+	if s.cfg.TLS.Enabled.Value {
+		if s.cfg.TLS.CertFile.Value == "" || s.cfg.TLS.KeyFile.Value == "" {
+			return fmt.Errorf("tls.enabled=true requires tls.certFile and tls.keyFile")
+		}
+	}
+
 	serveErr := make(chan error, 1)
 	go func() {
-		log.Info().Str("port", s.cfg.Port.Value).Int64("startTimeMs", time.Since(start).Milliseconds()).Msg("listening")
-		if err := s.http.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		var err error
+		if s.cfg.TLS.Enabled.Value {
+			log.Info().
+				Str("port", s.cfg.Port.Value).
+				Str("certFile", s.cfg.TLS.CertFile.Value).
+				Int64("startTimeMs", time.Since(start).Milliseconds()).
+				Msg("listening (TLS)")
+			err = s.http.ListenAndServeTLS(s.cfg.TLS.CertFile.Value, s.cfg.TLS.KeyFile.Value)
+		} else {
+			log.Info().Str("port", s.cfg.Port.Value).Int64("startTimeMs", time.Since(start).Milliseconds()).Msg("listening")
+			err = s.http.ListenAndServe()
+		}
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			serveErr <- err
 		}
 		close(serveErr)

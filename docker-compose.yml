@@ -170,6 +170,28 @@ services:
     # steps (cmd/demo/main.go: waitReady), so the gate is enforced
     # there rather than via Docker's HEALTHCHECK.
 
+  caddy:
+    # SEC-005: local-dev TLS terminator. Caddy listens on :443 with a
+    # self-signed cert (`tls internal`) and reverse-proxies plaintext
+    # to the app on the compose network. This mirrors the prod
+    # topology (ingress/sidecar handles TLS, the service binds
+    # plaintext on a private port) so HSTS middleware,
+    # X-Forwarded-Proto branches, and any TLS-conditional logic
+    # exercise the same code path locally. Browse to
+    # https://localhost:8443 (accept the self-signed warning) or curl
+    # with -k. The plain app port (8080) is still exposed for
+    # debugging without going through Caddy.
+    image: caddy:2-alpine
+    depends_on:
+      app:
+        condition: service_started
+    ports:
+      - "8443:443"
+    volumes:
+      - ./scripts/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
   demo:
     # DSN-015: orchestrator that runs each capability step end-to-end
     # against the live app and prints a summary table. Exits 0 on
@@ -193,3 +215,9 @@ services:
     # the demo service's log stream; the app keeps running for
     # interactive use afterwards.
     restart: "no"
+
+volumes:
+  # Caddy persists its locally-trusted CA cert across restarts so
+  # the dev cert stays stable instead of being regenerated each boot.
+  caddy_data:
+  caddy_config:

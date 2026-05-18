@@ -76,6 +76,20 @@ type Config struct {
 	Redis       RedisConfig       `json:"redis"       yaml:"redis"`
 	RateLimit   RateLimitConfig   `json:"rateLimit"   yaml:"rateLimit"`
 	Docs        DocsConfig        `json:"docs"        yaml:"docs"`
+	TLS         TLSConfig         `json:"tls"         yaml:"tls"`
+}
+
+// TLSConfig drives SEC-005. In production TLS is terminated by an
+// ingress controller or sidecar and the service binds plaintext on a
+// private port. The optional fields below let single-host deployments
+// (or local dev without a terminator) serve HTTPS directly by pointing
+// at a PEM cert/key pair. An empty CertFile/KeyFile with Enabled=true
+// is a configuration error and fails fast at startup.
+type TLSConfig struct {
+	Enabled     BoolConfig   `json:"enabled"     yaml:"enabled"`
+	CertFile    StringConfig `json:"certFile"    yaml:"certFile"`
+	KeyFile     StringConfig `json:"keyFile"     yaml:"keyFile"    sensitive:"true"`
+	Description string       `json:"description" yaml:"description"`
 }
 
 // RedisConfig holds the DSN-020 Redis connection knobs. An empty URL
@@ -231,6 +245,10 @@ func init() {
 
 	viper.SetDefault("docs.enabled", def.Docs.Enabled.Default)
 
+	viper.SetDefault("tls.enabled", def.TLS.Enabled.Default)
+	viper.SetDefault("tls.certFile", def.TLS.CertFile.Default)
+	viper.SetDefault("tls.keyFile", def.TLS.KeyFile.Default)
+
 	viper.SetDefault("config.print", def.Config.Print.Default)
 	viper.SetDefault("config.source", def.Config.Source.Default)
 
@@ -295,6 +313,9 @@ func bindSensitiveEnv() {
 		"redis.userCacheTtlSeconds",
 		"rateLimit.authRatePerSecond",
 		"rateLimit.authBurst",
+		"tls.enabled",
+		"tls.certFile",
+		"tls.keyFile",
 	} {
 		// Errors here would mean a programming error in the key list —
 		// viper.BindEnv only fails on empty input.
@@ -592,6 +613,11 @@ func setupDefaults(config *Config) {
 	config.Redis.URL = StringConfig{Value: "", Default: "", Description: "Redis connection URL (redis://host:port/db). Empty disables the cache."}
 	config.Redis.CacheTTLMinutes = IntConfig{Value: 5, Default: 5, Description: "TTL for cached ProductInventory entries, in minutes. Short by default so missed invalidations self-heal."}
 	config.Redis.UserCacheTTLSeconds = IntConfig{Value: 60, Default: 60, Description: "TTL for cached User rows, in seconds. Short so admin/role revocations propagate without explicit cache-bust."}
+
+	config.TLS.Description = "SEC-005: optional in-process TLS termination. Production deployments terminate TLS at the ingress/sidecar and leave Enabled=false; set Enabled=true with cert/key paths for standalone hosts."
+	config.TLS.Enabled = BoolConfig{Value: false, Default: false, Description: "Serve HTTPS directly via http.Server.ListenAndServeTLS. Default false; production should terminate TLS upstream."}
+	config.TLS.CertFile = StringConfig{Value: "", Default: "", Description: "Path to a PEM-encoded TLS certificate (or chain). Required when tls.enabled is true."}
+	config.TLS.KeyFile = StringConfig{Value: "", Default: "", Description: "Path to the PEM-encoded private key matching tls.certFile. Required when tls.enabled is true. Supply via GME_TLS_KEYFILE."}
 
 	config.RateLimit.Description = "DSN-021b: per-IP rate limit for /auth/token (brute-force throttle). Requires redis.url; disabled when Redis isn't configured."
 	config.RateLimit.AuthRatePerSecond = FloatConfig{Value: 1.0, Default: 1.0, Description: "Token refill rate (tokens/sec) for the /auth/token bucket."}

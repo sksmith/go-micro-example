@@ -704,6 +704,7 @@ export interface components {
             redis?: components["schemas"]["config.RedisConfig"];
             revision?: components["schemas"]["config.StringConfig"];
             sha1Version?: components["schemas"]["config.StringConfig"];
+            tls?: components["schemas"]["config.TLSConfig"];
         };
         FieldProblem: {
             detail?: string;
@@ -867,6 +868,12 @@ export interface components {
             default?: string;
             description?: string;
             value?: string;
+        };
+        "config.TLSConfig": {
+            certFile?: components["schemas"]["config.StringConfig"];
+            description?: string;
+            enabled?: components["schemas"]["config.BoolConfig"];
+            keyFile?: components["schemas"]["config.StringConfig"];
         };
         "internal_user.CreateUserRequestDto": {
             isAdmin?: boolean;

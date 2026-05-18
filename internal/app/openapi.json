@@ -96,6 +96,9 @@
                     },
                     "sha1Version": {
                         "$ref": "#/components/schemas/config.StringConfig"
+                    },
+                    "tls": {
+                        "$ref": "#/components/schemas/config.TLSConfig"
                     }
                 },
                 "type": "object"
@@ -570,6 +573,23 @@
                     },
                     "value": {
                         "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "config.TLSConfig": {
+                "properties": {
+                    "certFile": {
+                        "$ref": "#/components/schemas/config.StringConfig"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "enabled": {
+                        "$ref": "#/components/schemas/config.BoolConfig"
+                    },
+                    "keyFile": {
+                        "$ref": "#/components/schemas/config.StringConfig"
                     }
                 },
                 "type": "object"

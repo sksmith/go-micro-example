@@ -66,6 +66,10 @@ func ConfigureRouter(cfg *config.Config, invSvc inventory.InventoryService, resS
 	}))
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Recoverer)
+	// HSTS only emits a header on TLS requests (direct or via
+	// X-Forwarded-Proto: https), so mounting it unconditionally is
+	// safe for plaintext local dev too.
+	r.Use(httpx.HSTS(httpx.HSTSOptions{IncludeSubDomains: true}))
 	// otelchi mounts before Metrics/Logging so the span covers
 	// both. The chi route pattern (e.g. /api/v1/inventory/{sku})
 	// is the span name, which is what you want for grouping —

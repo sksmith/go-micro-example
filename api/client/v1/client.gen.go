@@ -102,6 +102,7 @@ type EnvResponse struct {
 	Redis       *ConfigRedisConfig       `json:"redis,omitempty"`
 	Revision    *ConfigStringConfig      `json:"revision,omitempty"`
 	Sha1Version *ConfigStringConfig      `json:"sha1Version,omitempty"`
+	Tls         *ConfigTLSConfig         `json:"tls,omitempty"`
 }
 
 // FieldProblem defines model for FieldProblem.
@@ -325,6 +326,14 @@ type ConfigStringConfig struct {
 	Default     *string `json:"default,omitempty"`
 	Description *string `json:"description,omitempty"`
 	Value       *string `json:"value,omitempty"`
+}
+
+// ConfigTLSConfig defines model for config.TLSConfig.
+type ConfigTLSConfig struct {
+	CertFile    *ConfigStringConfig `json:"certFile,omitempty"`
+	Description *string             `json:"description,omitempty"`
+	Enabled     *ConfigBoolConfig   `json:"enabled,omitempty"`
+	KeyFile     *ConfigStringConfig `json:"keyFile,omitempty"`
 }
 
 // InternalUserCreateUserRequestDto defines model for internal_user.CreateUserRequestDto.
