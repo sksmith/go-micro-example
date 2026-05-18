@@ -29,3 +29,15 @@ jobs:
         with:
           sarif_file: gosec.sarif
           category: gosec
+      # SEC-009: SQL-injection rules (G201 / G202) are Medium severity
+      # and would be filtered out by the High-only gate above. They
+      # need to hard-fail CI on any regression — a Sprintf'd SQL
+      # query is the kind of mistake we cannot afford to ship even
+      # once. Run gosec a second time with -include narrowed to just
+      # those rules and no severity floor so any finding fails the
+      # job. Output is text so the build log shows the offending
+      # line directly; SARIF upload above covers the broader scan.
+      - name: gosec G201/G202 hard-gate
+        uses: securego/gosec@v2.26.1
+        with:
+          args: '-include=G201,G202 -exclude-dir api/client ./...'
