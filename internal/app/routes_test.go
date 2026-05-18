@@ -34,7 +34,7 @@ func newTestRouterWithSigner() (chi.Router, *user.MockUserService, *auth.Signer)
 	if err != nil {
 		panic(err)
 	}
-	return app.ConfigureRouter(cfg, invSvc, resSvc, usrSvc, signer, nil, nil, nil, nil), usrSvc, signer
+	return app.ConfigureRouter(cfg, invSvc, resSvc, usrSvc, signer, nil, nil, nil, nil, nil, nil), usrSvc, signer
 }
 
 func TestCorsConfig(t *testing.T) {
@@ -102,7 +102,7 @@ func TestCorsDisabledWhenAllowedOriginsEmpty(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := app.ConfigureRouter(cfg, invSvc, resSvc, usrSvc, signer, nil, nil, nil, nil)
+	r := app.ConfigureRouter(cfg, invSvc, resSvc, usrSvc, signer, nil, nil, nil, nil, nil, nil)
 	ts := httptest.NewServer(r)
 	defer ts.Close()
 

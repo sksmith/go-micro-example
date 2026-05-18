@@ -301,9 +301,12 @@ type ConfigQueueConfig struct {
 
 // ConfigRateLimitConfig defines model for config.RateLimitConfig.
 type ConfigRateLimitConfig struct {
-	AuthBurst         *ConfigIntConfig   `json:"authBurst,omitempty"`
-	AuthRatePerSecond *ConfigFloatConfig `json:"authRatePerSecond,omitempty"`
-	Description       *string            `json:"description,omitempty"`
+	AuthBurst           *ConfigIntConfig   `json:"authBurst,omitempty"`
+	AuthRatePerSecond   *ConfigFloatConfig `json:"authRatePerSecond,omitempty"`
+	Description         *string            `json:"description,omitempty"`
+	GlobalBurst         *ConfigIntConfig   `json:"globalBurst,omitempty"`
+	GlobalRatePerSecond *ConfigFloatConfig `json:"globalRatePerSecond,omitempty"`
+	MaxRequestBodyBytes *ConfigIntConfig   `json:"maxRequestBodyBytes,omitempty"`
 }
 
 // ConfigRedisConfig defines model for config.RedisConfig.

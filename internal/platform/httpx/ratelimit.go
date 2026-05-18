@@ -26,23 +26,38 @@ type Allower interface {
 // where we can't extract an identity yet — let the request through).
 type KeyFunc func(*http.Request) (key, scope string)
 
-// IPKey buckets by the client IP. X-Forwarded-For is honoured when
-// present (first hop wins) because the demo runs behind compose's
-// proxying; production deployments behind a real load balancer should
-// configure the LB to write a trusted header before this middleware
-// runs, OR replace this with a stricter source.
+// IPKey buckets by the client IP under the default "rl:ip:" namespace
+// with scope label "ip". X-Forwarded-For is honoured when present
+// (first hop wins) because the demo runs behind compose's proxying;
+// production deployments behind a real load balancer should configure
+// the LB to write a trusted header before this middleware runs, OR
+// replace this with a stricter source.
 func IPKey(r *http.Request) (string, string) {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		if i := strings.IndexByte(xff, ','); i > 0 {
-			return "rl:ip:" + strings.TrimSpace(xff[:i]), "ip"
+	return IPKeyScoped("rl:ip:", "ip")(r)
+}
+
+// IPKeyScoped returns a KeyFunc that buckets by client IP under the
+// supplied Redis-key prefix and tags metrics with scope. Use this when
+// multiple Limiter instances must not share buckets — e.g. a strict
+// /auth/token throttle alongside a looser global throttle. The two
+// instances need distinct prefixes so their token counts are tracked
+// independently in Redis and distinct scope labels so the
+// ratelimit_allowed_total / ratelimit_denied_total counters separate
+// them.
+func IPKeyScoped(prefix, scope string) KeyFunc {
+	return func(r *http.Request) (string, string) {
+		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+			if i := strings.IndexByte(xff, ','); i > 0 {
+				return prefix + strings.TrimSpace(xff[:i]), scope
+			}
+			return prefix + strings.TrimSpace(xff), scope
 		}
-		return "rl:ip:" + strings.TrimSpace(xff), "ip"
+		host, _, err := net.SplitHostPort(r.RemoteAddr)
+		if err != nil {
+			host = r.RemoteAddr
+		}
+		return prefix + host, scope
 	}
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		host = r.RemoteAddr
-	}
-	return "rl:ip:" + host, "ip"
 }
 
 // Middleware returns an http middleware that consumes one token per

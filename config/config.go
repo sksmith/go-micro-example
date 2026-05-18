@@ -119,14 +119,19 @@ type RedisConfig struct {
 	Description         string       `json:"description"         yaml:"description"`
 }
 
-// RateLimitConfig configures the DSN-021b auth-token rate limiter.
-// Empty or zero values fall through to package defaults. When
-// redis.url is empty the limiter is disabled regardless of these
-// values — the middleware needs Redis to function.
+// RateLimitConfig configures the DSN-021b auth-token rate limiter and
+// the SEC-007 global throttle + body cap. Empty or zero values fall
+// through to package defaults. Both rate limiters require Redis;
+// when redis.url is empty they are disabled regardless of these
+// knobs. MaxRequestBodyBytes is enforced unconditionally and falls
+// back to httpx.DefaultMaxRequestBodyBytes when unset.
 type RateLimitConfig struct {
-	AuthRatePerSecond FloatConfig `json:"authRatePerSecond" yaml:"authRatePerSecond"`
-	AuthBurst         IntConfig   `json:"authBurst"         yaml:"authBurst"`
-	Description       string      `json:"description"       yaml:"description"`
+	AuthRatePerSecond   FloatConfig `json:"authRatePerSecond"   yaml:"authRatePerSecond"`
+	AuthBurst           IntConfig   `json:"authBurst"           yaml:"authBurst"`
+	GlobalRatePerSecond FloatConfig `json:"globalRatePerSecond" yaml:"globalRatePerSecond"`
+	GlobalBurst         IntConfig   `json:"globalBurst"         yaml:"globalBurst"`
+	MaxRequestBodyBytes IntConfig   `json:"maxRequestBodyBytes" yaml:"maxRequestBodyBytes"`
+	Description         string      `json:"description"         yaml:"description"`
 }
 
 // IdempotencyConfig holds the DSN-019 REST idempotency knobs. The
@@ -329,6 +334,9 @@ func bindSensitiveEnv() {
 		"redis.userCacheTtlSeconds",
 		"rateLimit.authRatePerSecond",
 		"rateLimit.authBurst",
+		"rateLimit.globalRatePerSecond",
+		"rateLimit.globalBurst",
+		"rateLimit.maxRequestBodyBytes",
 		"tls.enabled",
 		"tls.certFile",
 		"tls.keyFile",
@@ -641,9 +649,12 @@ func setupDefaults(config *Config) {
 	config.TLS.CertFile = StringConfig{Value: "", Default: "", Description: "Path to a PEM-encoded TLS certificate (or chain). Required when tls.enabled is true."}
 	config.TLS.KeyFile = StringConfig{Value: "", Default: "", Description: "Path to the PEM-encoded private key matching tls.certFile. Required when tls.enabled is true. Supply via GME_TLS_KEYFILE."}
 
-	config.RateLimit.Description = "DSN-021b: per-IP rate limit for /auth/token (brute-force throttle). Requires redis.url; disabled when Redis isn't configured."
+	config.RateLimit.Description = "DSN-021b + SEC-007: per-IP rate limits and body-size cap. The two limiter buckets are independent (separate Redis key prefixes) so a noisy auth attacker doesn't consume the global budget. Both limiters require redis.url; the body cap is always on (defaults to 1 MiB when zero)."
 	config.RateLimit.AuthRatePerSecond = FloatConfig{Value: 1.0, Default: 1.0, Description: "Token refill rate (tokens/sec) for the /auth/token bucket."}
 	config.RateLimit.AuthBurst = IntConfig{Value: 5, Default: 5, Description: "Bucket size for the /auth/token rate limiter (burst capacity)."}
+	config.RateLimit.GlobalRatePerSecond = FloatConfig{Value: 50.0, Default: 50.0, Description: "SEC-007: per-IP refill rate (tokens/sec) for the global API throttle applied to every authenticated route."}
+	config.RateLimit.GlobalBurst = IntConfig{Value: 100, Default: 100, Description: "SEC-007: per-IP burst capacity for the global API throttle."}
+	config.RateLimit.MaxRequestBodyBytes = IntConfig{Value: 1 << 20, Default: 1 << 20, Description: "SEC-007: maximum request body size in bytes. Requests with a larger Content-Length are rejected with 413; chunked bodies are truncated by http.MaxBytesReader. 0 or negative disables the cap."}
 
 	config.Config.Description = "Settings for where and how the application should get its configurations."
 	config.Config.Print = BoolConfig{Value: false, Default: false, Description: "Print configurations on startup."}

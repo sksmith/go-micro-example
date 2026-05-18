@@ -52,17 +52,19 @@ const defaultSamplingRatio = 0.10
 // hand it to NewWithDeps so the composition root stays exercisable
 // without external resources.
 type Deps struct {
-	DB              *pgxpool.Pool
-	Redis           *redis.Client
-	InventorySvc    InventoryServices // satisfies inventory.InventoryService + ReservationService
-	UserService     user.UserService
-	Signer          *auth.Signer
-	CatalogClient   catalog.Client
-	ReadinessDeps   map[string]Pinger
-	IdempotencyMw   func(http.Handler) http.Handler
-	AuthRateLimitMw func(http.Handler) http.Handler
-	TracingShutdown observability.ShutdownFunc
-	KafkaCleanup    func()
+	DB                *pgxpool.Pool
+	Redis             *redis.Client
+	InventorySvc      InventoryServices // satisfies inventory.InventoryService + ReservationService
+	UserService       user.UserService
+	Signer            *auth.Signer
+	CatalogClient     catalog.Client
+	ReadinessDeps     map[string]Pinger
+	IdempotencyMw     func(http.Handler) http.Handler
+	AuthRateLimitMw   func(http.Handler) http.Handler
+	GlobalRateLimitMw func(http.Handler) http.Handler
+	BodyLimitMw       func(http.Handler) http.Handler
+	TracingShutdown   observability.ShutdownFunc
+	KafkaCleanup      func()
 }
 
 // InventoryServices captures the slice of inventory service surface
@@ -112,6 +114,8 @@ func newWith(cfg *config.Config, deps Deps) *Server {
 		deps.CatalogClient,
 		deps.IdempotencyMw,
 		deps.AuthRateLimitMw,
+		deps.GlobalRateLimitMw,
+		deps.BodyLimitMw,
 	)
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port.Value,
@@ -377,6 +381,8 @@ func buildDeps(ctx context.Context, cfg *config.Config) (Deps, error) {
 	catalogClient := buildCatalogClient(cfg)
 	idempotencyMw := buildIdempotencyMiddleware(cfg, redisClient)
 	authRateLimitMw := buildAuthRateLimitMiddleware(cfg, redisClient)
+	globalRateLimitMw := buildGlobalRateLimitMiddleware(cfg, redisClient)
+	bodyLimitMw := buildBodyLimitMiddleware(cfg)
 
 	_ = inventory.NewProductQueue(ctx, cfg, invService)
 
@@ -386,17 +392,19 @@ func buildDeps(ctx context.Context, cfg *config.Config) (Deps, error) {
 	}
 
 	return Deps{
-		DB:              dbPool,
-		Redis:           redisClient,
-		InventorySvc:    invService,
-		UserService:     userService,
-		Signer:          signer,
-		CatalogClient:   catalogClient,
-		ReadinessDeps:   readinessDeps,
-		IdempotencyMw:   idempotencyMw,
-		AuthRateLimitMw: authRateLimitMw,
-		TracingShutdown: tracingShutdown,
-		KafkaCleanup:    kafkaCleanup,
+		DB:                dbPool,
+		Redis:             redisClient,
+		InventorySvc:      invService,
+		UserService:       userService,
+		Signer:            signer,
+		CatalogClient:     catalogClient,
+		ReadinessDeps:     readinessDeps,
+		IdempotencyMw:     idempotencyMw,
+		AuthRateLimitMw:   authRateLimitMw,
+		GlobalRateLimitMw: globalRateLimitMw,
+		BodyLimitMw:       bodyLimitMw,
+		TracingShutdown:   tracingShutdown,
+		KafkaCleanup:      kafkaCleanup,
 	}, nil
 }
 
@@ -438,7 +446,41 @@ func buildAuthRateLimitMiddleware(cfg *config.Config, redisClient *redis.Client)
 		Float64("rate", cfg.RateLimit.AuthRatePerSecond.Value).
 		Int64("burst", cfg.RateLimit.AuthBurst.Value).
 		Msg("auth-token rate limiter ready")
-	return httpx.Middleware(limiter, httpx.IPKey)
+	return httpx.Middleware(limiter, httpx.IPKeyScoped("rl:auth:", "auth"))
+}
+
+// buildGlobalRateLimitMiddleware constructs the SEC-007 per-IP global
+// throttle. It uses its own Redis-key prefix ("rl:global:") and scope
+// label ("global") so the bucket is independent of the stricter
+// /auth/token bucket and the two show up as separate series on the
+// ratelimit_* metrics. Disabled when redis.url is empty — the limiter
+// needs Redis to coordinate across replicas.
+func buildGlobalRateLimitMiddleware(cfg *config.Config, redisClient *redis.Client) func(http.Handler) http.Handler {
+	if redisClient == nil {
+		log.Info().Msg("global rate limiter disabled (no redis client)")
+		return func(next http.Handler) http.Handler { return next }
+	}
+	limiter := ratelimit.New(redisClient, ratelimit.Config{
+		Rate:  cfg.RateLimit.GlobalRatePerSecond.Value,
+		Burst: int(cfg.RateLimit.GlobalBurst.Value),
+	})
+	log.Info().
+		Float64("rate", cfg.RateLimit.GlobalRatePerSecond.Value).
+		Int64("burst", cfg.RateLimit.GlobalBurst.Value).
+		Msg("global rate limiter ready")
+	return httpx.Middleware(limiter, httpx.IPKeyScoped("rl:global:", "global"))
+}
+
+// buildBodyLimitMiddleware constructs the SEC-007 request-body cap. A
+// zero or negative configured value falls back to httpx's 1-MiB
+// default; an explicit positive value overrides it.
+func buildBodyLimitMiddleware(cfg *config.Config) func(http.Handler) http.Handler {
+	limit := cfg.RateLimit.MaxRequestBodyBytes.Value
+	if limit <= 0 {
+		limit = httpx.DefaultMaxRequestBodyBytes
+	}
+	log.Info().Int64("limit_bytes", limit).Msg("request body size limit ready")
+	return httpx.MaxBytes(limit)
 }
 
 func buildIdempotencyMiddleware(cfg *config.Config, redisClient *redis.Client) func(http.Handler) http.Handler {

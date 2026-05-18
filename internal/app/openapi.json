@@ -528,6 +528,15 @@
                     },
                     "description": {
                         "type": "string"
+                    },
+                    "globalBurst": {
+                        "$ref": "#/components/schemas/config.IntConfig"
+                    },
+                    "globalRatePerSecond": {
+                        "$ref": "#/components/schemas/config.FloatConfig"
+                    },
+                    "maxRequestBodyBytes": {
+                        "$ref": "#/components/schemas/config.IntConfig"
                     }
                 },
                 "type": "object"
