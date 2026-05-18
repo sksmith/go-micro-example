@@ -15,7 +15,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/core/auth"
 	"github.com/sksmith/go-micro-example/core/observability"
-	"github.com/sksmith/go-micro-example/core/user"
+	"github.com/sksmith/go-micro-example/internal/user"
 	"go.opentelemetry.io/otel/trace"
 )
 

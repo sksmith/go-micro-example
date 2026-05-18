@@ -1,4 +1,4 @@
-package api_test
+package user_test
 
 import (
 	"context"
@@ -10,7 +10,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/sksmith/go-micro-example/api"
 	"github.com/sksmith/go-micro-example/core/auth"
-	"github.com/sksmith/go-micro-example/core/user"
+	"github.com/sksmith/go-micro-example/internal/platform/httpx"
+	"github.com/sksmith/go-micro-example/internal/user"
 	"github.com/sksmith/go-micro-example/testutil"
 )
 
@@ -78,7 +79,7 @@ func TestUserCreate(t *testing.T) {
 			},
 			url:            ts.URL,
 			request:        createUserReq("someuser", "somepass", false),
-			wantResponse:   api.InternalServerProblem(nil),
+			wantResponse:   httpx.InternalServerProblem(nil),
 			wantStatusCode: http.StatusInternalServerError,
 		},
 	}
@@ -97,8 +98,8 @@ func TestUserCreate(t *testing.T) {
 				test.wantStatusCode == http.StatusInternalServerError ||
 				test.wantStatusCode == http.StatusNotFound {
 
-				want := test.wantResponse.(*api.Problem)
-				got := &api.Problem{}
+				want := test.wantResponse.(*httpx.Problem)
+				got := &httpx.Problem{}
 				testutil.Unmarshal(res, got, t)
 
 				if got.Title != want.Title {
@@ -116,20 +117,20 @@ func createUser(username, password string, isAdmin bool) user.User {
 	return user.User{Username: username, HashedPassword: password, IsAdmin: isAdmin}
 }
 
-func createUserReq(username, password string, isAdmin bool) api.CreateUserRequestDto {
-	return api.CreateUserRequestDto{CreateUserRequest: &user.CreateUserRequest{Username: username, IsAdmin: isAdmin}, Password: password}
+func createUserReq(username, password string, isAdmin bool) user.CreateUserRequestDto {
+	return user.CreateUserRequestDto{CreateUserRequest: &user.CreateUserRequest{Username: username, IsAdmin: isAdmin}, Password: password}
 }
 
 func setupUserTestServer(t *testing.T) (*httptest.Server, *user.MockUserService, *auth.Signer) {
 	t.Helper()
 	svc := user.NewMockUserService()
-	usrApi := api.NewUserApi(svc)
+	usrApi := user.NewUserApi(svc)
 	signer, err := auth.NewSigner(nil, 0, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	r := chi.NewRouter()
-	r.With(api.Authenticate(signer)).Route("/", func(r chi.Router) {
+	r.With(api.Authenticate(signer), api.AdminOnly).Route("/", func(r chi.Router) {
 		usrApi.ConfigureRouter(r)
 	})
 	ts := httptest.NewServer(r)

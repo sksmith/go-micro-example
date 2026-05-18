@@ -15,6 +15,7 @@ import (
 	"github.com/sksmith/go-micro-example/config"
 	"github.com/sksmith/go-micro-example/core/auth"
 	"github.com/sksmith/go-micro-example/core/catalog"
+	"github.com/sksmith/go-micro-example/internal/user"
 )
 
 const (
@@ -49,7 +50,7 @@ const (
 //
 // authRateLimitMw is the optional DSN-021b rate-limit middleware
 // applied to /auth/token. nil leaves the route un-throttled.
-func ConfigureRouter(cfg *config.Config, invSvc InventoryService, resSvc ReservationService, userService UserService, signer *auth.Signer, readinessDeps map[string]Pinger, catalogClient catalog.Client, idempotencyMw func(http.Handler) http.Handler, authRateLimitMw func(http.Handler) http.Handler) chi.Router {
+func ConfigureRouter(cfg *config.Config, invSvc InventoryService, resSvc ReservationService, userService user.UserService, signer *auth.Signer, readinessDeps map[string]Pinger, catalogClient catalog.Client, idempotencyMw func(http.Handler) http.Handler, authRateLimitMw func(http.Handler) http.Handler) chi.Router {
 	log.Info().Msg("configuring router...")
 	r := chi.NewRouter()
 
@@ -99,27 +100,11 @@ func ConfigureRouter(cfg *config.Config, invSvc InventoryService, resSvc Reserva
 		resApi := NewReservationApi(resSvc)
 		resApi.SetIdempotency(idempotencyMw)
 		r.Route(ReservationPath, resApi.ConfigureRouter)
-		r.Route(UserPath, NewUserApi(userService).ConfigureRouter)
+		r.With(AdminOnly).Route(UserPath, user.NewUserApi(userService).ConfigureRouter)
 		r.With(AdminOnly).Route(AdminPath, func(r chi.Router) {
 			r.Route(EnvPath, NewEnvApi(cfg).ConfigureRouter)
 		})
 	})
 
 	return r
-}
-
-func Render(w http.ResponseWriter, r *http.Request, rnd render.Renderer) {
-	if p, ok := rnd.(*Problem); ok {
-		p.WriteTo(w, r)
-		return
-	}
-	if err := render.Render(w, r, rnd); err != nil {
-		log.Ctx(r.Context()).Warn().Err(err).Msg("failed to render")
-	}
-}
-
-func RenderList(w http.ResponseWriter, r *http.Request, l []render.Renderer) {
-	if err := render.RenderList(w, r, l); err != nil {
-		log.Ctx(r.Context()).Warn().Err(err).Msg("failed to render")
-	}
 }

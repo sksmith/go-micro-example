@@ -15,6 +15,7 @@ import (
 	"github.com/sksmith/go-micro-example/api"
 	"github.com/sksmith/go-micro-example/core"
 	"github.com/sksmith/go-micro-example/core/inventory"
+	"github.com/sksmith/go-micro-example/internal/platform/httpx"
 	"github.com/sksmith/go-micro-example/testutil"
 )
 
@@ -93,7 +94,7 @@ func TestReservationGet(t *testing.T) {
 		getReservationFunc func(ctx context.Context, ID uint64) (inventory.Reservation, error)
 		ID                 string
 		wantResponse       *api.ReservationResponse
-		wantErr            *api.Problem
+		wantErr            *httpx.Problem
 		wantStatusCode     int
 	}{
 		{
@@ -111,7 +112,7 @@ func TestReservationGet(t *testing.T) {
 			},
 			ID:             "1",
 			wantResponse:   nil,
-			wantErr:        api.NotFoundProblem(),
+			wantErr:        httpx.NotFoundProblem(),
 			wantStatusCode: http.StatusNotFound,
 		},
 		{
@@ -120,7 +121,7 @@ func TestReservationGet(t *testing.T) {
 			},
 			ID:             "1",
 			wantResponse:   nil,
-			wantErr:        api.InternalServerProblem(nil),
+			wantErr:        httpx.InternalServerProblem(nil),
 			wantStatusCode: http.StatusInternalServerError,
 		},
 	}
@@ -146,7 +147,7 @@ func TestReservationGet(t *testing.T) {
 				t.Errorf("reservation\n got=%+v\nwant=%+v", got, *test.wantResponse)
 			}
 		} else {
-			got := &api.Problem{}
+			got := &httpx.Problem{}
 			testutil.Unmarshal(res, got, t)
 
 			if got.Title != test.wantErr.Title {
@@ -194,7 +195,7 @@ func TestReservationCreate(t *testing.T) {
 		reserveFunc    func(ctx context.Context, rr inventory.ReservationRequest) (inventory.Reservation, error)
 		request        *api.ReservationRequest
 		wantResponse   *api.ReservationResponse
-		wantErr        *api.Problem
+		wantErr        *httpx.Problem
 		wantStatusCode int
 	}{
 		{
@@ -212,7 +213,7 @@ func TestReservationCreate(t *testing.T) {
 			},
 			request:        createReservationRequest("requestid1", "requester1", "sku1", 1),
 			wantResponse:   nil,
-			wantErr:        api.NotFoundProblem(),
+			wantErr:        httpx.NotFoundProblem(),
 			wantStatusCode: http.StatusNotFound,
 		},
 		{
@@ -221,7 +222,7 @@ func TestReservationCreate(t *testing.T) {
 			},
 			request:        createReservationRequest("requestid1", "requester1", "sku1", 1),
 			wantResponse:   nil,
-			wantErr:        api.InternalServerProblem(nil),
+			wantErr:        httpx.InternalServerProblem(nil),
 			wantStatusCode: http.StatusInternalServerError,
 		},
 	}
@@ -244,7 +245,7 @@ func TestReservationCreate(t *testing.T) {
 				t.Errorf("reservation\n got=%+v\nwant=%+v", got, *test.wantResponse)
 			}
 		} else {
-			got := &api.Problem{}
+			got := &httpx.Problem{}
 			testutil.Unmarshal(res, got, t)
 
 			if got.Title != test.wantErr.Title {
@@ -321,7 +322,7 @@ func TestReservationList(t *testing.T) {
 		{
 			getReservationsFunc: nil,
 			url:                 ts.URL + "?state=SomeInvalidState",
-			wantResponse:        api.BadRequestProblem(errors.New("invalid state")),
+			wantResponse:        httpx.BadRequestProblem(errors.New("invalid state")),
 			wantStatusCode:      http.StatusBadRequest,
 		},
 		{
@@ -329,7 +330,7 @@ func TestReservationList(t *testing.T) {
 				return []inventory.Reservation{}, core.ErrNotFound
 			},
 			url:            ts.URL,
-			wantResponse:   api.NotFoundProblem(),
+			wantResponse:   httpx.NotFoundProblem(),
 			wantStatusCode: http.StatusNotFound,
 		},
 		{
@@ -345,7 +346,7 @@ func TestReservationList(t *testing.T) {
 				return []inventory.Reservation{}, errors.New("some unexpected error")
 			},
 			url:            ts.URL,
-			wantResponse:   api.InternalServerProblem(nil),
+			wantResponse:   httpx.InternalServerProblem(nil),
 			wantStatusCode: http.StatusInternalServerError,
 		},
 	}
@@ -366,8 +367,8 @@ func TestReservationList(t *testing.T) {
 			test.wantStatusCode == http.StatusInternalServerError ||
 			test.wantStatusCode == http.StatusNotFound {
 
-			want := test.wantResponse.(*api.Problem)
-			got := &api.Problem{}
+			want := test.wantResponse.(*httpx.Problem)
+			got := &httpx.Problem{}
 			testutil.Unmarshal(res, got, t)
 
 			if got.Title != want.Title {

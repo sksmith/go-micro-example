@@ -59,6 +59,22 @@ func (e GetApiV1ReservationParamsState) Valid() bool {
 	}
 }
 
+// FieldProblem defines model for FieldProblem.
+type FieldProblem struct {
+	Detail *string `json:"detail,omitempty"`
+	Field  *string `json:"field,omitempty"`
+}
+
+// Problem defines model for Problem.
+type Problem struct {
+	Detail   *string         `json:"detail,omitempty"`
+	Errors   *[]FieldProblem `json:"errors,omitempty"`
+	Instance *string         `json:"instance,omitempty"`
+	Status   *int            `json:"status,omitempty"`
+	Title    *string         `json:"title,omitempty"`
+	Type     *string         `json:"type,omitempty"`
+}
+
 // ApiCatalogInfo Catalog is the optional enrichment from the upstream catalog
 // service (DSN-018). Omitted when the catalog client is disabled
 // or when the upstream is unreachable — the inventory response
@@ -83,13 +99,6 @@ type ApiCreateProductionEventRequest struct {
 	RequestID *string `json:"requestID,omitempty"`
 }
 
-// ApiCreateUserRequestDto defines model for api.CreateUserRequestDto.
-type ApiCreateUserRequestDto struct {
-	IsAdmin  *bool   `json:"isAdmin,omitempty"`
-	Password *string `json:"password,omitempty"`
-	Username *string `json:"username,omitempty"`
-}
-
 // ApiEnvResponse defines model for api.EnvResponse.
 type ApiEnvResponse struct {
 	AppName     *ConfigStringConfig      `json:"appName,omitempty"`
@@ -109,22 +118,6 @@ type ApiEnvResponse struct {
 	Redis       *ConfigRedisConfig       `json:"redis,omitempty"`
 	Revision    *ConfigStringConfig      `json:"revision,omitempty"`
 	Sha1Version *ConfigStringConfig      `json:"sha1Version,omitempty"`
-}
-
-// ApiFieldProblem defines model for api.FieldProblem.
-type ApiFieldProblem struct {
-	Detail *string `json:"detail,omitempty"`
-	Field  *string `json:"field,omitempty"`
-}
-
-// ApiProblem defines model for api.Problem.
-type ApiProblem struct {
-	Detail   *string            `json:"detail,omitempty"`
-	Errors   *[]ApiFieldProblem `json:"errors,omitempty"`
-	Instance *string            `json:"instance,omitempty"`
-	Status   *int               `json:"status,omitempty"`
-	Title    *string            `json:"title,omitempty"`
-	Type     *string            `json:"type,omitempty"`
 }
 
 // ApiProductResponse defines model for api.ProductResponse.
@@ -333,6 +326,13 @@ type ConfigStringConfig struct {
 
 // GithubComSksmithGoMicroExampleCoreInventoryReserveState defines model for github_com_sksmith_go-micro-example_core_inventory.ReserveState.
 type GithubComSksmithGoMicroExampleCoreInventoryReserveState string
+
+// InternalUserCreateUserRequestDto defines model for internal_user.CreateUserRequestDto.
+type InternalUserCreateUserRequestDto struct {
+	IsAdmin  *bool   `json:"isAdmin,omitempty"`
+	Password *string `json:"password,omitempty"`
+	Username *string `json:"username,omitempty"`
+}
 
 // bearerAuthContextKey is the context key for BearerAuth security scheme
 type bearerAuthContextKey string
@@ -620,22 +620,22 @@ func (t *PostApiV1UserJSONBody) MergePostApiV1UserJSONBody0(v PostApiV1UserJSONB
 	return err
 }
 
-// AsApiCreateUserRequestDto returns the union data inside the PostApiV1UserJSONBody as a ApiCreateUserRequestDto
-func (t PostApiV1UserJSONBody) AsApiCreateUserRequestDto() (ApiCreateUserRequestDto, error) {
-	var body ApiCreateUserRequestDto
+// AsInternalUserCreateUserRequestDto returns the union data inside the PostApiV1UserJSONBody as a InternalUserCreateUserRequestDto
+func (t PostApiV1UserJSONBody) AsInternalUserCreateUserRequestDto() (InternalUserCreateUserRequestDto, error) {
+	var body InternalUserCreateUserRequestDto
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromApiCreateUserRequestDto overwrites any union data inside the PostApiV1UserJSONBody as the provided ApiCreateUserRequestDto
-func (t *PostApiV1UserJSONBody) FromApiCreateUserRequestDto(v ApiCreateUserRequestDto) error {
+// FromInternalUserCreateUserRequestDto overwrites any union data inside the PostApiV1UserJSONBody as the provided InternalUserCreateUserRequestDto
+func (t *PostApiV1UserJSONBody) FromInternalUserCreateUserRequestDto(v InternalUserCreateUserRequestDto) error {
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
 }
 
-// MergeApiCreateUserRequestDto performs a merge with any union data inside the PostApiV1UserJSONBody, using the provided ApiCreateUserRequestDto
-func (t *PostApiV1UserJSONBody) MergeApiCreateUserRequestDto(v ApiCreateUserRequestDto) error {
+// MergeInternalUserCreateUserRequestDto performs a merge with any union data inside the PostApiV1UserJSONBody, using the provided InternalUserCreateUserRequestDto
+func (t *PostApiV1UserJSONBody) MergeInternalUserCreateUserRequestDto(v InternalUserCreateUserRequestDto) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -1467,7 +1467,7 @@ type GetApiV1AdminEnvResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *ApiEnvResponse
-	JSON401      *ApiProblem
+	JSON401      *Problem
 }
 
 // Status returns HTTPResponse.Status
@@ -1498,9 +1498,9 @@ type GetApiV1InventoryResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *[]ApiProductResponse
-	JSON400      *ApiProblem
-	JSON401      *ApiProblem
-	JSON500      *ApiProblem
+	JSON400      *Problem
+	JSON401      *Problem
+	JSON500      *Problem
 }
 
 // Status returns HTTPResponse.Status
@@ -1531,9 +1531,9 @@ type PutApiV1InventoryResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *ApiProductResponse
-	JSON400      *ApiProblem
-	JSON401      *ApiProblem
-	JSON500      *ApiProblem
+	JSON400      *Problem
+	JSON401      *Problem
+	JSON500      *Problem
 }
 
 // Status returns HTTPResponse.Status
@@ -1564,9 +1564,9 @@ type GetApiV1InventorySkuResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *ApiProductResponse
-	JSON401      *ApiProblem
-	JSON404      *ApiProblem
-	JSON500      *ApiProblem
+	JSON401      *Problem
+	JSON404      *Problem
+	JSON500      *Problem
 }
 
 // Status returns HTTPResponse.Status
@@ -1597,10 +1597,10 @@ type PutApiV1InventorySkuProductionEventResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *ApiProductionEventResponse
-	JSON400      *ApiProblem
-	JSON401      *ApiProblem
-	JSON404      *ApiProblem
-	JSON500      *ApiProblem
+	JSON400      *Problem
+	JSON401      *Problem
+	JSON404      *Problem
+	JSON500      *Problem
 }
 
 // Status returns HTTPResponse.Status
@@ -1631,10 +1631,10 @@ type GetApiV1ReservationResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *[]ApiReservationResponse
-	JSON400      *ApiProblem
-	JSON401      *ApiProblem
-	JSON404      *ApiProblem
-	JSON500      *ApiProblem
+	JSON400      *Problem
+	JSON401      *Problem
+	JSON404      *Problem
+	JSON500      *Problem
 }
 
 // Status returns HTTPResponse.Status
@@ -1665,10 +1665,10 @@ type PostApiV1ReservationResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *ApiReservationResponse
-	JSON400      *ApiProblem
-	JSON401      *ApiProblem
-	JSON404      *ApiProblem
-	JSON500      *ApiProblem
+	JSON400      *Problem
+	JSON401      *Problem
+	JSON404      *Problem
+	JSON500      *Problem
 }
 
 // Status returns HTTPResponse.Status
@@ -1699,10 +1699,10 @@ type GetApiV1ReservationIDResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *ApiReservationResponse
-	JSON400      *ApiProblem
-	JSON401      *ApiProblem
-	JSON404      *ApiProblem
-	JSON500      *ApiProblem
+	JSON400      *Problem
+	JSON401      *Problem
+	JSON404      *Problem
+	JSON500      *Problem
 }
 
 // Status returns HTTPResponse.Status
@@ -1733,9 +1733,9 @@ type PostApiV1UserResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *map[string]interface{}
-	JSON400      *ApiProblem
-	JSON401      *ApiProblem
-	JSON500      *ApiProblem
+	JSON400      *Problem
+	JSON401      *Problem
+	JSON500      *Problem
 }
 
 // Status returns HTTPResponse.Status
@@ -1766,8 +1766,8 @@ type PostAuthTokenResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *ApiTokenResponse
-	JSON401      *ApiProblem
-	JSON500      *ApiProblem
+	JSON401      *Problem
+	JSON500      *Problem
 }
 
 // Status returns HTTPResponse.Status
@@ -1938,7 +1938,7 @@ func ParseGetApiV1AdminEnvResponse(rsp *http.Response) (*GetApiV1AdminEnvRespons
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ApiProblem
+		var dest Problem
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -1971,21 +1971,21 @@ func ParseGetApiV1InventoryResponse(rsp *http.Response) (*GetApiV1InventoryRespo
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ApiProblem
+		var dest Problem
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ApiProblem
+		var dest Problem
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ApiProblem
+		var dest Problem
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -2018,21 +2018,21 @@ func ParsePutApiV1InventoryResponse(rsp *http.Response) (*PutApiV1InventoryRespo
 		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ApiProblem
+		var dest Problem
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ApiProblem
+		var dest Problem
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ApiProblem
+		var dest Problem
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -2065,21 +2065,21 @@ func ParseGetApiV1InventorySkuResponse(rsp *http.Response) (*GetApiV1InventorySk
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ApiProblem
+		var dest Problem
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ApiProblem
+		var dest Problem
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ApiProblem
+		var dest Problem
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -2112,28 +2112,28 @@ func ParsePutApiV1InventorySkuProductionEventResponse(rsp *http.Response) (*PutA
 		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ApiProblem
+		var dest Problem
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ApiProblem
+		var dest Problem
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ApiProblem
+		var dest Problem
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ApiProblem
+		var dest Problem
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -2166,28 +2166,28 @@ func ParseGetApiV1ReservationResponse(rsp *http.Response) (*GetApiV1ReservationR
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ApiProblem
+		var dest Problem
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ApiProblem
+		var dest Problem
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ApiProblem
+		var dest Problem
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ApiProblem
+		var dest Problem
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -2220,28 +2220,28 @@ func ParsePostApiV1ReservationResponse(rsp *http.Response) (*PostApiV1Reservatio
 		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ApiProblem
+		var dest Problem
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ApiProblem
+		var dest Problem
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ApiProblem
+		var dest Problem
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ApiProblem
+		var dest Problem
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -2274,28 +2274,28 @@ func ParseGetApiV1ReservationIDResponse(rsp *http.Response) (*GetApiV1Reservatio
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ApiProblem
+		var dest Problem
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ApiProblem
+		var dest Problem
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ApiProblem
+		var dest Problem
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ApiProblem
+		var dest Problem
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -2328,21 +2328,21 @@ func ParsePostApiV1UserResponse(rsp *http.Response) (*PostApiV1UserResponse, err
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ApiProblem
+		var dest Problem
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ApiProblem
+		var dest Problem
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ApiProblem
+		var dest Problem
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -2375,14 +2375,14 @@ func ParsePostAuthTokenResponse(rsp *http.Response) (*PostAuthTokenResponse, err
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ApiProblem
+		var dest Problem
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ApiProblem
+		var dest Problem
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

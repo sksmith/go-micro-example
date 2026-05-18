@@ -16,6 +16,7 @@ import (
 	"github.com/sksmith/go-micro-example/core"
 	"github.com/sksmith/go-micro-example/core/catalog"
 	"github.com/sksmith/go-micro-example/core/inventory"
+	"github.com/sksmith/go-micro-example/internal/platform/httpx"
 	"github.com/sksmith/go-micro-example/testutil"
 
 	"github.com/go-chi/chi/v5"
@@ -116,7 +117,7 @@ func TestInventoryList(t *testing.T) {
 		inventory      []inventory.ProductInventory
 		serviceErr     error
 		wantInventory  []inventory.ProductInventory
-		wantErr        *api.Problem
+		wantErr        *httpx.Problem
 		wantStatusCode int
 	}{
 		{
@@ -160,7 +161,7 @@ func TestInventoryList(t *testing.T) {
 			inventory:      []inventory.ProductInventory{},
 			wantInventory:  []inventory.ProductInventory{},
 			serviceErr:     errors.New("something bad happened"),
-			wantErr:        api.InternalServerProblem(nil),
+			wantErr:        httpx.InternalServerProblem(nil),
 			wantStatusCode: http.StatusInternalServerError,
 		},
 	}
@@ -192,7 +193,7 @@ func TestInventoryList(t *testing.T) {
 				t.Errorf("inventory\n got:%+v\nwant:%+v\n", got, test.wantInventory)
 			}
 		} else {
-			got := api.Problem{}
+			got := httpx.Problem{}
 			testutil.Unmarshal(res, &got, t)
 
 			if got.Title != test.wantErr.Title {
@@ -222,7 +223,7 @@ func TestInventoryCreateProduct(t *testing.T) {
 		request             api.CreateProductRequest
 		serviceErr          error
 		wantProductResponse *api.ProductResponse
-		wantErr             *api.Problem
+		wantErr             *httpx.Problem
 		wantStatusCode      int
 	}{
 		{
@@ -236,28 +237,28 @@ func TestInventoryCreateProduct(t *testing.T) {
 			request:             createProductRequest("name1", "sku1", "upc1"),
 			serviceErr:          errors.New("some unexpected error"),
 			wantProductResponse: nil,
-			wantErr:             api.InternalServerProblem(nil),
+			wantErr:             httpx.InternalServerProblem(nil),
 			wantStatusCode:      http.StatusInternalServerError,
 		},
 		{
 			request:             createProductRequest("name1", "sku1", ""),
 			serviceErr:          nil,
 			wantProductResponse: nil,
-			wantErr:             api.BadRequestProblem(errors.New("missing required field(s)")),
+			wantErr:             httpx.BadRequestProblem(errors.New("missing required field(s)")),
 			wantStatusCode:      http.StatusBadRequest,
 		},
 		{
 			request:             createProductRequest("name1", "", "upc1"),
 			serviceErr:          nil,
 			wantProductResponse: nil,
-			wantErr:             api.BadRequestProblem(errors.New("missing required field(s)")),
+			wantErr:             httpx.BadRequestProblem(errors.New("missing required field(s)")),
 			wantStatusCode:      http.StatusBadRequest,
 		},
 		{
 			request:             createProductRequest("", "sku1", "upc1"),
 			serviceErr:          nil,
 			wantProductResponse: nil,
-			wantErr:             api.BadRequestProblem(errors.New("missing required field(s)")),
+			wantErr:             httpx.BadRequestProblem(errors.New("missing required field(s)")),
 			wantStatusCode:      http.StatusBadRequest,
 		},
 	}
@@ -281,7 +282,7 @@ func TestInventoryCreateProduct(t *testing.T) {
 				t.Errorf("product\n got=%+v\nwant=%+v", got, *test.wantProductResponse)
 			}
 		} else {
-			got := &api.Problem{}
+			got := &httpx.Problem{}
 			testutil.Unmarshal(res, got, t)
 
 			if got.Title != test.wantErr.Title {
@@ -304,7 +305,7 @@ func TestInventoryCreateProductionEvent(t *testing.T) {
 		sku                         string
 		request                     *api.CreateProductionEventRequest
 		wantProductionEventResponse *api.ProductionEventResponse
-		wantErr                     *api.Problem
+		wantErr                     *httpx.Problem
 		wantStatusCode              int
 	}{
 		{
@@ -328,7 +329,7 @@ func TestInventoryCreateProductionEvent(t *testing.T) {
 			sku:                         "testsku1",
 			request:                     createProductionEventRequest("abc123", 1),
 			wantProductionEventResponse: nil,
-			wantErr:                     api.NotFoundProblem(),
+			wantErr:                     httpx.NotFoundProblem(),
 			wantStatusCode:              http.StatusNotFound,
 		},
 		{
@@ -339,7 +340,7 @@ func TestInventoryCreateProductionEvent(t *testing.T) {
 			sku:                         "testsku1",
 			request:                     createProductionEventRequest("abc123", 1),
 			wantProductionEventResponse: nil,
-			wantErr:                     api.InternalServerProblem(nil),
+			wantErr:                     httpx.InternalServerProblem(nil),
 			wantStatusCode:              http.StatusInternalServerError,
 		},
 		{
@@ -352,7 +353,7 @@ func TestInventoryCreateProductionEvent(t *testing.T) {
 			sku:                         "testsku1",
 			request:                     createProductionEventRequest("abc123", 1),
 			wantProductionEventResponse: nil,
-			wantErr:                     api.InternalServerProblem(nil),
+			wantErr:                     httpx.InternalServerProblem(nil),
 			wantStatusCode:              http.StatusInternalServerError,
 		},
 	}
@@ -376,7 +377,7 @@ func TestInventoryCreateProductionEvent(t *testing.T) {
 				t.Errorf("product\n got=%+v\nwant=%+v", got, *test.wantProductionEventResponse)
 			}
 		} else {
-			got := &api.Problem{}
+			got := &httpx.Problem{}
 			testutil.Unmarshal(res, got, t)
 
 			if got.Title != test.wantErr.Title {
@@ -398,7 +399,7 @@ func TestInventoryGetProductInventory(t *testing.T) {
 		getProductFunc          func(ctx context.Context, sku string) (inventory.Product, error)
 		getProductInventoryFunc func(ctx context.Context, sku string) (inventory.ProductInventory, error)
 		wantProductResponse     *api.ProductResponse
-		wantErr                 *api.Problem
+		wantErr                 *httpx.Problem
 		wantStatusCode          int
 	}{
 		{
@@ -420,7 +421,7 @@ func TestInventoryGetProductInventory(t *testing.T) {
 			getProductInventoryFunc: nil,
 			sku:                     "test1sku",
 			wantProductResponse:     nil,
-			wantErr:                 api.NotFoundProblem(),
+			wantErr:                 httpx.NotFoundProblem(),
 			wantStatusCode:          http.StatusNotFound,
 		},
 		{
@@ -432,7 +433,7 @@ func TestInventoryGetProductInventory(t *testing.T) {
 			},
 			sku:                 "test1sku",
 			wantProductResponse: nil,
-			wantErr:             api.NotFoundProblem(),
+			wantErr:             httpx.NotFoundProblem(),
 			wantStatusCode:      http.StatusNotFound,
 		},
 		{
@@ -442,7 +443,7 @@ func TestInventoryGetProductInventory(t *testing.T) {
 			getProductInventoryFunc: nil,
 			sku:                     "test1sku",
 			wantProductResponse:     nil,
-			wantErr:                 api.InternalServerProblem(nil),
+			wantErr:                 httpx.InternalServerProblem(nil),
 			wantStatusCode:          http.StatusInternalServerError,
 		},
 		{
@@ -454,7 +455,7 @@ func TestInventoryGetProductInventory(t *testing.T) {
 			},
 			sku:                 "test1sku",
 			wantProductResponse: nil,
-			wantErr:             api.InternalServerProblem(nil),
+			wantErr:             httpx.InternalServerProblem(nil),
 			wantStatusCode:      http.StatusInternalServerError,
 		},
 	}
@@ -480,7 +481,7 @@ func TestInventoryGetProductInventory(t *testing.T) {
 				t.Errorf("product\n got=%+v\nwant=%+v", got, *test.wantProductResponse)
 			}
 		} else {
-			got := &api.Problem{}
+			got := &httpx.Problem{}
 			testutil.Unmarshal(res, got, t)
 
 			if got.Title != test.wantErr.Title {

@@ -1,4 +1,4 @@
-package api
+package httpx
 
 import (
 	"encoding/json"
@@ -21,13 +21,13 @@ type Problem struct {
 
 	// Err is the underlying error captured for logging; never serialized.
 	Err error `json:"-"`
-}
+} // @name Problem
 
 // FieldProblem is a validation-error extension entry.
 type FieldProblem struct {
 	Field  string `json:"field"`
 	Detail string `json:"detail"`
-}
+} // @name FieldProblem
 
 // Render satisfies the render.Renderer interface but is a no-op:
 // problems are emitted via WriteTo so the application/problem+json

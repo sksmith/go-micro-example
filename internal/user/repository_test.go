@@ -1,4 +1,4 @@
-package usrrepo_test
+package user_test
 
 import (
 	"context"
@@ -10,8 +10,7 @@ import (
 	"github.com/pashagolub/pgxmock/v4"
 	"github.com/sksmith/go-micro-example/core"
 	"github.com/sksmith/go-micro-example/core/cache"
-	"github.com/sksmith/go-micro-example/core/user"
-	"github.com/sksmith/go-micro-example/db/usrrepo"
+	"github.com/sksmith/go-micro-example/internal/user"
 )
 
 // repoForTest holds the repo plus the cache instance the test
@@ -33,7 +32,7 @@ func newRepo(t *testing.T) (user.Repository, pgxmock.PgxConnIface) {
 		t.Fatalf("pgxmock.NewConn: %v", err)
 	}
 	t.Cleanup(func() { _ = mock.Close(context.Background()) })
-	return usrrepo.NewPostgresRepo(mock), mock
+	return user.NewPostgresRepo(mock), mock
 }
 
 // newRepoWithCache wires a MemoryCache so tests exercise the
@@ -46,12 +45,12 @@ func newRepoWithCache(t *testing.T) repoForTest {
 	}
 	t.Cleanup(func() { _ = mock.Close(context.Background()) })
 	c := cache.NewMemoryCache()
-	r := usrrepo.NewPostgresRepo(mock)
+	r := user.NewPostgresRepo(mock)
 	r.SetCache(c, time.Minute)
 	return repoForTest{repo: r, mock: mock, cache: c}
 }
 
-func TestCreate(t *testing.T) {
+func TestRepositoryCreate(t *testing.T) {
 	tests := []struct {
 		name      string
 		user      user.User
@@ -99,7 +98,7 @@ func TestCreate(t *testing.T) {
 	}
 }
 
-func TestGet(t *testing.T) {
+func TestRepositoryGet(t *testing.T) {
 	row := user.User{Username: "alice", HashedPassword: "h", IsAdmin: true, Created: time.Unix(0, 0).UTC()}
 	const selectUser = `^SELECT username, password, is_admin, created_at FROM users WHERE username = \$1\s*$`
 
@@ -236,7 +235,7 @@ func TestCacheTTLExpiryFallsThroughToDB(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = mock.Close(context.Background()) })
 	c := cache.NewMemoryCache()
-	r := usrrepo.NewPostgresRepo(mock)
+	r := user.NewPostgresRepo(mock)
 	// 10ms TTL so we don't need to sleep long to expire it.
 	r.SetCache(c, 10*time.Millisecond)
 
@@ -260,7 +259,7 @@ func TestCacheTTLExpiryFallsThroughToDB(t *testing.T) {
 	}
 }
 
-func TestDelete(t *testing.T) {
+func TestRepositoryDelete(t *testing.T) {
 	const deleteUser = `^DELETE FROM users WHERE username = \$1\s*$`
 
 	t.Run("delete succeeds", func(t *testing.T) {

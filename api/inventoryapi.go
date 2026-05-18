@@ -14,6 +14,7 @@ import (
 	"github.com/sksmith/go-micro-example/core"
 	"github.com/sksmith/go-micro-example/core/catalog"
 	"github.com/sksmith/go-micro-example/core/inventory"
+	"github.com/sksmith/go-micro-example/internal/platform/httpx"
 )
 
 type InventoryService interface {
@@ -95,7 +96,7 @@ func (a *InventoryApi) Subscribe(w http.ResponseWriter, r *http.Request) {
 	conn, _, _, err := ws.UpgradeHTTP(r, w)
 	if err != nil {
 		log.Ctx(r.Context()).Error().Err(err).Msg("failed to establish inventory subscription connection")
-		Render(w, r, InternalServerProblem(err))
+		httpx.Render(w, r, httpx.InternalServerProblem(err))
 		return
 	}
 	go func() {
@@ -134,9 +135,9 @@ func (a *InventoryApi) Subscribe(w http.ResponseWriter, r *http.Request) {
 //	@Param		limit	query		int	false	"max items per page (≤ 200)"	default(50)
 //	@Param		offset	query		int	false	"page offset"					default(0)
 //	@Success	200		{array}		ProductResponse
-//	@Failure	400		{object}	Problem
-//	@Failure	401		{object}	Problem
-//	@Failure	500		{object}	Problem
+//	@Failure	400		{object}	httpx.Problem
+//	@Failure	401		{object}	httpx.Problem
+//	@Failure	500		{object}	httpx.Problem
 //	@Header		200		{string}	Link	"RFC 8288 next/prev links"
 //	@Router		/api/v1/inventory [get]
 //	@Security	BearerAuth
@@ -146,12 +147,12 @@ func (a *InventoryApi) List(w http.ResponseWriter, r *http.Request) {
 	products, err := a.service.GetAllProductInventory(r.Context(), p.Limit, p.Offset)
 	if err != nil {
 		log.Ctx(r.Context()).Error().Err(err).Int("limit", p.Limit).Int("offset", p.Offset).Msg("failed to list product inventory")
-		Render(w, r, InternalServerProblem(err))
+		httpx.Render(w, r, httpx.InternalServerProblem(err))
 		return
 	}
 
 	WriteLinkHeader(w, r, p, len(products))
-	RenderList(w, r, NewProductListResponse(products))
+	httpx.RenderList(w, r, NewProductListResponse(products))
 }
 
 // CreateProduct registers a new product.
@@ -162,30 +163,30 @@ func (a *InventoryApi) List(w http.ResponseWriter, r *http.Request) {
 //	@Produce	json
 //	@Param		product	body		CreateProductRequest	true	"product to create"
 //	@Success	201		{object}	ProductResponse
-//	@Failure	400		{object}	Problem
-//	@Failure	401		{object}	Problem
-//	@Failure	500		{object}	Problem
+//	@Failure	400		{object}	httpx.Problem
+//	@Failure	401		{object}	httpx.Problem
+//	@Failure	500		{object}	httpx.Problem
 //	@Router		/api/v1/inventory [put]
 //	@Security	BearerAuth
 func (a *InventoryApi) CreateProduct(w http.ResponseWriter, r *http.Request) {
 	data := &CreateProductRequest{}
 	if err := render.Bind(r, data); err != nil {
-		Render(w, r, BadRequestProblem(err))
+		httpx.Render(w, r, httpx.BadRequestProblem(err))
 		return
 	}
 
 	if err := a.service.CreateProduct(r.Context(), data.Product); err != nil {
 		if errors.Is(err, inventory.ErrInvalidInput) {
-			Render(w, r, BadRequestProblem(err))
+			httpx.Render(w, r, httpx.BadRequestProblem(err))
 			return
 		}
 		log.Ctx(r.Context()).Error().Err(err).Str("sku", data.Product.Sku).Msg("failed to create product")
-		Render(w, r, InternalServerProblem(err))
+		httpx.Render(w, r, httpx.InternalServerProblem(err))
 		return
 	}
 
 	render.Status(r, http.StatusCreated)
-	Render(w, r, NewProductResponse(inventory.ProductInventory{Product: data.Product}))
+	httpx.Render(w, r, NewProductResponse(inventory.ProductInventory{Product: data.Product}))
 }
 
 func (a *InventoryApi) ProductCtx(next http.Handler) http.Handler {
@@ -195,7 +196,7 @@ func (a *InventoryApi) ProductCtx(next http.Handler) http.Handler {
 
 		sku := chi.URLParam(r, "sku")
 		if sku == "" {
-			Render(w, r, BadRequestProblem(errors.New("sku is required")))
+			httpx.Render(w, r, httpx.BadRequestProblem(errors.New("sku is required")))
 			return
 		}
 
@@ -203,10 +204,10 @@ func (a *InventoryApi) ProductCtx(next http.Handler) http.Handler {
 
 		if err != nil {
 			if errors.Is(err, core.ErrNotFound) {
-				Render(w, r, NotFoundProblem())
+				httpx.Render(w, r, httpx.NotFoundProblem())
 			} else {
 				log.Ctx(r.Context()).Error().Err(err).Str("sku", sku).Msg("error acquiring product")
-				Render(w, r, InternalServerProblem(err))
+				httpx.Render(w, r, httpx.InternalServerProblem(err))
 			}
 			return
 		}
@@ -225,10 +226,10 @@ func (a *InventoryApi) ProductCtx(next http.Handler) http.Handler {
 //	@Param		sku		path		string							true	"product SKU"
 //	@Param		event	body		CreateProductionEventRequest	true	"production event"
 //	@Success	201		{object}	ProductionEventResponse
-//	@Failure	400		{object}	Problem
-//	@Failure	401		{object}	Problem
-//	@Failure	404		{object}	Problem
-//	@Failure	500		{object}	Problem
+//	@Failure	400		{object}	httpx.Problem
+//	@Failure	401		{object}	httpx.Problem
+//	@Failure	404		{object}	httpx.Problem
+//	@Failure	500		{object}	httpx.Problem
 //	@Router		/api/v1/inventory/{sku}/productionEvent [put]
 //	@Security	BearerAuth
 func (a *InventoryApi) CreateProductionEvent(w http.ResponseWriter, r *http.Request) {
@@ -236,22 +237,22 @@ func (a *InventoryApi) CreateProductionEvent(w http.ResponseWriter, r *http.Requ
 
 	data := &CreateProductionEventRequest{}
 	if err := render.Bind(r, data); err != nil {
-		Render(w, r, BadRequestProblem(err))
+		httpx.Render(w, r, httpx.BadRequestProblem(err))
 		return
 	}
 
 	if err := a.service.Produce(r.Context(), product, *data.ProductionRequest); err != nil {
 		if errors.Is(err, inventory.ErrInvalidInput) {
-			Render(w, r, BadRequestProblem(err))
+			httpx.Render(w, r, httpx.BadRequestProblem(err))
 			return
 		}
 		log.Ctx(r.Context()).Error().Err(err).Str("sku", product.Sku).Str("requestId", data.ProductionRequest.RequestID).Msg("failed to record production event")
-		Render(w, r, InternalServerProblem(err))
+		httpx.Render(w, r, httpx.InternalServerProblem(err))
 		return
 	}
 
 	render.Status(r, http.StatusCreated)
-	Render(w, r, &ProductionEventResponse{})
+	httpx.Render(w, r, &ProductionEventResponse{})
 }
 
 // GetProductInventory returns the current inventory for a SKU.
@@ -261,9 +262,9 @@ func (a *InventoryApi) CreateProductionEvent(w http.ResponseWriter, r *http.Requ
 //	@Produce	json
 //	@Param		sku	path		string	true	"product SKU"
 //	@Success	200	{object}	ProductResponse
-//	@Failure	401	{object}	Problem
-//	@Failure	404	{object}	Problem
-//	@Failure	500	{object}	Problem
+//	@Failure	401	{object}	httpx.Problem
+//	@Failure	404	{object}	httpx.Problem
+//	@Failure	500	{object}	httpx.Problem
 //	@Router		/api/v1/inventory/{sku} [get]
 //	@Security	BearerAuth
 func (a *InventoryApi) GetProductInventory(w http.ResponseWriter, r *http.Request) {
@@ -273,10 +274,10 @@ func (a *InventoryApi) GetProductInventory(w http.ResponseWriter, r *http.Reques
 
 	if err != nil {
 		if errors.Is(err, core.ErrNotFound) {
-			Render(w, r, NotFoundProblem())
+			httpx.Render(w, r, httpx.NotFoundProblem())
 		} else {
 			log.Ctx(r.Context()).Error().Err(err).Str("sku", product.Sku).Msg("failed to get product inventory")
-			Render(w, r, InternalServerProblem(err))
+			httpx.Render(w, r, httpx.InternalServerProblem(err))
 		}
 		return
 	}
@@ -284,7 +285,7 @@ func (a *InventoryApi) GetProductInventory(w http.ResponseWriter, r *http.Reques
 	resp := &ProductResponse{ProductInventory: res}
 	resp.Catalog = a.lookupCatalog(r, product.Sku)
 	render.Status(r, http.StatusOK)
-	Render(w, r, resp)
+	httpx.Render(w, r, resp)
 }
 
 // lookupCatalog runs the optional outbound enrichment (DSN-018). The

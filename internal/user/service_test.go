@@ -8,8 +8,7 @@ import (
 	"time"
 
 	"github.com/sksmith/go-micro-example/core"
-	"github.com/sksmith/go-micro-example/core/user"
-	"github.com/sksmith/go-micro-example/db/usrrepo"
+	"github.com/sksmith/go-micro-example/internal/user"
 )
 
 func TestGet(t *testing.T) {
@@ -47,7 +46,7 @@ func TestGet(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		mockRepo := usrrepo.NewMockRepo()
+		mockRepo := user.NewMockRepo()
 		if test.getFunc != nil {
 			mockRepo.GetFunc = test.getFunc
 		}
@@ -90,7 +89,7 @@ func TestCreate(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		mockRepo := usrrepo.NewMockRepo()
+		mockRepo := user.NewMockRepo()
 		if test.createFunc != nil {
 			mockRepo.CreateFunc = test.createFunc
 		}
@@ -145,7 +144,7 @@ func TestDelete(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		mockRepo := usrrepo.NewMockRepo()
+		mockRepo := user.NewMockRepo()
 		if test.deleteFunc != nil {
 			mockRepo.DeleteFunc = test.deleteFunc
 		}
@@ -233,7 +232,7 @@ func TestLogin(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		mockRepo := usrrepo.NewMockRepo()
+		mockRepo := user.NewMockRepo()
 		if test.getFunc != nil {
 			mockRepo.GetFunc = test.getFunc
 		}

@@ -7,6 +7,8 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/sksmith/go-micro-example/internal/platform/httpx"
 )
 
 // Pagination is the validated representation of `?limit=…&offset=…`
@@ -31,7 +33,7 @@ func Paginate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		p, problem := parsePagination(r.URL.Query())
 		if problem != nil {
-			Render(w, r, problem)
+			httpx.Render(w, r, problem)
 			return
 		}
 		ctx := context.WithValue(r.Context(), pageCtxKey{}, p)
@@ -50,17 +52,17 @@ func PaginationFrom(ctx context.Context) Pagination {
 	return Pagination{Limit: DefaultPageLimit}
 }
 
-func parsePagination(q url.Values) (Pagination, *Problem) {
+func parsePagination(q url.Values) (Pagination, *httpx.Problem) {
 	p := Pagination{Limit: DefaultPageLimit}
-	var fields []FieldProblem
+	var fields []httpx.FieldProblem
 
 	if v := q.Get("limit"); v != "" {
 		n, err := strconv.Atoi(v)
 		switch {
 		case err != nil, n < 1:
-			fields = append(fields, FieldProblem{Field: "limit", Detail: "must be a positive integer"})
+			fields = append(fields, httpx.FieldProblem{Field: "limit", Detail: "must be a positive integer"})
 		case n > MaxPageLimit:
-			fields = append(fields, FieldProblem{Field: "limit", Detail: fmt.Sprintf("must be ≤ %d", MaxPageLimit)})
+			fields = append(fields, httpx.FieldProblem{Field: "limit", Detail: fmt.Sprintf("must be ≤ %d", MaxPageLimit)})
 		default:
 			p.Limit = n
 		}
@@ -69,14 +71,14 @@ func parsePagination(q url.Values) (Pagination, *Problem) {
 	if v := q.Get("offset"); v != "" {
 		n, err := strconv.Atoi(v)
 		if err != nil || n < 0 {
-			fields = append(fields, FieldProblem{Field: "offset", Detail: "must be a non-negative integer"})
+			fields = append(fields, httpx.FieldProblem{Field: "offset", Detail: "must be a non-negative integer"})
 		} else {
 			p.Offset = n
 		}
 	}
 
 	if len(fields) > 0 {
-		return Pagination{}, ValidationProblem(fields...)
+		return Pagination{}, httpx.ValidationProblem(fields...)
 	}
 	return p, nil
 }

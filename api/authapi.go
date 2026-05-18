@@ -10,6 +10,8 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/core"
 	"github.com/sksmith/go-micro-example/core/auth"
+	"github.com/sksmith/go-micro-example/internal/platform/httpx"
+	"github.com/sksmith/go-micro-example/internal/user"
 )
 
 // AuthApi exposes the /auth/token exchange. Callers POST HTTP Basic
@@ -18,7 +20,7 @@ import (
 type AuthApi struct {
 	rateLimit func(http.Handler) http.Handler
 
-	users  UserService
+	users  user.UserService
 	signer *auth.Signer
 }
 
@@ -33,7 +35,7 @@ type TokenResponse struct {
 // the project's existing render helper.
 func (TokenResponse) Render(_ http.ResponseWriter, _ *http.Request) error { return nil }
 
-func NewAuthApi(users UserService, signer *auth.Signer) *AuthApi {
+func NewAuthApi(users user.UserService, signer *auth.Signer) *AuthApi {
 	return &AuthApi{users: users, signer: signer}
 }
 
@@ -58,8 +60,8 @@ func (a *AuthApi) ConfigureRouter(r chi.Router) {
 //	@Tags		auth
 //	@Produce	json
 //	@Success	200	{object}	TokenResponse
-//	@Failure	401	{object}	Problem
-//	@Failure	500	{object}	Problem
+//	@Failure	401	{object}	httpx.Problem
+//	@Failure	500	{object}	httpx.Problem
 //	@Router		/auth/token [post]
 //	@description	Requires HTTP Basic credentials (RFC 6749 §2.3.1 OAuth2 client_credentials flow).
 func (a *AuthApi) Token(w http.ResponseWriter, r *http.Request) {
@@ -76,21 +78,21 @@ func (a *AuthApi) Token(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		log.Ctx(r.Context()).Error().Err(err).Str("username", username).Msg("error acquiring user during token issuance")
-		Render(w, r, InternalServerProblem(err))
+		httpx.Render(w, r, httpx.InternalServerProblem(err))
 		return
 	}
 
 	signed, expiresAt, err := a.signer.Issue(u)
 	if err != nil {
 		log.Ctx(r.Context()).Error().Err(err).Str("username", username).Msg("error signing token")
-		Render(w, r, InternalServerProblem(err))
+		httpx.Render(w, r, httpx.InternalServerProblem(err))
 		return
 	}
 
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Pragma", "no-cache")
 	render.Status(r, http.StatusOK)
-	Render(w, r, TokenResponse{
+	httpx.Render(w, r, TokenResponse{
 		AccessToken: signed,
 		TokenType:   "Bearer",
 		ExpiresIn:   int64(time.Until(expiresAt).Seconds()),
