@@ -32,7 +32,7 @@ type FieldProblem struct {
 // Render satisfies the render.Renderer interface but is a no-op:
 // problems are emitted via WriteTo so the application/problem+json
 // content type is not overwritten by go-chi/render's JSON responder.
-// Always route problems through api.Render — never render.Render —
+// Always route problems through httpx.Render — never render.Render —
 // so the WriteTo path is taken.
 func (*Problem) Render(_ http.ResponseWriter, _ *http.Request) error {
 	return nil

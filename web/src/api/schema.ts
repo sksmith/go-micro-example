@@ -27,7 +27,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["api.EnvResponse"];
+                        "application/json": components["schemas"]["EnvResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -686,6 +686,25 @@ export interface components {
             quantity?: number;
             requestID?: string;
         };
+        EnvResponse: {
+            appName?: components["schemas"]["config.StringConfig"];
+            appVersion?: components["schemas"]["config.StringConfig"];
+            buildTime?: components["schemas"]["config.StringConfig"];
+            catalog?: components["schemas"]["config.CatalogConfig"];
+            config?: components["schemas"]["config.ConfigSource"];
+            db?: components["schemas"]["config.DbConfig"];
+            docs?: components["schemas"]["config.DocsConfig"];
+            idempotency?: components["schemas"]["config.IdempotencyConfig"];
+            kafka?: components["schemas"]["config.KafkaConfig"];
+            log?: components["schemas"]["config.LogConfig"];
+            port?: components["schemas"]["config.StringConfig"];
+            profile?: components["schemas"]["config.StringConfig"];
+            rabbitmq?: components["schemas"]["config.QueueConfig"];
+            rateLimit?: components["schemas"]["config.RateLimitConfig"];
+            redis?: components["schemas"]["config.RedisConfig"];
+            revision?: components["schemas"]["config.StringConfig"];
+            sha1Version?: components["schemas"]["config.StringConfig"];
+        };
         FieldProblem: {
             detail?: string;
             field?: string;
@@ -728,25 +747,6 @@ export interface components {
             access_token?: string;
             expires_in?: number;
             token_type?: string;
-        };
-        "api.EnvResponse": {
-            appName?: components["schemas"]["config.StringConfig"];
-            appVersion?: components["schemas"]["config.StringConfig"];
-            buildTime?: components["schemas"]["config.StringConfig"];
-            catalog?: components["schemas"]["config.CatalogConfig"];
-            config?: components["schemas"]["config.ConfigSource"];
-            db?: components["schemas"]["config.DbConfig"];
-            docs?: components["schemas"]["config.DocsConfig"];
-            idempotency?: components["schemas"]["config.IdempotencyConfig"];
-            kafka?: components["schemas"]["config.KafkaConfig"];
-            log?: components["schemas"]["config.LogConfig"];
-            port?: components["schemas"]["config.StringConfig"];
-            profile?: components["schemas"]["config.StringConfig"];
-            rabbitmq?: components["schemas"]["config.QueueConfig"];
-            rateLimit?: components["schemas"]["config.RateLimitConfig"];
-            redis?: components["schemas"]["config.RedisConfig"];
-            revision?: components["schemas"]["config.StringConfig"];
-            sha1Version?: components["schemas"]["config.StringConfig"];
         };
         "config.BoolConfig": {
             default?: boolean;

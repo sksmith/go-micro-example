@@ -1,4 +1,4 @@
-package api_test
+package app_test
 
 import (
 	"io"
@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sksmith/go-micro-example/api"
+	"github.com/sksmith/go-micro-example/internal/app"
 	"github.com/sksmith/go-micro-example/internal/user"
 )
 
@@ -17,7 +17,7 @@ import (
 // can distinguish missing from zero.
 func readCounter(t *testing.T, ts *httptest.Server, name string) float64 {
 	t.Helper()
-	res, err := http.Get(ts.URL + api.MetricsEndpoint)
+	res, err := http.Get(ts.URL + app.MetricsEndpoint)
 	if err != nil {
 		t.Fatalf("scrape /metrics: %v", err)
 	}
@@ -56,7 +56,7 @@ func TestAuthCountersMoveOnSuccessOnly(t *testing.T) {
 	}
 
 	// Basic Auth attempt → rejected with 401, no counter movement.
-	req, _ := http.NewRequest(http.MethodGet, ts.URL+api.ApiPath+api.InventoryPath, nil)
+	req, _ := http.NewRequest(http.MethodGet, ts.URL+app.ApiPath+app.InventoryPath, nil)
 	req.SetBasicAuth("alice", "pw")
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -69,7 +69,7 @@ func TestAuthCountersMoveOnSuccessOnly(t *testing.T) {
 
 	// Successful Bearer → jwt counter should advance, basic should not.
 	tok, _, _ := signer.Issue(user.User{Username: "alice", IsAdmin: true})
-	req2, _ := http.NewRequest(http.MethodGet, ts.URL+api.ApiPath+api.InventoryPath, nil)
+	req2, _ := http.NewRequest(http.MethodGet, ts.URL+app.ApiPath+app.InventoryPath, nil)
 	req2.Header.Set("Authorization", "Bearer "+tok)
 	res2, err := http.DefaultClient.Do(req2)
 	if err != nil {
@@ -78,7 +78,7 @@ func TestAuthCountersMoveOnSuccessOnly(t *testing.T) {
 	res2.Body.Close()
 
 	// Failed Bearer → no counter movement.
-	req3, _ := http.NewRequest(http.MethodGet, ts.URL+api.ApiPath+api.InventoryPath, nil)
+	req3, _ := http.NewRequest(http.MethodGet, ts.URL+app.ApiPath+app.InventoryPath, nil)
 	req3.Header.Set("Authorization", "Bearer not-a-real-token")
 	res3, err := http.DefaultClient.Do(req3)
 	if err != nil {

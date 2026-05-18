@@ -1,7 +1,8 @@
-package api_test
+package app_test
 
 import (
 	"bytes"
+	"github.com/sksmith/go-micro-example/internal/app"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -9,7 +10,6 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"github.com/sksmith/go-micro-example/api"
 )
 
 func TestCorrelationLogger_PropagatesXRequestID(t *testing.T) {
@@ -22,7 +22,7 @@ func TestCorrelationLogger_PropagatesXRequestID(t *testing.T) {
 	ts := httptest.NewServer(r)
 	t.Cleanup(ts.Close)
 
-	req, err := http.NewRequest(http.MethodGet, ts.URL+api.LivenessEndpoint, nil)
+	req, err := http.NewRequest(http.MethodGet, ts.URL+app.LivenessEndpoint, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +53,7 @@ func TestCorrelationLogger_GeneratesIDWhenAbsent(t *testing.T) {
 	ts := httptest.NewServer(r)
 	t.Cleanup(ts.Close)
 
-	res, err := http.Get(ts.URL + api.LivenessEndpoint)
+	res, err := http.Get(ts.URL + app.LivenessEndpoint)
 	if err != nil {
 		t.Fatal(err)
 	}

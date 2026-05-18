@@ -1,4 +1,4 @@
-package api_test
+package app_test
 
 import (
 	"io"
@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sksmith/go-micro-example/api"
+	"github.com/sksmith/go-micro-example/internal/app"
 )
 
 func TestOpenAPIYAMLServedWhenDocsEnabled(t *testing.T) {
@@ -15,7 +15,7 @@ func TestOpenAPIYAMLServedWhenDocsEnabled(t *testing.T) {
 	ts := httptest.NewServer(r)
 	defer ts.Close()
 
-	res, err := http.Get(ts.URL + api.OpenAPIEndpoint)
+	res, err := http.Get(ts.URL + app.OpenAPIEndpoint)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,7 +41,7 @@ func TestSwaggerUIServedWhenDocsEnabled(t *testing.T) {
 	ts := httptest.NewServer(r)
 	defer ts.Close()
 
-	res, err := http.Get(ts.URL + api.DocsEndpoint + "/")
+	res, err := http.Get(ts.URL + app.DocsEndpoint + "/")
 	if err != nil {
 		t.Fatal(err)
 	}

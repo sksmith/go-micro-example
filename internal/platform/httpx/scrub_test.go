@@ -1,9 +1,9 @@
-package api_test
+package httpx_test
 
 import (
 	"testing"
 
-	"github.com/sksmith/go-micro-example/api"
+	"github.com/sksmith/go-micro-example/internal/platform/httpx"
 )
 
 type TestObj struct {
@@ -28,7 +28,7 @@ func TestScrub(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		api.Scrub(&test.input)
+		httpx.Scrub(&test.input)
 		expect(test.input, test.want, t)
 	}
 }

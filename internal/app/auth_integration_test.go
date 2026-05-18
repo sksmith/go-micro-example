@@ -1,4 +1,4 @@
-package api_test
+package app_test
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sksmith/go-micro-example/api"
+	"github.com/sksmith/go-micro-example/internal/app"
 	"github.com/sksmith/go-micro-example/internal/auth"
 	"github.com/sksmith/go-micro-example/internal/platform/persistence"
 	"github.com/sksmith/go-micro-example/internal/user"
@@ -26,7 +26,7 @@ func TestTokenEndpointIssuesJWTForValidCredentials(t *testing.T) {
 	ts := httptest.NewServer(r)
 	defer ts.Close()
 
-	req, err := http.NewRequest(http.MethodPost, ts.URL+api.AuthPath+api.TokenPath, nil)
+	req, err := http.NewRequest(http.MethodPost, ts.URL+app.AuthPath+app.TokenPath, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +67,7 @@ func TestTokenEndpointRejectsBadCredentials(t *testing.T) {
 	ts := httptest.NewServer(r)
 	defer ts.Close()
 
-	req, _ := http.NewRequest(http.MethodPost, ts.URL+api.AuthPath+api.TokenPath, nil)
+	req, _ := http.NewRequest(http.MethodPost, ts.URL+app.AuthPath+app.TokenPath, nil)
 	req.SetBasicAuth("alice", "wrong")
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -84,7 +84,7 @@ func TestTokenEndpointRejectsMissingCredentials(t *testing.T) {
 	ts := httptest.NewServer(r)
 	defer ts.Close()
 
-	res, err := http.Post(ts.URL+api.AuthPath+api.TokenPath, "", nil)
+	res, err := http.Post(ts.URL+app.AuthPath+app.TokenPath, "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,7 +112,7 @@ func TestProtectedRouteAcceptsBearerJWT(t *testing.T) {
 		return user.User{}, nil
 	}
 
-	req, _ := http.NewRequest(http.MethodGet, ts.URL+api.ApiPath+api.InventoryPath, nil)
+	req, _ := http.NewRequest(http.MethodGet, ts.URL+app.ApiPath+app.InventoryPath, nil)
 	req.Header.Set("Authorization", "Bearer "+tok)
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -145,7 +145,7 @@ func TestProtectedRouteRejectsTamperedBearer(t *testing.T) {
 	ts := httptest.NewServer(r)
 	defer ts.Close()
 
-	req, _ := http.NewRequest(http.MethodGet, ts.URL+api.ApiPath+api.InventoryPath, nil)
+	req, _ := http.NewRequest(http.MethodGet, ts.URL+app.ApiPath+app.InventoryPath, nil)
 	req.Header.Set("Authorization", "Bearer "+tampered)
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -169,7 +169,7 @@ func TestProtectedRouteRejectsBasicAuth(t *testing.T) {
 	ts := httptest.NewServer(r)
 	defer ts.Close()
 
-	req, _ := http.NewRequest(http.MethodGet, ts.URL+api.ApiPath+api.InventoryPath, nil)
+	req, _ := http.NewRequest(http.MethodGet, ts.URL+app.ApiPath+app.InventoryPath, nil)
 	req.SetBasicAuth("alice", "pw")
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -189,7 +189,7 @@ func TestAdminRouteHonorsRolesClaim(t *testing.T) {
 	ts := httptest.NewServer(r)
 	defer ts.Close()
 
-	envURL := ts.URL + api.ApiPath + api.AdminPath + api.EnvPath
+	envURL := ts.URL + app.ApiPath + app.AdminPath + app.EnvPath
 
 	t.Run("admin claim grants access", func(t *testing.T) {
 		tok, _, _ := signer.Issue(user.User{Username: "alice", IsAdmin: true})

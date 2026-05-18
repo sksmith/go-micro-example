@@ -17,7 +17,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -ldflags "-X github.com/sksmith/go-micro-example/config.AppVersion=$VER \
     -X github.com/sksmith/go-micro-example/config.Sha1Version=$SHA1 \
     -X github.com/sksmith/go-micro-example/config.BuildTime=$NOW" \
-    -o ./go-micro-example ./cmd
+    -o ./go-micro-example ./cmd/server
 
 RUN apk add --update ca-certificates
 
@@ -29,7 +29,8 @@ COPY --from=builder /app/go-micro-example /usr/bin/
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /app/config.yml /app
 # Migrations need to ship with the image so 'db.migrate=true' can
-# find them at /app/db/migrations on startup.
-COPY --from=builder /app/db/migrations /app/db/migrations
+# find them at the configured path on startup. Config default points
+# at internal/platform/persistence/migrations (DSN-028 Phase 4 move).
+COPY --from=builder /app/internal/platform/persistence/migrations /app/internal/platform/persistence/migrations
 
 ENTRYPOINT ["go-micro-example"]

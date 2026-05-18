@@ -1,14 +1,15 @@
-package api
+package app
 
 import (
 	"net/http"
 
 	"github.com/sksmith/go-micro-example/config"
+	"github.com/sksmith/go-micro-example/internal/platform/httpx"
 )
 
 type EnvResponse struct {
 	config.Config
-}
+} // @name EnvResponse
 
 func NewEnvResponse(c config.Config) *EnvResponse {
 	resp := &EnvResponse{Config: c}
@@ -16,6 +17,6 @@ func NewEnvResponse(c config.Config) *EnvResponse {
 }
 
 func (er *EnvResponse) Render(_ http.ResponseWriter, _ *http.Request) error {
-	Scrub(er)
+	httpx.Scrub(er)
 	return nil
 }

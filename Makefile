@@ -61,31 +61,31 @@ tools:
 
 .PHONY: openapi clients clients-go clients-ts openapi-check
 openapi:
-	@echo "==> regenerating api/openapi.yaml from handler annotations"
-	$(GOBIN)/swag init -g cmd/main.go -d ./ -o api/_swag --v3.1 --parseDependency --parseDepth 2 --quiet
-	@mv api/_swag/swagger.yaml api/openapi.yaml
-	@mv api/_swag/swagger.json api/openapi.json
-	@rm -rf api/_swag
+	@echo "==> regenerating internal/app/openapi.yaml from handler annotations"
+	$(GOBIN)/swag init -g cmd/server/main.go -d ./ -o internal/app/_swag --v3.1 --parseDependency --parseDepth 2 --quiet
+	@mv internal/app/_swag/swagger.yaml internal/app/openapi.yaml
+	@mv internal/app/_swag/swagger.json internal/app/openapi.json
+	@rm -rf internal/app/_swag
 
 clients: clients-go clients-ts
 
 clients-go:
 	@echo "==> regenerating Go client at api/client/v1"
 	@mkdir -p api/client/v1
-	$(GOBIN)/oapi-codegen -package v1 -generate types,client api/openapi.yaml > api/client/v1/client.gen.go
+	$(GOBIN)/oapi-codegen -package v1 -generate types,client internal/app/openapi.yaml > api/client/v1/client.gen.go
 
 clients-ts:
 	@echo "==> regenerating TS client at web/src/api"
 	@mkdir -p web/src/api
 	@command -v npx >/dev/null 2>&1 || { echo "npx not found — install Node.js to regenerate the TS client"; exit 1; }
-	npx --yes openapi-typescript@7 api/openapi.yaml -o web/src/api/schema.ts
+	npx --yes openapi-typescript@7 internal/app/openapi.yaml -o web/src/api/schema.ts
 
 # openapi-check is the CI drift gate: regenerate the spec and Go
 # client, then fail if the working tree differs from committed.
 # TS client is generated locally only (Node is not in the Go CI image);
 # its drift is reviewed by hand for now.
 openapi-check: openapi clients-go
-	@git diff --exit-code -- api/openapi.yaml api/openapi.json api/client/v1 \
+	@git diff --exit-code -- internal/app/openapi.yaml internal/app/openapi.json api/client/v1 \
 	  || { echo "OpenAPI artifacts are stale. Run 'make openapi clients' and commit."; exit 1; }
 
 .PHONY: demo demo-down

@@ -1,4 +1,4 @@
-package api_test
+package app_test
 
 import (
 	"io"
@@ -8,15 +8,15 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/sksmith/go-micro-example/api"
 	"github.com/sksmith/go-micro-example/config"
+	"github.com/sksmith/go-micro-example/internal/app"
 	"github.com/sksmith/go-micro-example/internal/testutil"
 	"github.com/sksmith/go-micro-example/internal/user"
 )
 
 func TestGetEnvironment(t *testing.T) {
 	cfg := config.LoadDefaults()
-	envApi := api.NewEnvApi(cfg)
+	envApi := app.NewEnvApi(cfg)
 	r := chi.NewRouter()
 	envApi.ConfigureRouter(r)
 
@@ -60,7 +60,7 @@ func TestEnvEndpointRedactsSensitiveValues(t *testing.T) {
 	cfg.Config.Spring.User.Value = springUser
 	cfg.Config.Spring.Pass.Value = springPass
 
-	envApi := api.NewEnvApi(cfg)
+	envApi := app.NewEnvApi(cfg)
 	r := chi.NewRouter()
 	envApi.ConfigureRouter(r)
 
@@ -90,7 +90,7 @@ func TestEnvEndpointRequiresAdmin(t *testing.T) {
 	ts := httptest.NewServer(r)
 	defer ts.Close()
 
-	envURL := ts.URL + api.ApiPath + api.AdminPath + api.EnvPath
+	envURL := ts.URL + app.ApiPath + app.AdminPath + app.EnvPath
 
 	tok, _, err := signer.Issue(user.User{Username: "regular", IsAdmin: false})
 	if err != nil {
