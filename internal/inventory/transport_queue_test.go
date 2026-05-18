@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sksmith/go-micro-example/config"
 	"github.com/sksmith/go-micro-example/internal/platform/events"
 	"github.com/sksmith/go-micro-example/internal/platform/messaging/amqp"
 	"github.com/sksmith/go-micro-example/internal/platform/observability"
@@ -27,10 +28,15 @@ func (s *productHandlerStub) CreateProduct(ctx context.Context, p Product) error
 
 // newProductQueueForTest builds a ProductQueue with a buffered DLT
 // channel so handleProductMessage's send-to-DLT is observable from
-// the test goroutine without standing up AMQP.
+// the test goroutine without standing up AMQP. A minimal cfg with
+// the queue/exchange names populated is required since DSN-004a
+// added a consumer span keyed on the source queue.
 func newProductQueueForTest() (*ProductQueue, chan amqp.Message) {
 	dlt := make(chan amqp.Message, 4)
-	pq := &ProductQueue{productDlt: dlt}
+	cfg := &config.Config{}
+	cfg.RabbitMQ.Product.Queue = config.StringConfig{Value: "product.queue"}
+	cfg.RabbitMQ.Product.Dlt.Exchange = config.StringConfig{Value: "product.dlt.exchange"}
+	pq := &ProductQueue{cfg: cfg, productDlt: dlt}
 	return pq, dlt
 }
 
