@@ -554,13 +554,14 @@ exposed so you can run a single step in isolation:
 
 | Target | What it does |
 | --- | --- |
-| `make tools` | Installs `golangci-lint` and `gosec` into `$(go env GOPATH)/bin`. Run once before `make verify`, and re-run when bumping versions. |
+| `make tools` | Installs `golangci-lint`, `gosec`, and `govulncheck` (pinned) into `$(go env GOPATH)/bin`. Run once before `make verify`, and re-run when bumping versions. |
 | `make fmt` | Runs `gofmt -l .` and exits non-zero if any file needs formatting. Does not modify files — fix with `gofmt -w <file>`. |
 | `make vet` | Runs `go vet ./...`. |
 | `make lint` | Runs `golangci-lint run` with the project defaults. |
 | `make sec` | Runs `gosec ./...` (CWE-tagged static analysis). |
+| `make vuln` | Runs `govulncheck ./...` against the [Go vulnerability database](https://pkg.go.dev/vuln). Fails on any finding — stdlib findings are cleared by bumping `go.mod`'s `toolchain` directive. |
 | `make test-race` | Runs `go test -race -count=1 -timeout 60s ./...`. |
-| `make verify` | Runs `fmt`, `vet`, `lint`, `sec`, and `test-race` in order. |
+| `make verify` | Runs `fmt`, `vet`, `lint`, `sec`, `vuln`, `test-race`, and `openapi-check` in order — seven checks, fail-fast. |
 | `make test` | Runs `go test -cover ./...` without race detection — quick smoke check. |
 | `make build` | Builds the binary into `./bin/go-micro-example` with version metadata baked in. |
 | `make run` | Runs the application via `go run ./cmd/.`. Requires Postgres and RabbitMQ. |
@@ -571,8 +572,8 @@ exposed so you can run a single step in isolation:
 | `make clients` | Regenerates Go (`api/client/v1`) and TS (`web/src/api`) clients from the spec. |
 | `make openapi-check` | CI drift gate: regenerates spec + Go client and fails on diff. |
 
-If `make tools` has not been run yet, `lint` and `sec` will fail with
-`command not found`; install the tools first.
+If `make tools` has not been run yet, `lint`, `sec`, and `vuln` will
+fail with `command not found`; install the tools first.
 
 ### Database Migrations
 

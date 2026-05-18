@@ -2,6 +2,8 @@ module github.com/sksmith/go-micro-example
 
 go 1.25.0
 
+toolchain go1.25.10
+
 require (
 	github.com/common-nighthawk/go-figure v0.0.0-20210622060536-734e95fb86be
 	github.com/exaring/otelpgx v0.10.0

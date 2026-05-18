@@ -3,7 +3,7 @@ SHA1 := $(shell git rev-parse HEAD)
 NOW := $(shell date -u +'%Y-%m-%d_%TZ')
 GOBIN := $(shell go env GOPATH)/bin
 
-.PHONY: fmt vet lint sec test-race verify cover
+.PHONY: fmt vet lint sec vuln test-race verify cover
 fmt:
 	@echo "==> gofmt"
 	@out=$$(gofmt -l .); if [ -n "$$out" ]; then echo "$$out"; echo "files need gofmt"; exit 1; fi
@@ -20,11 +20,20 @@ sec:
 	@echo "==> gosec"
 	@command -v gosec >/dev/null 2>&1 && gosec -exclude-dir=api/client ./... || $(GOBIN)/gosec -exclude-dir=api/client ./...
 
+# SEC-014: govulncheck scans the build configuration against the Go
+# vuln DB. Stdlib findings track go.mod's toolchain directive, so a
+# stdlib finding here means the toolchain pin is stale (bump it and
+# the finding clears). Pinned in tools: to a known version for
+# reproducibility — bump intentionally, not via @latest drift.
+vuln:
+	@echo "==> govulncheck"
+	@command -v govulncheck >/dev/null 2>&1 && govulncheck ./... || $(GOBIN)/govulncheck ./...
+
 test-race:
 	@echo "==> go test -race"
 	go test -race -count=1 -timeout 60s ./...
 
-verify: fmt vet lint sec test-race openapi-check
+verify: fmt vet lint sec vuln test-race openapi-check
 	@echo "==> verify OK"
 
 cover:
@@ -58,6 +67,11 @@ tools:
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 	go install github.com/swaggo/swag/v2/cmd/swag@latest
 	go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
+	# govulncheck is pinned (not @latest) so the tool surface that
+	# decides whether `make verify` passes is reproducible across
+	# developer machines and CI. Bump intentionally; the other tools
+	# above are still @latest pending a similar pass.
+	go install golang.org/x/vuln/cmd/govulncheck@v1.3.0
 
 .PHONY: openapi clients clients-go clients-ts openapi-check
 openapi:

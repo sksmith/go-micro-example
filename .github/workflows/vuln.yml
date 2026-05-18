@@ -29,9 +29,11 @@ jobs:
         with:
           sarif_file: govulncheck.sarif
           category: govulncheck
-      # Until DEP-001 (Go toolchain) and DEP-002 (chi v4 -> v5) land,
-      # the 25 deferred CVEs from SEC-008 will keep firing here.
-      # Surface them in the Security tab but don't block PRs yet.
-      - name: Run govulncheck (text, soft-fail until DEP-001/DEP-002 land)
-        continue-on-error: true
+      # SEC-014: govulncheck is now a hard gate, matching `make verify`
+      # locally. DEP-001 and DEP-002 have landed and the go.mod toolchain
+      # pin is up to date, so the previously-deferred stdlib findings are
+      # cleared. A new finding here should block the merge — bump
+      # go.mod's toolchain directive (or the offending dependency) and
+      # the gate clears again.
+      - name: Run govulncheck (text)
         run: govulncheck ./...
