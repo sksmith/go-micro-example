@@ -12,8 +12,8 @@ import (
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
 	"github.com/rs/zerolog/log"
-	"github.com/sksmith/go-micro-example/core"
 	"github.com/sksmith/go-micro-example/internal/platform/httpx"
+	"github.com/sksmith/go-micro-example/internal/platform/persistence"
 )
 
 type ReservationService interface {
@@ -150,7 +150,7 @@ func (a *ReservationApi) Create(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		switch {
-		case errors.Is(err, core.ErrNotFound):
+		case errors.Is(err, persistence.ErrNotFound):
 			httpx.Render(w, r, httpx.NotFoundProblem())
 		case errors.Is(err, ErrInvalidInput):
 			httpx.Render(w, r, httpx.BadRequestProblem(err))
@@ -190,7 +190,7 @@ func (a *ReservationApi) ReservationCtx(next http.Handler) http.Handler {
 		reservation, err := a.service.GetReservation(r.Context(), ID)
 
 		if err != nil {
-			if errors.Is(err, core.ErrNotFound) {
+			if errors.Is(err, persistence.ErrNotFound) {
 				httpx.Render(w, r, httpx.NotFoundProblem())
 			} else {
 				log.Ctx(r.Context()).Error().Err(err).Str("id", IDStr).Msg("error acquiring product")
@@ -235,7 +235,7 @@ func (a *ReservationApi) List(w http.ResponseWriter, r *http.Request) {
 	res, err := a.service.GetReservations(r.Context(), GetReservationsOptions{Sku: sku, State: state}, p.Limit, p.Offset)
 
 	if err != nil {
-		if errors.Is(err, core.ErrNotFound) {
+		if errors.Is(err, persistence.ErrNotFound) {
 			httpx.Render(w, r, httpx.NotFoundProblem())
 		} else {
 			log.Ctx(r.Context()).Error().Err(err).Str("sku", sku).Str("state", string(state)).Msg("failed to list reservations")

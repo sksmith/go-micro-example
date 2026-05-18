@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/sksmith/go-micro-example/config"
-	"github.com/sksmith/go-micro-example/testutil"
+	"github.com/sksmith/go-micro-example/internal/testutil"
 )
 
 func TestMain(m *testing.M) {

@@ -8,26 +8,26 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/pashagolub/pgxmock/v4"
-	"github.com/sksmith/go-micro-example/core"
 	"github.com/sksmith/go-micro-example/internal/inventory"
+	"github.com/sksmith/go-micro-example/internal/platform/persistence"
 )
 
 // repoT exposes only the methods invrepo's *dbRepo provides; the
 // concrete return type from NewPostgresRepo is unexported.
 type repoT interface {
-	SaveProduct(ctx context.Context, p inventory.Product, options ...core.UpdateOptions) error
-	SaveProductInventory(ctx context.Context, pi inventory.ProductInventory, options ...core.UpdateOptions) error
-	GetProduct(ctx context.Context, sku string, options ...core.QueryOptions) (inventory.Product, error)
-	GetProductInventory(ctx context.Context, sku string, options ...core.QueryOptions) (inventory.ProductInventory, error)
-	GetAllProductInventory(ctx context.Context, limit, offset int, options ...core.QueryOptions) ([]inventory.ProductInventory, error)
-	GetProductionEventByRequestID(ctx context.Context, requestID string, options ...core.QueryOptions) (inventory.ProductionEvent, error)
-	SaveProductionEvent(ctx context.Context, e *inventory.ProductionEvent, options ...core.UpdateOptions) error
-	SaveReservation(ctx context.Context, r *inventory.Reservation, options ...core.UpdateOptions) error
-	UpdateReservation(ctx context.Context, ID uint64, state inventory.ReserveState, qty int64, options ...core.UpdateOptions) error
-	GetReservations(ctx context.Context, resOptions inventory.GetReservationsOptions, limit, offset int, options ...core.QueryOptions) ([]inventory.Reservation, error)
-	GetReservationByRequestID(ctx context.Context, requestID string, options ...core.QueryOptions) (inventory.Reservation, error)
-	GetReservation(ctx context.Context, ID uint64, options ...core.QueryOptions) (inventory.Reservation, error)
-	BeginTransaction(ctx context.Context) (core.Transaction, error)
+	SaveProduct(ctx context.Context, p inventory.Product, options ...persistence.UpdateOptions) error
+	SaveProductInventory(ctx context.Context, pi inventory.ProductInventory, options ...persistence.UpdateOptions) error
+	GetProduct(ctx context.Context, sku string, options ...persistence.QueryOptions) (inventory.Product, error)
+	GetProductInventory(ctx context.Context, sku string, options ...persistence.QueryOptions) (inventory.ProductInventory, error)
+	GetAllProductInventory(ctx context.Context, limit, offset int, options ...persistence.QueryOptions) ([]inventory.ProductInventory, error)
+	GetProductionEventByRequestID(ctx context.Context, requestID string, options ...persistence.QueryOptions) (inventory.ProductionEvent, error)
+	SaveProductionEvent(ctx context.Context, e *inventory.ProductionEvent, options ...persistence.UpdateOptions) error
+	SaveReservation(ctx context.Context, r *inventory.Reservation, options ...persistence.UpdateOptions) error
+	UpdateReservation(ctx context.Context, ID uint64, state inventory.ReserveState, qty int64, options ...persistence.UpdateOptions) error
+	GetReservations(ctx context.Context, resOptions inventory.GetReservationsOptions, limit, offset int, options ...persistence.QueryOptions) ([]inventory.Reservation, error)
+	GetReservationByRequestID(ctx context.Context, requestID string, options ...persistence.QueryOptions) (inventory.Reservation, error)
+	GetReservation(ctx context.Context, ID uint64, options ...persistence.QueryOptions) (inventory.Reservation, error)
+	BeginTransaction(ctx context.Context) (persistence.Transaction, error)
 }
 
 func newRepo(t *testing.T) (repoT, pgxmock.PgxConnIface) {
@@ -176,7 +176,7 @@ func TestRepositoryGetProduct(t *testing.T) {
 			WillReturnError(pgx.ErrNoRows)
 
 		_, err := repo.GetProduct(context.Background(), "missing")
-		if !errors.Is(err, core.ErrNotFound) {
+		if !errors.Is(err, persistence.ErrNotFound) {
 			t.Errorf("expected ErrNotFound, got %v", err)
 		}
 	})

@@ -30,20 +30,20 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/api"
 	"github.com/sksmith/go-micro-example/config"
-	"github.com/sksmith/go-micro-example/core/cache"
-	"github.com/sksmith/go-micro-example/core/observability"
-	"github.com/sksmith/go-micro-example/core/ratelimit"
-	"github.com/sksmith/go-micro-example/core/secrets"
-	"github.com/sksmith/go-micro-example/db"
-	"github.com/sksmith/go-micro-example/events"
-	"github.com/sksmith/go-micro-example/idempotency"
-	restidempotency "github.com/sksmith/go-micro-example/idempotency/rest"
 	"github.com/sksmith/go-micro-example/internal/auth"
 	"github.com/sksmith/go-micro-example/internal/catalog"
 	"github.com/sksmith/go-micro-example/internal/inventory"
+	"github.com/sksmith/go-micro-example/internal/platform/cache"
+	"github.com/sksmith/go-micro-example/internal/platform/events"
+	"github.com/sksmith/go-micro-example/internal/platform/httpx"
+	"github.com/sksmith/go-micro-example/internal/platform/idempotency"
+	restidempotency "github.com/sksmith/go-micro-example/internal/platform/idempotency/rest"
+	gmekafka "github.com/sksmith/go-micro-example/internal/platform/messaging/kafka"
+	"github.com/sksmith/go-micro-example/internal/platform/observability"
+	"github.com/sksmith/go-micro-example/internal/platform/persistence"
+	"github.com/sksmith/go-micro-example/internal/platform/ratelimit"
+	"github.com/sksmith/go-micro-example/internal/platform/secrets"
 	"github.com/sksmith/go-micro-example/internal/user"
-	gmekafka "github.com/sksmith/go-micro-example/kafka"
-	"github.com/sksmith/go-micro-example/queue"
 
 	"github.com/common-nighthawk/go-figure"
 )
@@ -101,7 +101,7 @@ func main() {
 
 	dbPool := configDatabase(ctx, cfg)
 
-	iq := queue.NewInventoryQueue(ctx, cfg)
+	iq := inventory.NewInventoryQueue(ctx, cfg)
 
 	ir := inventory.NewPostgresRepo(dbPool)
 
@@ -143,7 +143,7 @@ func main() {
 	authRateLimitMw := buildAuthRateLimitMiddleware(cfg, redisClient)
 	r := api.ConfigureRouter(cfg, invService, invService, userService, signer, readinessDeps, catalogClient, idempotencyMw, authRateLimitMw)
 
-	_ = queue.NewProductQueue(ctx, cfg, invService)
+	_ = inventory.NewProductQueue(ctx, cfg, invService)
 
 	// DSN-016: Kafka producer + consumer. Skipped entirely when
 	// kafka.brokers is empty so the AMQP-only template path still
@@ -241,7 +241,7 @@ func buildAuthRateLimitMiddleware(cfg *config.Config, redisClient *redis.Client)
 		Float64("rate", cfg.RateLimit.AuthRatePerSecond.Value).
 		Int64("burst", cfg.RateLimit.AuthBurst.Value).
 		Msg("auth-token rate limiter ready")
-	return ratelimit.Middleware(limiter, ratelimit.IPKey)
+	return httpx.Middleware(limiter, httpx.IPKey)
 }
 
 // buildIdempotencyMiddleware constructs the DSN-019 Idempotency-Key
@@ -466,7 +466,7 @@ func printLogHeader(cfg *config.Config) {
 }
 
 func configDatabase(ctx context.Context, cfg *config.Config) *pgxpool.Pool {
-	dbPool, err := db.ConnectDb(ctx, cfg)
+	dbPool, err := persistence.ConnectDb(ctx, cfg)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to connect to db")
 	}

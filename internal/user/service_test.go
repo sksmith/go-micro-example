@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sksmith/go-micro-example/core"
+	"github.com/sksmith/go-micro-example/internal/platform/persistence"
 	"github.com/sksmith/go-micro-example/internal/user"
 )
 
@@ -17,7 +17,7 @@ func TestGet(t *testing.T) {
 		name     string
 		username string
 
-		getFunc func(ctx context.Context, username string, options ...core.QueryOptions) (user.User, error)
+		getFunc func(ctx context.Context, username string, options ...persistence.QueryOptions) (user.User, error)
 
 		wantUser user.User
 		wantErr  bool
@@ -26,7 +26,7 @@ func TestGet(t *testing.T) {
 			name:     "user is returned",
 			username: "someuser",
 
-			getFunc: func(ctx context.Context, username string, options ...core.QueryOptions) (user.User, error) {
+			getFunc: func(ctx context.Context, username string, options ...persistence.QueryOptions) (user.User, error) {
 				return usr, nil
 			},
 
@@ -36,7 +36,7 @@ func TestGet(t *testing.T) {
 			name:     "error is returned",
 			username: "someuser",
 
-			getFunc: func(ctx context.Context, username string, options ...core.QueryOptions) (user.User, error) {
+			getFunc: func(ctx context.Context, username string, options ...persistence.QueryOptions) (user.User, error) {
 				return user.User{}, errors.New("some unexpected error")
 			},
 
@@ -73,7 +73,7 @@ func TestCreate(t *testing.T) {
 		name    string
 		request user.CreateUserRequest
 
-		createFunc func(ctx context.Context, user *user.User, tx ...core.UpdateOptions) error
+		createFunc func(ctx context.Context, user *user.User, tx ...persistence.UpdateOptions) error
 
 		wantUsername    string
 		wantCreateCalls int
@@ -120,7 +120,7 @@ func TestDelete(t *testing.T) {
 		name     string
 		username string
 
-		deleteFunc func(ctx context.Context, username string, tx ...core.UpdateOptions) error
+		deleteFunc func(ctx context.Context, username string, tx ...persistence.UpdateOptions) error
 
 		wantDeleteCalls int
 		wantErr         bool
@@ -134,7 +134,7 @@ func TestDelete(t *testing.T) {
 			name:     "error is returned",
 			username: "someuser",
 
-			deleteFunc: func(ctx context.Context, username string, tx ...core.UpdateOptions) error {
+			deleteFunc: func(ctx context.Context, username string, tx ...persistence.UpdateOptions) error {
 				return errors.New("some unexpected error")
 			},
 
@@ -175,7 +175,7 @@ func TestLogin(t *testing.T) {
 		username string
 		password string
 
-		getFunc func(ctx context.Context, username string, options ...core.QueryOptions) (user.User, error)
+		getFunc func(ctx context.Context, username string, options ...persistence.QueryOptions) (user.User, error)
 
 		wantUsername string
 		// wantErr is the sentinel the caller should see. nil means
@@ -190,7 +190,7 @@ func TestLogin(t *testing.T) {
 			username: "someuser",
 			password: "plaintextpw",
 
-			getFunc: func(ctx context.Context, username string, options ...core.QueryOptions) (user.User, error) {
+			getFunc: func(ctx context.Context, username string, options ...persistence.QueryOptions) (user.User, error) {
 				return usr, nil
 			},
 
@@ -201,7 +201,7 @@ func TestLogin(t *testing.T) {
 			username: "someuser",
 			password: "wrongpw",
 
-			getFunc: func(ctx context.Context, username string, options ...core.QueryOptions) (user.User, error) {
+			getFunc: func(ctx context.Context, username string, options ...persistence.QueryOptions) (user.User, error) {
 				return usr, nil
 			},
 
@@ -212,8 +212,8 @@ func TestLogin(t *testing.T) {
 			username: "missing",
 			password: "anything",
 
-			getFunc: func(ctx context.Context, username string, options ...core.QueryOptions) (user.User, error) {
-				return user.User{}, core.ErrNotFound
+			getFunc: func(ctx context.Context, username string, options ...persistence.QueryOptions) (user.User, error) {
+				return user.User{}, persistence.ErrNotFound
 			},
 
 			wantErr: user.ErrInvalidCredentials,
@@ -223,7 +223,7 @@ func TestLogin(t *testing.T) {
 			username: "someuser",
 			password: "wrongpw",
 
-			getFunc: func(ctx context.Context, username string, options ...core.QueryOptions) (user.User, error) {
+			getFunc: func(ctx context.Context, username string, options ...persistence.QueryOptions) (user.User, error) {
 				return user.User{}, unexpected
 			},
 

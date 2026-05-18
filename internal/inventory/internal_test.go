@@ -10,7 +10,7 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"github.com/sksmith/go-micro-example/db"
+	"github.com/sksmith/go-micro-example/internal/platform/persistence"
 )
 
 // TestRollbackLogsRollbackError is the regression test for ERR-001
@@ -24,7 +24,7 @@ func TestRollbackLogsRollbackError(t *testing.T) {
 	rollbackErr := errors.New("rollback failed: dead conn")
 	triggerErr := errors.New("original failure")
 
-	mockTx := db.NewMockTransaction()
+	mockTx := persistence.NewMockTransaction()
 	mockTx.RollbackFunc = func(ctx context.Context) error { return rollbackErr }
 
 	var buf bytes.Buffer

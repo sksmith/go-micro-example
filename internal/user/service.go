@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog/log"
-	"github.com/sksmith/go-micro-example/core"
+	"github.com/sksmith/go-micro-example/internal/platform/persistence"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -75,7 +75,7 @@ func (s *service) Delete(ctx context.Context, username string) error {
 func (s *service) Login(ctx context.Context, username, password string) (User, error) {
 	u, err := s.repo.Get(ctx, username)
 	if err != nil {
-		if errors.Is(err, core.ErrNotFound) {
+		if errors.Is(err, persistence.ErrNotFound) {
 			return User{}, ErrInvalidCredentials
 		}
 		return User{}, err
@@ -98,7 +98,7 @@ func (s *service) Login(ctx context.Context, username, password string) (User, e
 }
 
 type Repository interface {
-	Create(ctx context.Context, user *User, tx ...core.UpdateOptions) error
-	Get(ctx context.Context, username string, tx ...core.QueryOptions) (User, error)
-	Delete(ctx context.Context, username string, tx ...core.UpdateOptions) error
+	Create(ctx context.Context, user *User, tx ...persistence.UpdateOptions) error
+	Get(ctx context.Context, username string, tx ...persistence.QueryOptions) (User, error)
+	Delete(ctx context.Context, username string, tx ...persistence.UpdateOptions) error
 }

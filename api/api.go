@@ -16,6 +16,7 @@ import (
 	"github.com/sksmith/go-micro-example/internal/auth"
 	"github.com/sksmith/go-micro-example/internal/catalog"
 	"github.com/sksmith/go-micro-example/internal/inventory"
+	"github.com/sksmith/go-micro-example/internal/platform/httpx"
 	"github.com/sksmith/go-micro-example/internal/user"
 )
 
@@ -73,10 +74,10 @@ func ConfigureRouter(cfg *config.Config, invSvc inventory.InventoryService, resS
 	// CorrelationLogger must mount after RequestID + otelchi (so it can
 	// read the request and trace IDs they set) and before everything
 	// that emits logs, so log.Ctx(ctx) carries the correlation fields.
-	r.Use(CorrelationLogger)
-	r.Use(Metrics)
+	r.Use(httpx.CorrelationLogger)
+	r.Use(httpx.Metrics)
 	r.Use(render.SetContentType(render.ContentTypeJSON))
-	r.Use(Logging)
+	r.Use(httpx.Logging)
 
 	r.Handle(LivenessEndpoint, LivenessHandler())
 	r.Handle(ReadinessEndpoint, ReadinessHandler(readinessDeps))
@@ -93,7 +94,7 @@ func ConfigureRouter(cfg *config.Config, invSvc inventory.InventoryService, resS
 		r.Route(AuthPath, authApi.ConfigureRouter)
 	}
 
-	r.With(Authenticate(signer)).Route(ApiPath, func(r chi.Router) {
+	r.With(auth.Authenticate(signer)).Route(ApiPath, func(r chi.Router) {
 		invApi := inventory.NewInventoryApi(invSvc)
 		invApi.SetCatalog(catalogClient)
 		invApi.SetIdempotency(idempotencyMw)
@@ -101,8 +102,8 @@ func ConfigureRouter(cfg *config.Config, invSvc inventory.InventoryService, resS
 		resApi := inventory.NewReservationApi(resSvc)
 		resApi.SetIdempotency(idempotencyMw)
 		r.Route(ReservationPath, resApi.ConfigureRouter)
-		r.With(AdminOnly).Route(UserPath, user.NewUserApi(userService).ConfigureRouter)
-		r.With(AdminOnly).Route(AdminPath, func(r chi.Router) {
+		r.With(auth.AdminOnly).Route(UserPath, user.NewUserApi(userService).ConfigureRouter)
+		r.With(auth.AdminOnly).Route(AdminPath, func(r chi.Router) {
 			r.Route(EnvPath, NewEnvApi(cfg).ConfigureRouter)
 		})
 	})

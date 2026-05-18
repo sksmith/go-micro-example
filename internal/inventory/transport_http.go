@@ -11,9 +11,9 @@ import (
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
 	"github.com/rs/zerolog/log"
-	"github.com/sksmith/go-micro-example/core"
 	"github.com/sksmith/go-micro-example/internal/catalog"
 	"github.com/sksmith/go-micro-example/internal/platform/httpx"
+	"github.com/sksmith/go-micro-example/internal/platform/persistence"
 )
 
 // CtxKey is the context-key type used by handlers in this package to
@@ -207,7 +207,7 @@ func (a *InventoryApi) ProductCtx(next http.Handler) http.Handler {
 		product, err = a.service.GetProduct(r.Context(), sku)
 
 		if err != nil {
-			if errors.Is(err, core.ErrNotFound) {
+			if errors.Is(err, persistence.ErrNotFound) {
 				httpx.Render(w, r, httpx.NotFoundProblem())
 			} else {
 				log.Ctx(r.Context()).Error().Err(err).Str("sku", sku).Msg("error acquiring product")
@@ -277,7 +277,7 @@ func (a *InventoryApi) GetProductInventory(w http.ResponseWriter, r *http.Reques
 	res, err := a.service.GetProductInventory(r.Context(), product.Sku)
 
 	if err != nil {
-		if errors.Is(err, core.ErrNotFound) {
+		if errors.Is(err, persistence.ErrNotFound) {
 			httpx.Render(w, r, httpx.NotFoundProblem())
 		} else {
 			log.Ctx(r.Context()).Error().Err(err).Str("sku", product.Sku).Msg("failed to get product inventory")

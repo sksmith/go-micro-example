@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sksmith/go-micro-example/core"
+	"github.com/sksmith/go-micro-example/internal/platform/persistence"
 	"github.com/sksmith/go-micro-example/internal/user"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -14,11 +14,11 @@ import (
 func TestBootstrap(t *testing.T) {
 	t.Run("creates admin from supplied password when missing", func(t *testing.T) {
 		repo := user.NewMockRepo()
-		repo.GetFunc = func(ctx context.Context, username string, _ ...core.QueryOptions) (user.User, error) {
-			return user.User{}, core.ErrNotFound
+		repo.GetFunc = func(ctx context.Context, username string, _ ...persistence.QueryOptions) (user.User, error) {
+			return user.User{}, persistence.ErrNotFound
 		}
 		var created *user.User
-		repo.CreateFunc = func(ctx context.Context, u *user.User, _ ...core.UpdateOptions) error {
+		repo.CreateFunc = func(ctx context.Context, u *user.User, _ ...persistence.UpdateOptions) error {
 			created = u
 			return nil
 		}
@@ -43,11 +43,11 @@ func TestBootstrap(t *testing.T) {
 
 	t.Run("non-prod profile generates a random password when none supplied", func(t *testing.T) {
 		repo := user.NewMockRepo()
-		repo.GetFunc = func(ctx context.Context, username string, _ ...core.QueryOptions) (user.User, error) {
-			return user.User{}, core.ErrNotFound
+		repo.GetFunc = func(ctx context.Context, username string, _ ...persistence.QueryOptions) (user.User, error) {
+			return user.User{}, persistence.ErrNotFound
 		}
 		var created *user.User
-		repo.CreateFunc = func(ctx context.Context, u *user.User, _ ...core.UpdateOptions) error {
+		repo.CreateFunc = func(ctx context.Context, u *user.User, _ ...persistence.UpdateOptions) error {
 			created = u
 			return nil
 		}
@@ -68,11 +68,11 @@ func TestBootstrap(t *testing.T) {
 
 	t.Run("prod profile fails fast when no password supplied", func(t *testing.T) {
 		repo := user.NewMockRepo()
-		repo.GetFunc = func(ctx context.Context, username string, _ ...core.QueryOptions) (user.User, error) {
-			return user.User{}, core.ErrNotFound
+		repo.GetFunc = func(ctx context.Context, username string, _ ...persistence.QueryOptions) (user.User, error) {
+			return user.User{}, persistence.ErrNotFound
 		}
 		createCalled := false
-		repo.CreateFunc = func(ctx context.Context, u *user.User, _ ...core.UpdateOptions) error {
+		repo.CreateFunc = func(ctx context.Context, u *user.User, _ ...persistence.UpdateOptions) error {
 			createCalled = true
 			return nil
 		}
@@ -88,16 +88,16 @@ func TestBootstrap(t *testing.T) {
 
 	t.Run("no-op when admin already exists with non-seed password", func(t *testing.T) {
 		repo := user.NewMockRepo()
-		repo.GetFunc = func(ctx context.Context, username string, _ ...core.QueryOptions) (user.User, error) {
+		repo.GetFunc = func(ctx context.Context, username string, _ ...persistence.QueryOptions) (user.User, error) {
 			return user.User{Username: user.AdminUsername, HashedPassword: "$2a$10$realProductionHash", IsAdmin: true}, nil
 		}
 		createCalled := false
-		repo.CreateFunc = func(ctx context.Context, u *user.User, _ ...core.UpdateOptions) error {
+		repo.CreateFunc = func(ctx context.Context, u *user.User, _ ...persistence.UpdateOptions) error {
 			createCalled = true
 			return nil
 		}
 		deleteCalled := false
-		repo.DeleteFunc = func(ctx context.Context, username string, _ ...core.UpdateOptions) error {
+		repo.DeleteFunc = func(ctx context.Context, username string, _ ...persistence.UpdateOptions) error {
 			deleteCalled = true
 			return nil
 		}
@@ -113,16 +113,16 @@ func TestBootstrap(t *testing.T) {
 
 	t.Run("replaces seed admin even in prod when password supplied", func(t *testing.T) {
 		repo := user.NewMockRepo()
-		repo.GetFunc = func(ctx context.Context, username string, _ ...core.QueryOptions) (user.User, error) {
+		repo.GetFunc = func(ctx context.Context, username string, _ ...persistence.QueryOptions) (user.User, error) {
 			return user.User{Username: user.AdminUsername, HashedPassword: user.SeedAdminHash, IsAdmin: true}, nil
 		}
 		deleted := false
-		repo.DeleteFunc = func(ctx context.Context, username string, _ ...core.UpdateOptions) error {
+		repo.DeleteFunc = func(ctx context.Context, username string, _ ...persistence.UpdateOptions) error {
 			deleted = true
 			return nil
 		}
 		var created *user.User
-		repo.CreateFunc = func(ctx context.Context, u *user.User, _ ...core.UpdateOptions) error {
+		repo.CreateFunc = func(ctx context.Context, u *user.User, _ ...persistence.UpdateOptions) error {
 			created = u
 			return nil
 		}
@@ -141,7 +141,7 @@ func TestBootstrap(t *testing.T) {
 
 	t.Run("prod fails fast on seed admin without supplied password", func(t *testing.T) {
 		repo := user.NewMockRepo()
-		repo.GetFunc = func(ctx context.Context, username string, _ ...core.QueryOptions) (user.User, error) {
+		repo.GetFunc = func(ctx context.Context, username string, _ ...persistence.QueryOptions) (user.User, error) {
 			return user.User{Username: user.AdminUsername, HashedPassword: user.SeedAdminHash, IsAdmin: true}, nil
 		}
 

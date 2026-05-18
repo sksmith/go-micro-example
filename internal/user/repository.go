@@ -7,13 +7,12 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog/log"
-	"github.com/sksmith/go-micro-example/core"
-	"github.com/sksmith/go-micro-example/core/cache"
-	"github.com/sksmith/go-micro-example/db"
+	"github.com/sksmith/go-micro-example/internal/platform/cache"
+	"github.com/sksmith/go-micro-example/internal/platform/persistence"
 )
 
 type dbRepo struct {
-	conn  core.Conn
+	conn  persistence.Conn
 	cache cache.Cache
 	ttl   time.Duration
 }
@@ -22,7 +21,7 @@ type dbRepo struct {
 // via conn. The cache is opt-in via SetCache (DSN-021c): callers
 // that want read-through caching wire a cache.Cache and TTL;
 // callers that don't pay no cost.
-func NewPostgresRepo(conn core.Conn) *dbRepo {
+func NewPostgresRepo(conn persistence.Conn) *dbRepo {
 	log.Info().Msg("creating user repository...")
 	return &dbRepo{conn: conn}
 }
@@ -45,9 +44,9 @@ func (r *dbRepo) SetCache(c cache.Cache, ttl time.Duration) {
 // to drop every entry without touching Redis directly.
 func userCacheKey(username string) string { return "user:" + username + ":v1" }
 
-func (r *dbRepo) Create(ctx context.Context, u *User, txs ...core.UpdateOptions) error {
-	m := db.StartMetric("Create")
-	tx := db.GetUpdateOptions(r.conn, txs...)
+func (r *dbRepo) Create(ctx context.Context, u *User, txs ...persistence.UpdateOptions) error {
+	m := persistence.StartMetric("Create")
+	tx := persistence.GetUpdateOptions(r.conn, txs...)
 
 	_, err := tx.Exec(ctx, `
 		INSERT INTO users (username, password, is_admin, created_at)
@@ -62,9 +61,9 @@ func (r *dbRepo) Create(ctx context.Context, u *User, txs ...core.UpdateOptions)
 	return nil
 }
 
-func (r *dbRepo) Get(ctx context.Context, username string, txs ...core.QueryOptions) (User, error) {
-	m := db.StartMetric("GetUser")
-	tx, forUpdate := db.GetQueryOptions(r.conn, txs...)
+func (r *dbRepo) Get(ctx context.Context, username string, txs ...persistence.QueryOptions) (User, error) {
+	m := persistence.StartMetric("GetUser")
+	tx, forUpdate := persistence.GetQueryOptions(r.conn, txs...)
 
 	if r.cache != nil {
 		if u, ok, err := cache.Get[User](ctx, r.cache, userCacheKey(username)); err == nil && ok {
@@ -84,7 +83,7 @@ func (r *dbRepo) Get(ctx context.Context, username string, txs ...core.QueryOpti
 	if err != nil {
 		m.Complete(err)
 		if errors.Is(err, pgx.ErrNoRows) {
-			return User{}, core.ErrNotFound
+			return User{}, persistence.ErrNotFound
 		}
 		return User{}, err
 	}
@@ -94,16 +93,16 @@ func (r *dbRepo) Get(ctx context.Context, username string, txs ...core.QueryOpti
 	return u, nil
 }
 
-func (r *dbRepo) Delete(ctx context.Context, username string, txs ...core.UpdateOptions) error {
-	m := db.StartMetric("DeleteUser")
-	tx := db.GetUpdateOptions(r.conn, txs...)
+func (r *dbRepo) Delete(ctx context.Context, username string, txs ...persistence.UpdateOptions) error {
+	m := persistence.StartMetric("DeleteUser")
+	tx := persistence.GetUpdateOptions(r.conn, txs...)
 
 	_, err := tx.Exec(ctx, `DELETE FROM users WHERE username = $1`, username)
 
 	if err != nil {
 		m.Complete(err)
 		if errors.Is(err, pgx.ErrNoRows) {
-			return core.ErrNotFound
+			return persistence.ErrNotFound
 		}
 		return err
 	}

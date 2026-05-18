@@ -10,8 +10,8 @@ import (
 	"testing"
 
 	"github.com/sksmith/go-micro-example/api"
-	"github.com/sksmith/go-micro-example/core"
 	"github.com/sksmith/go-micro-example/internal/auth"
+	"github.com/sksmith/go-micro-example/internal/platform/persistence"
 	"github.com/sksmith/go-micro-example/internal/user"
 )
 
@@ -21,7 +21,7 @@ func TestTokenEndpointIssuesJWTForValidCredentials(t *testing.T) {
 		if username == "alice" && password == "pw" {
 			return user.User{Username: "alice", IsAdmin: true}, nil
 		}
-		return user.User{}, core.ErrNotFound
+		return user.User{}, persistence.ErrNotFound
 	}
 	ts := httptest.NewServer(r)
 	defer ts.Close()
@@ -62,7 +62,7 @@ func TestTokenEndpointIssuesJWTForValidCredentials(t *testing.T) {
 func TestTokenEndpointRejectsBadCredentials(t *testing.T) {
 	r, usrSvc, _ := newTestRouterWithSigner()
 	usrSvc.LoginFunc = func(ctx context.Context, username, password string) (user.User, error) {
-		return user.User{}, core.ErrNotFound
+		return user.User{}, persistence.ErrNotFound
 	}
 	ts := httptest.NewServer(r)
 	defer ts.Close()
@@ -164,7 +164,7 @@ func TestProtectedRouteRejectsBasicAuth(t *testing.T) {
 		if username == "alice" && password == "pw" {
 			return user.User{Username: "alice", IsAdmin: true}, nil
 		}
-		return user.User{}, core.ErrNotFound
+		return user.User{}, persistence.ErrNotFound
 	}
 	ts := httptest.NewServer(r)
 	defer ts.Close()

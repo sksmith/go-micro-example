@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/sksmith/go-micro-example/events"
+	"github.com/sksmith/go-micro-example/internal/platform/events"
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
