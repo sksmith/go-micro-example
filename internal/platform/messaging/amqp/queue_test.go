@@ -3,7 +3,10 @@ package amqp
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	amqp091 "github.com/rabbitmq/amqp091-go"
 	"github.com/sksmith/go-micro-example/internal/platform/events"
@@ -274,4 +277,320 @@ func spanNames(spans []sdktrace.ReadOnlySpan) []string {
 		out = append(out, s.Name())
 	}
 	return out
+}
+
+// withShortBackoff drops the redial backoff so reconnect tests don't
+// burn 2 s per failed dial. Restored on cleanup.
+func withShortBackoff(t *testing.T) {
+	t.Helper()
+	prev := redialBackoff
+	redialBackoff = 10 * time.Millisecond
+	t.Cleanup(func() { redialBackoff = prev })
+}
+
+// waitFor polls condition every 5 ms up to 2 s. Used instead of
+// t.Eventually-style helpers (not in stdlib) to assert against goroutine
+// state without sleeping for a fixed duration.
+func waitFor(t *testing.T, condition func() bool, msg string) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if condition() {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatalf("waitFor timed out: %s", msg)
+}
+
+// TestRedial_DialFailureRetries pins the bug TST-003 was created
+// to expose: when the first dial fails, the redial loop must keep
+// retrying inside the *same* iteration so the consumer that already
+// took the sess channel at `<-sessions` eventually receives a real
+// Session on `<-session` once dialing succeeds. The pre-refactor
+// loop would `continue` out and re-offer sess to a fresh consumer,
+// deadlocking the existing one.
+func TestRedial_DialFailureRetries(t *testing.T) {
+	withShortBackoff(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	dialErr := errors.New("connection refused")
+	good := newFakeSession()
+	dialer := newScriptedDialer(
+		dialResult{err: dialErr},
+		dialResult{err: dialErr},
+		dialResult{session: good},
+	)
+
+	sessions := redialWith(ctx, dialer.asDialer())
+
+	// Consumer pulls a sess channel and then a session — mirrors the
+	// Publish loop's outer `for session := range sessions`.
+	sess := <-sessions
+	got := <-sess
+
+	if got != Session(good) {
+		t.Fatalf("expected dialer's third result, got %T", got)
+	}
+	if dialer.callCount() != 3 {
+		t.Errorf("dialer called %d times, want 3 (two failures then success)", dialer.callCount())
+	}
+}
+
+// TestRedial_CtxCancelDuringBackoffExitsCleanly proves the
+// dialUntilSuccess loop honours context cancellation between
+// failed dial attempts — otherwise a broker that's permanently
+// unreachable would block shutdown.
+func TestRedial_CtxCancelDuringBackoffExitsCleanly(t *testing.T) {
+	withShortBackoff(t)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	dialer := newScriptedDialer(
+		dialResult{err: errors.New("refused")},
+		dialResult{err: errors.New("refused")},
+		dialResult{err: errors.New("refused")},
+	)
+
+	sessions := redialWith(ctx, dialer.asDialer())
+	sess := <-sessions
+
+	// While the loop is retrying, cancel ctx and expect both
+	// `sessions` and the per-iteration `sess` to close.
+	cancel()
+
+	waitFor(t, func() bool {
+		select {
+		case _, ok := <-sessions:
+			return !ok // closed
+		default:
+			return false
+		}
+	}, "sessions channel never closed after ctx cancel")
+
+	// The session value channel we already pulled never receives a
+	// real session — it just exits via close-of-sessions semantics.
+	select {
+	case _, ok := <-sess:
+		if ok {
+			t.Errorf("sess yielded a Session despite ctx cancel during dial")
+		}
+	case <-time.After(50 * time.Millisecond):
+		// Acceptable: the loop returned without sending on sess.
+	}
+}
+
+// TestPublish_ConfirmSupportedPath drives the happy publish path:
+// Confirm returns nil (broker supports confirms), the message goes
+// out, the loop waits for a Confirmation, and once an Ack comes
+// back the producer span ends with codes.Ok. Exits cleanly when
+// the messages channel closes.
+func TestPublish_ConfirmSupportedPath(t *testing.T) {
+	recorder := withRecordingTracer(t)
+
+	fake := newFakeSession()
+	sessions := make(chan chan Session, 1)
+	sess := make(chan Session, 1)
+	sess <- fake
+	sessions <- sess
+	close(sessions)
+
+	messages := make(chan Message, 1)
+	sessionOK := make(chan struct{}, 1)
+
+	done := make(chan struct{})
+	go func() {
+		Publish(sessions, "test.exchange", messages, func() { sessionOK <- struct{}{} })
+		close(done)
+	}()
+
+	<-sessionOK // sanity: loop reached the per-session setup
+	messages <- NewMessage(context.Background(), []byte("payload"), "test.exchange")
+
+	waitFor(t, func() bool {
+		pub, _, ask, _ := fake.snapshot()
+		return ask && len(pub) == 1
+	}, "expected Confirm() + one Publish() call")
+
+	fake.confirms() <- amqp091.Confirmation{DeliveryTag: 1, Ack: true}
+
+	close(messages)
+	<-done
+
+	spans := recorder.Ended()
+	if len(spans) != 1 {
+		t.Fatalf("expected one producer span, got %d (%v)", len(spans), spanNames(spans))
+	}
+	if got := spans[0].Status().Code.String(); got != "Ok" {
+		t.Errorf("ack should set status Ok, got %q (desc=%q)", got, spans[0].Status().Description)
+	}
+}
+
+// TestPublish_NackEndsSpanError covers the broker-rejected path:
+// after a nack confirmation arrives the producer span ends with
+// codes.Error so dashboards see a failed publish without having to
+// poll log lines.
+func TestPublish_NackEndsSpanError(t *testing.T) {
+	recorder := withRecordingTracer(t)
+
+	fake := newFakeSession()
+	sessions := make(chan chan Session, 1)
+	sess := make(chan Session, 1)
+	sess <- fake
+	sessions <- sess
+	close(sessions)
+
+	messages := make(chan Message, 1)
+	sessionOK := make(chan struct{}, 1)
+	done := make(chan struct{})
+	go func() {
+		Publish(sessions, "test.exchange", messages, func() { sessionOK <- struct{}{} })
+		close(done)
+	}()
+	<-sessionOK
+	messages <- NewMessage(context.Background(), []byte("payload"), "test.exchange")
+
+	waitFor(t, func() bool {
+		pub, _, _, _ := fake.snapshot()
+		return len(pub) == 1
+	}, "Publish() never called")
+
+	fake.confirms() <- amqp091.Confirmation{DeliveryTag: 1, Ack: false}
+
+	close(messages)
+	<-done
+
+	spans := recorder.Ended()
+	if len(spans) != 1 {
+		t.Fatalf("expected one producer span, got %d", len(spans))
+	}
+	if got := spans[0].Status().Code.String(); got != "Error" {
+		t.Errorf("nack should set status Error, got %q", got)
+	}
+}
+
+// TestPublish_ConfirmsNotSupportedFallback covers the case where
+// the broker reports "publisher confirms not supported." The loop
+// calls Confirm(), gets the error back, closes its internal confirm
+// channel, and then bails out of the inner loop because the closed
+// channel keeps firing the receive case. We assert only that
+// Confirm() was attempted and the loop exited cleanly — the
+// internal "nack everything" sequencing is non-deterministic
+// (Go's select is randomised) and changing it is out of TST-003
+// scope. A real broker that doesn't support confirms is not a
+// production use case for this codebase.
+func TestPublish_ConfirmsNotSupportedFallback(t *testing.T) {
+	fake := newFakeSession()
+	fake.confirmErr = errors.New("publisher confirms not supported")
+
+	sessions := make(chan chan Session, 1)
+	sess := make(chan Session, 1)
+	sess <- fake
+	sessions <- sess
+	close(sessions)
+
+	messages := make(chan Message, 1)
+	done := make(chan struct{})
+	go func() {
+		Publish(sessions, "test.exchange", messages, nil)
+		close(done)
+	}()
+
+	messages <- NewMessage(context.Background(), []byte("payload"), "test.exchange")
+	close(messages)
+
+	select {
+	case <-done:
+		// Expected: loop unwound after the closed-confirm fallback.
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("Publish loop didn't exit after Confirm() returned not-supported")
+	}
+
+	_, _, ask, _ := fake.snapshot()
+	if !ask {
+		t.Error("Confirm() should have been called even when not supported")
+	}
+}
+
+// TestSubscribe_AckFailureIsLogged drives the consumer-side
+// error path: when Ack returns an error, the loop must log it
+// (otherwise a broken broker channel silently drops every
+// message). We can't easily intercept zerolog from inside the
+// package, so the test relies on the side-effect of `ackCalls`:
+// the loop must continue calling Ack on subsequent deliveries
+// despite the error (i.e. one failure doesn't kill the loop).
+func TestSubscribe_AckFailureIsLogged(t *testing.T) {
+	fake := newFakeSession()
+	fake.ackErr = errors.New("channel closed")
+
+	sessions := make(chan chan Session, 1)
+	sess := make(chan Session, 1)
+	sess <- fake
+	sessions <- sess
+	close(sessions)
+
+	out := make(chan Message, 4)
+	var observed atomic.Int32
+	done := make(chan struct{})
+
+	go func() {
+		Subscribe(sessions, "test.queue", out, nil)
+		close(done)
+	}()
+
+	// Drain `out` concurrently so the unbuffered send inside
+	// Subscribe doesn't block.
+	go func() {
+		for range out {
+			observed.Add(1)
+		}
+	}()
+
+	fake.deliveries <- amqp091.Delivery{DeliveryTag: 1, Body: []byte("msg-1")}
+	fake.deliveries <- amqp091.Delivery{DeliveryTag: 2, Body: []byte("msg-2")}
+
+	waitFor(t, func() bool {
+		_, acked, _, _ := fake.snapshot()
+		return len(acked) == 2
+	}, "expected two Ack attempts despite failure on the first")
+
+	// Closing deliveries lets Subscribe drop out of its inner range,
+	// and `sessions` is already closed from setup so the outer range
+	// exits too. Closing `out` flushes the draining goroutine.
+	close(fake.deliveries)
+	<-done
+	close(out)
+
+	if observed.Load() != 2 {
+		t.Errorf("loop dropped a delivery after Ack failure: observed=%d want=2", observed.Load())
+	}
+}
+
+// TestSubscribe_ConsumeErrorExits documents the fail-fast path:
+// when Consume returns an error (e.g. queue not declared, channel
+// already closed) the loop exits rather than spinning forever.
+// The Redial layer handles the reconnect; Subscribe just unwinds.
+func TestSubscribe_ConsumeErrorExits(t *testing.T) {
+	fake := newFakeSession()
+	fake.consumeErr = errors.New("NOT_FOUND - no queue 'absent'")
+
+	sessions := make(chan chan Session, 1)
+	sess := make(chan Session, 1)
+	sess <- fake
+	sessions <- sess
+	close(sessions)
+
+	out := make(chan Message)
+	done := make(chan struct{})
+	go func() {
+		Subscribe(sessions, "absent", out, nil)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// Expected: Subscribe exited because Consume errored.
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("Subscribe didn't return after Consume failure")
+	}
 }

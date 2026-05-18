@@ -110,28 +110,34 @@ func URL(cfg *config.Config) string {
 	return fmt.Sprintf("amqp://%s:%s@%s:%s", rmq.User.Value, rmq.Pass.Value, rmq.Host.Value, rmq.Port.Value)
 }
 
-// session composes an amqp.Connection with an amqp.Channel.
-type session struct {
-	*amqp.Connection
-	*amqp.Channel
-}
-
-func (s session) Close() error {
-	if s.Connection == nil {
-		return nil
-	}
-	return s.Connection.Close()
-}
+// redialBackoff bounds how long Redial waits between failed dial
+// attempts. Kept package-level (not const) so tests can shrink the
+// sleep without polluting the production path.
+var redialBackoff = 2 * time.Second
 
 // Redial continually connects to url, returning a channel of session
 // factories. Each emitted session represents a fresh (connection,
 // channel) pair; consumers read sessions sequentially as connections
 // drop and recover. The goroutine exits when ctx is cancelled.
-func Redial(ctx context.Context, url string) chan chan session {
-	sessions := make(chan chan session)
+func Redial(ctx context.Context, url string) chan chan Session {
+	return redialWith(ctx, realDialer(url))
+}
+
+// redialWith is the test seam for Redial. The production entry point
+// hands a Dialer that talks to a real broker; tests inject a fake
+// that scripts the exact sequence of (succeed | fail | dropped)
+// outcomes the loop has to handle. Behaviour mirrors Redial 1:1.
+//
+// Once a consumer has received the sess channel on `sessions`,
+// it is committed to receiving exactly one Session value on that
+// channel — so retries on dial failure happen *inside* this
+// iteration, not by re-offering sess to a fresh consumer (which
+// would deadlock with the consumer already parked at `<-session`).
+func redialWith(ctx context.Context, dialer Dialer) chan chan Session {
+	sessions := make(chan chan Session)
 
 	go func() {
-		sess := make(chan session)
+		sess := make(chan Session)
 		defer close(sessions)
 
 		for {
@@ -146,31 +152,16 @@ func Redial(ctx context.Context, url string) chan chan session {
 				return
 			}
 
-			conn, err := amqp.Dial(url)
-			if err != nil {
-				log.Error().Err(err).Str("url", url).Msg("cannot (re)dial; retrying")
-				select {
-				case <-ctx.Done():
-					return
-				case <-time.After(2 * time.Second):
-					continue
-				}
-			}
-
-			ch, err := conn.Channel()
-			if err != nil {
-				log.Error().Err(err).Msg("cannot create channel; retrying")
-				_ = conn.Close()
-				select {
-				case <-ctx.Done():
-					return
-				case <-time.After(2 * time.Second):
-					continue
-				}
+			s, ok := dialUntilSuccess(ctx, dialer)
+			if !ok {
+				// Context cancelled while retrying. The consumer
+				// that just took sess will see the channel close
+				// alongside `sessions` and exit its outer range.
+				return
 			}
 
 			select {
-			case sess <- session{conn, ch}:
+			case sess <- s:
 			case <-ctx.Done():
 				log.Info().Msg("shutting down new session")
 				return
@@ -181,13 +172,32 @@ func Redial(ctx context.Context, url string) chan chan session {
 	return sessions
 }
 
+// dialUntilSuccess retries dialer with redialBackoff between attempts
+// until the broker accepts a (connection, channel) pair or ctx
+// cancels. Returning (_, false) signals a context-driven shutdown so
+// the caller can unwind cleanly.
+func dialUntilSuccess(ctx context.Context, dialer Dialer) (Session, bool) {
+	for {
+		s, err := dialer(ctx)
+		if err == nil {
+			return s, true
+		}
+		log.Error().Err(err).Msg("cannot (re)dial; retrying")
+		select {
+		case <-ctx.Done():
+			return nil, false
+		case <-time.After(redialBackoff):
+		}
+	}
+}
+
 // Publish publishes messages to a reconnecting session against a
 // fanout exchange. Messages from messages are consumed and delivered;
 // the loop drains and retries on transient failures. onSession is
 // called each time a fresh (connection, channel) pair is obtained so
 // callers can track liveness for readiness probes (TST-004); nil is
 // allowed for callers that don't need the signal.
-func Publish(sessions chan chan session, exchange string, messages <-chan Message, onSession func()) {
+func Publish(sessions chan chan Session, exchange string, messages <-chan Message, onSession func()) {
 	for session := range sessions {
 		var (
 			running bool
@@ -211,9 +221,15 @@ func Publish(sessions chan chan session, exchange string, messages <-chan Messag
 
 		log.Debug().Str("exchange", exchange).Msg("ready to publish messages")
 
+		// body must outlive the inner-loop iteration so the confirm
+		// arrival a few selects later can still reach the message
+		// whose Publish call kicked it off. The pre-refactor loop
+		// declared `var body Message` inside the for, which meant
+		// every confirm/nack saw a zero-value body — TST-003 spans
+		// would never end and the nack log line printed empty bodies.
+		var body Message
 	Publish:
 		for {
-			var body Message
 			select {
 			case confirmed, ok := <-confirm:
 				if !ok {
@@ -312,7 +328,7 @@ func StartConsumerSpan(ctx context.Context, queue string, msg Message) (context.
 // Message so context propagation survives the broker hop. onSession
 // is called each time a fresh session is obtained and Consume
 // succeeds (TST-004); nil is allowed.
-func Subscribe(sessions chan chan session, queue string, messages chan<- Message, onSession func()) {
+func Subscribe(sessions chan chan Session, queue string, messages chan<- Message, onSession func()) {
 	for session := range sessions {
 		sub := <-session
 
