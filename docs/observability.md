@@ -32,8 +32,6 @@ focuses.
 
 ### What's not yet instrumented
 
-- **AMQP producer/consumer** — the queue subsystem doesn't yet
-  expose hook points. Tracked alongside TST-003 / TST-004.
 - **Service-layer custom spans** (e.g. `inventory.Service.Reserve`).
   The chi+pgx auto-instrumentation already covers ~80% of the
   signal a typical request needs; explicit business-operation
@@ -119,13 +117,22 @@ that carries `request_id`, and invokes the handler with that
 context — so logs emitted while processing a queued message tie
 back to the original HTTP request that produced it.
 
+DSN-004a additionally propagates W3C `traceparent` (and
+`tracestate` / baggage when present) through AMQP headers via a
+small `HeaderCarrier` adapter. `amqp.NewMessage` starts a
+`PRODUCER` span tagged with `messaging.system=rabbitmq` and the
+destination exchange, then injects the trace context into the
+outbound headers; the publish loop ends the span on broker
+confirm with `OK` on ack and `Error` on nack or publish failure.
+The consumer side calls `amqp.StartConsumerSpan` which extracts
+the trace context from the delivery headers and starts a
+`CONSUMER`-kind span that is a child of the producer's span,
+keeping the trace stitched end-to-end. When the producer was
+untraced (no `traceparent` on the wire) the consumer span is
+still created — just as a root rather than failing.
+
 ### What's not (yet) propagated
 
-- **Trace context across AMQP** — propagating W3C `traceparent`
-  through AMQP headers belongs to DSN-004a (AMQP tracing).
-  Once that lands, consumer-side spans will become children of
-  the producing request's span automatically; until then, only
-  `request_id` ferries across the queue.
 - **Outbound HTTP** — there is no outbound HTTP client in the
   service today. When one is added, use `otelhttp.Transport`
   for trace propagation; `request_id` can ride along in an

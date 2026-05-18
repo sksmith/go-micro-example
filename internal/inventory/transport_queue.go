@@ -13,6 +13,7 @@ import (
 	"github.com/sksmith/go-micro-example/internal/platform/events"
 	"github.com/sksmith/go-micro-example/internal/platform/messaging/amqp"
 	"github.com/sksmith/go-micro-example/internal/platform/observability"
+	"go.opentelemetry.io/otel/codes"
 )
 
 // amqpSessionStaleAfter bounds how long a publish/subscribe loop may
@@ -85,7 +86,7 @@ func (i *InventoryQueue) PublishInventory(ctx context.Context, productInventory 
 	if err != nil {
 		return fmt.Errorf("failed to serialize inventory event: %w", err)
 	}
-	i.inventory <- amqp.NewMessage(ctx, body)
+	i.inventory <- amqp.NewMessage(ctx, body, i.cfg.RabbitMQ.Inventory.Exchange.Value)
 	return nil
 }
 
@@ -94,7 +95,7 @@ func (i *InventoryQueue) PublishReservation(ctx context.Context, reservation Res
 	if err != nil {
 		return fmt.Errorf("failed to serialize reservation event: %w", err)
 	}
-	i.reservation <- amqp.NewMessage(ctx, body)
+	i.reservation <- amqp.NewMessage(ctx, body, i.cfg.RabbitMQ.Reservation.Exchange.Value)
 	return nil
 }
 
@@ -177,7 +178,7 @@ type ProductHandler interface {
 }
 
 func (p *ProductQueue) sendToDlt(ctx context.Context, body []byte) {
-	p.productDlt <- amqp.NewMessage(ctx, body)
+	p.productDlt <- amqp.NewMessage(ctx, body, p.cfg.RabbitMQ.Product.Dlt.Exchange.Value)
 }
 
 // handleProductMessage validates an incoming product message against
@@ -189,14 +190,24 @@ func (p *ProductQueue) handleProductMessage(ctx context.Context, handler Product
 	logger := log.With().Str("request_id", msg.RequestID).Logger()
 	msgCtx = logger.WithContext(msgCtx)
 
+	// DSN-004a: stitch the consumer span onto the producer's trace
+	// via the W3C headers the publisher injected. When the producer
+	// was untraced, this still creates a root consumer span so the
+	// consume work is observable in isolation.
+	msgCtx, span := amqp.StartConsumerSpan(msgCtx, p.cfg.RabbitMQ.Product.Queue.Value, msg)
+	defer span.End()
+
 	env, err := events.Validate(msg.Body)
 	if err != nil {
 		log.Ctx(msgCtx).Error().Err(err).Msg("invalid event, writing to dlt")
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "invalid event")
 		p.sendToDlt(msgCtx, msg.Body)
 		return
 	}
 	if env.EventType != events.TypeProductCreated {
 		log.Ctx(msgCtx).Error().Str("event_type", env.EventType).Msg("unsupported event type on product queue, writing to dlt")
+		span.SetStatus(codes.Error, "unsupported event type")
 		p.sendToDlt(msgCtx, msg.Body)
 		return
 	}
@@ -204,12 +215,16 @@ func (p *ProductQueue) handleProductMessage(ctx context.Context, handler Product
 	product := Product{}
 	if err := json.Unmarshal(env.Payload, &product); err != nil {
 		log.Ctx(msgCtx).Error().Err(err).Msg("failed to decode validated payload, writing to dlt")
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "decode payload")
 		p.sendToDlt(msgCtx, msg.Body)
 		return
 	}
 
 	if err := handler.CreateProduct(msgCtx, product); err != nil {
 		log.Ctx(msgCtx).Error().Err(err).Str("event_id", env.EventID).Msg("failed to create product, sending to dlt")
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "handler failure")
 		p.productDlt <- msg
 	}
 }
