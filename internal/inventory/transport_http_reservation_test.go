@@ -389,8 +389,10 @@ func TestReservationList(t *testing.T) {
 }
 
 func createReservationRequest(requestID, requester, sku string, quantity int64) *inventory.ReservationRequestDto {
-	return &inventory.ReservationRequestDto{ReservationRequest: &inventory.ReservationRequest{
-		Sku: sku, RequestID: requestID, Requester: requester, Quantity: quantity},
+	return &inventory.ReservationRequestDto{
+		ReservationRequest: &inventory.ReservationRequest{
+			Sku: sku, RequestID: requestID, Requester: requester, Quantity: quantity,
+		},
 	}
 }
 

@@ -95,7 +95,8 @@ func (a *Applier) Apply(ctx context.Context, eventID string, fn func(ctx context
 		return errors.New("idempotency: eventID is required")
 	}
 
-	tag, err := a.pool.Exec(ctx,
+	tag, err := a.pool.Exec(
+		ctx,
 		"INSERT INTO processed_events (event_id, consumer_group) VALUES ($1, $2) ON CONFLICT DO NOTHING",
 		eventID, a.consumerGroup,
 	)
@@ -114,7 +115,8 @@ func (a *Applier) Apply(ctx context.Context, eventID string, fn func(ctx context
 		// handler error — the next delivery will see the row and
 		// skip, but the consumer's bounded-retry/DLT logic will
 		// route it correctly.
-		if _, delErr := a.pool.Exec(ctx,
+		if _, delErr := a.pool.Exec(
+			ctx,
 			"DELETE FROM processed_events WHERE event_id = $1 AND consumer_group = $2",
 			eventID, a.consumerGroup,
 		); delErr != nil {
@@ -138,7 +140,8 @@ type CleanupResult struct {
 // retention window. Returns the number of rows removed.
 func (a *Applier) CleanupOnce(ctx context.Context, window time.Duration) (CleanupResult, error) {
 	cutoff := time.Now().Add(-window)
-	tag, err := a.pool.Exec(ctx,
+	tag, err := a.pool.Exec(
+		ctx,
 		"DELETE FROM processed_events WHERE processed_at < $1",
 		cutoff,
 	)

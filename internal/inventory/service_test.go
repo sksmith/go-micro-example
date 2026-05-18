@@ -2,13 +2,13 @@ package inventory_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"reflect"
 	"testing"
 	"time"
 
-	"errors"
 	"github.com/jackc/pgx/v5"
 	"github.com/sksmith/go-micro-example/internal/inventory"
 	"github.com/sksmith/go-micro-example/internal/platform/cache"

@@ -61,7 +61,8 @@ func runKafkaRoundTrip(ctx context.Context, cfg Config) (string, error) {
 	defer producer.Close()
 
 	const quantity = 7
-	env, err := events.NewEnvelope(uuid.NewString(), events.TypeRecordProduction, 1, time.Now(),
+	env, err := events.NewEnvelope(
+		uuid.NewString(), events.TypeRecordProduction, 1, time.Now(),
 		map[string]any{"sku": sku, "requestId": uuid.NewString(), "quantity": quantity},
 	)
 	if err != nil {

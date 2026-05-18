@@ -424,7 +424,6 @@ func loadLocalConfigs(filename string, config *Config) error {
 
 func ValueToConfigValue() mapstructure.DecodeHookFunc {
 	return func(f reflect.Value, t reflect.Value) (interface{}, error) {
-
 		if t.Kind() != reflect.Struct {
 			return f.Interface(), nil
 		}
@@ -569,7 +568,6 @@ func getInt(f reflect.Value) (int64, error) {
 }
 
 func loadRemoteConfigs(config *Config) error {
-
 	return nil
 }
 

@@ -1,0 +1,34 @@
+# OPS-003: pre-commit hooks. Install with `make precommit-install`
+# (or `pip install pre-commit && pre-commit install`). The hooks here
+# match the checks CI runs in lint.yml + secret.yml; running them
+# locally just catches drift before push.
+repos:
+  - repo: local
+    hooks:
+      - id: gofumpt
+        name: gofumpt
+        description: Apply gofumpt's stricter Go formatting (auto-fixes).
+        entry: gofumpt -l -w
+        language: system
+        types: [go]
+        # api/client/v1 is oapi-codegen output. Reformatting it would
+        # drift from the generator's output and break `make openapi-check`
+        # on the next regen. golangci-lint already auto-skips the file
+        # via its `Code generated ... DO NOT EDIT.` header; gofumpt does
+        # not honour that convention, so it must be excluded by path.
+        exclude: ^api/client/
+        require_serial: false
+
+      - id: golangci-lint
+        name: golangci-lint
+        description: Run golangci-lint with the project's .golangci.yml.
+        entry: golangci-lint run
+        language: system
+        types: [go]
+        pass_filenames: false
+        require_serial: true
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks

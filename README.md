@@ -624,8 +624,9 @@ exposed so you can run a single step in isolation:
 
 | Target | What it does |
 | --- | --- |
-| `make tools` | Installs `golangci-lint`, `gosec`, and `govulncheck` (pinned) into `$(go env GOPATH)/bin`. Run once before `make verify`, and re-run when bumping versions. |
-| `make fmt` | Runs `gofmt -l .` and exits non-zero if any file needs formatting. Does not modify files — fix with `gofmt -w <file>`. |
+| `make tools` | Installs `golangci-lint`, `gosec`, `govulncheck` (pinned), and `gofumpt` into `$(go env GOPATH)/bin`. Run once before `make verify`, and re-run when bumping versions. |
+| `make precommit-install` | Installs the local pre-commit hooks defined in [.pre-commit-config.yaml](.pre-commit-config.yaml) — `gofumpt`, `golangci-lint`, `gitleaks` (OPS-003). Requires the `pre-commit` CLI (`brew install pre-commit` on macOS, `pip install pre-commit` elsewhere) and `$(go env GOPATH)/bin` on `PATH` so the hooks can find `gofumpt` and `golangci-lint` after `make tools`. |
+| `make fmt` | Runs `gofmt -l .` and exits non-zero if any file needs formatting. Does not modify files — fix with `gofmt -w <file>`. The `lint` step additionally enforces gofumpt's stricter rules via golangci-lint's formatter pipeline. |
 | `make vet` | Runs `go vet ./...`. |
 | `make lint` | Runs `golangci-lint run` with the project defaults. |
 | `make sec` | Runs `gosec ./...` (CWE-tagged static analysis). |

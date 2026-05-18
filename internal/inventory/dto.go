@@ -87,8 +87,7 @@ func (p *CreateProductionEventRequest) Bind(_ *http.Request) error {
 	return nil
 }
 
-type ProductionEventResponse struct {
-} // @name ProductionEventResponse
+type ProductionEventResponse struct{} // @name ProductionEventResponse
 
 func (p *ProductionEventResponse) Render(_ http.ResponseWriter, _ *http.Request) error {
 	return nil

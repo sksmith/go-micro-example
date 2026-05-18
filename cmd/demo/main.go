@@ -160,7 +160,8 @@ func printSummary(w *os.File, results []Result) {
 		if trace == "" {
 			trace = "—"
 		}
-		_, _ = fmt.Fprintf(w, "%-14s %-32s %-6s %10s %s\n",
+		_, _ = fmt.Fprintf(
+			w, "%-14s %-32s %-6s %10s %s\n",
 			r.Capability,
 			truncate(r.Name, 32),
 			r.Status,

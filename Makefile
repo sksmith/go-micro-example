@@ -68,11 +68,23 @@ tools:
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 	go install github.com/swaggo/swag/v2/cmd/swag@latest
 	go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
+	# OPS-003: gofumpt enforces stricter Go formatting; the
+	# pre-commit hook and golangci-lint formatter both depend on it.
+	go install mvdan.cc/gofumpt@latest
 	# govulncheck is pinned (not @latest) so the tool surface that
 	# decides whether `make verify` passes is reproducible across
 	# developer machines and CI. Bump intentionally; the other tools
 	# above are still @latest pending a similar pass.
 	go install golang.org/x/vuln/cmd/govulncheck@v1.3.0
+
+# OPS-003: install pre-commit hooks against .pre-commit-config.yaml.
+# Requires the `pre-commit` CLI (brew install pre-commit on macOS,
+# pip install pre-commit elsewhere). The hooks shell out to gofumpt
+# and golangci-lint, both installed by `make tools`.
+.PHONY: precommit-install
+precommit-install:
+	@command -v pre-commit >/dev/null 2>&1 || { echo "pre-commit not found. Install via 'brew install pre-commit' (macOS) or 'pip install pre-commit'."; exit 1; }
+	pre-commit install
 
 .PHONY: openapi clients clients-go clients-ts openapi-check
 openapi:

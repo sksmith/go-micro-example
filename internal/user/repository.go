@@ -98,7 +98,6 @@ func (r *dbRepo) Delete(ctx context.Context, username string, txs ...persistence
 	tx := persistence.GetUpdateOptions(r.conn, txs...)
 
 	_, err := tx.Exec(ctx, `DELETE FROM users WHERE username = $1`, username)
-
 	if err != nil {
 		m.Complete(err)
 		if errors.Is(err, pgx.ErrNoRows) {
