@@ -12,10 +12,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/gobwas/ws"
-	"github.com/sksmith/go-micro-example/core"
 	"github.com/sksmith/go-micro-example/internal/inventory"
 	"github.com/sksmith/go-micro-example/internal/platform/httpx"
-	"github.com/sksmith/go-micro-example/testutil"
+	"github.com/sksmith/go-micro-example/internal/platform/persistence"
+	"github.com/sksmith/go-micro-example/internal/testutil"
 )
 
 func TestReservationSubscribe(t *testing.T) {
@@ -107,7 +107,7 @@ func TestReservationGet(t *testing.T) {
 		},
 		{
 			getReservationFunc: func(ctx context.Context, ID uint64) (inventory.Reservation, error) {
-				return inventory.Reservation{}, core.ErrNotFound
+				return inventory.Reservation{}, persistence.ErrNotFound
 			},
 			ID:             "1",
 			wantResponse:   nil,
@@ -208,7 +208,7 @@ func TestReservationCreate(t *testing.T) {
 		},
 		{
 			reserveFunc: func(ctx context.Context, rr inventory.ReservationRequest) (inventory.Reservation, error) {
-				return inventory.Reservation{}, core.ErrNotFound
+				return inventory.Reservation{}, persistence.ErrNotFound
 			},
 			request:        createReservationRequest("requestid1", "requester1", "sku1", 1),
 			wantResponse:   nil,
@@ -326,7 +326,7 @@ func TestReservationList(t *testing.T) {
 		},
 		{
 			getReservationsFunc: func(ctx context.Context, options inventory.GetReservationsOptions, limit int, offset int) ([]inventory.Reservation, error) {
-				return []inventory.Reservation{}, core.ErrNotFound
+				return []inventory.Reservation{}, persistence.ErrNotFound
 			},
 			url:            ts.URL,
 			wantResponse:   httpx.NotFoundProblem(),

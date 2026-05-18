@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sksmith/go-micro-example/core/observability"
 	"github.com/sksmith/go-micro-example/internal/catalog"
+	"github.com/sksmith/go-micro-example/internal/platform/observability"
 )
 
 func newClient(t *testing.T, server *httptest.Server, cfg catalog.Config) *catalog.HTTPClient {

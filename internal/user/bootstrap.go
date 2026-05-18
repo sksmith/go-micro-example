@@ -7,7 +7,7 @@ import (
 
 	"errors"
 	"github.com/rs/zerolog/log"
-	"github.com/sksmith/go-micro-example/core"
+	"github.com/sksmith/go-micro-example/internal/platform/persistence"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -46,7 +46,7 @@ func Bootstrap(ctx context.Context, repo Repository, profile, bootstrapPassword 
 	existing, getErr := repo.Get(ctx, AdminUsername)
 	hasSeedAdmin := getErr == nil && existing.HashedPassword == SeedAdminHash
 	switch {
-	case errors.Is(getErr, core.ErrNotFound):
+	case errors.Is(getErr, persistence.ErrNotFound):
 		// fall through; create below
 	case getErr != nil:
 		return getErr

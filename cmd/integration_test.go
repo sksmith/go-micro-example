@@ -14,11 +14,11 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/api"
 	"github.com/sksmith/go-micro-example/config"
-	"github.com/sksmith/go-micro-example/db"
 	"github.com/sksmith/go-micro-example/internal/inventory"
+	"github.com/sksmith/go-micro-example/internal/platform/messaging/amqp"
+	"github.com/sksmith/go-micro-example/internal/platform/persistence"
+	"github.com/sksmith/go-micro-example/internal/testutil"
 	"github.com/sksmith/go-micro-example/internal/user"
-	"github.com/sksmith/go-micro-example/queue"
-	"github.com/sksmith/go-micro-example/testutil"
 )
 
 var cfg *config.Config
@@ -40,7 +40,7 @@ func TestMain(m *testing.M) {
 
 	cfg.Print()
 
-	dbPool, err := db.ConnectDb(ctx, cfg)
+	dbPool, err := persistence.ConnectDb(ctx, cfg)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to connect to db")
 	}

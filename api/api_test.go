@@ -13,8 +13,8 @@ import (
 	"github.com/sksmith/go-micro-example/config"
 	"github.com/sksmith/go-micro-example/internal/auth"
 	"github.com/sksmith/go-micro-example/internal/inventory"
+	"github.com/sksmith/go-micro-example/internal/testutil"
 	"github.com/sksmith/go-micro-example/internal/user"
-	"github.com/sksmith/go-micro-example/testutil"
 )
 
 func TestMain(m *testing.M) {

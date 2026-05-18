@@ -8,11 +8,10 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/sksmith/go-micro-example/api"
 	"github.com/sksmith/go-micro-example/internal/auth"
 	"github.com/sksmith/go-micro-example/internal/platform/httpx"
+	"github.com/sksmith/go-micro-example/internal/testutil"
 	"github.com/sksmith/go-micro-example/internal/user"
-	"github.com/sksmith/go-micro-example/testutil"
 )
 
 func TestUserCreate(t *testing.T) {
@@ -130,7 +129,7 @@ func setupUserTestServer(t *testing.T) (*httptest.Server, *user.MockUserService,
 		t.Fatal(err)
 	}
 	r := chi.NewRouter()
-	r.With(api.Authenticate(signer), api.AdminOnly).Route("/", func(r chi.Router) {
+	r.With(auth.Authenticate(signer), auth.AdminOnly).Route("/", func(r chi.Router) {
 		usrApi.ConfigureRouter(r)
 	})
 	ts := httptest.NewServer(r)

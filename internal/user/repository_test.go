@@ -8,8 +8,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/pashagolub/pgxmock/v4"
-	"github.com/sksmith/go-micro-example/core"
-	"github.com/sksmith/go-micro-example/core/cache"
+	"github.com/sksmith/go-micro-example/internal/platform/cache"
+	"github.com/sksmith/go-micro-example/internal/platform/persistence"
 	"github.com/sksmith/go-micro-example/internal/user"
 )
 
@@ -128,7 +128,7 @@ func TestRepositoryGet(t *testing.T) {
 			WillReturnError(pgx.ErrNoRows)
 
 		_, err := repo.Get(context.Background(), "missing")
-		if !errors.Is(err, core.ErrNotFound) {
+		if !errors.Is(err, persistence.ErrNotFound) {
 			t.Errorf("expected ErrNotFound, got %v", err)
 		}
 	})

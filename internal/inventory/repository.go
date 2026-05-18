@@ -7,24 +7,23 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog/log"
-	"github.com/sksmith/go-micro-example/core"
-	"github.com/sksmith/go-micro-example/db"
+	"github.com/sksmith/go-micro-example/internal/platform/persistence"
 )
 
 type dbRepo struct {
-	conn core.Conn
+	conn persistence.Conn
 }
 
-func NewPostgresRepo(conn core.Conn) *dbRepo {
+func NewPostgresRepo(conn persistence.Conn) *dbRepo {
 	log.Info().Msg("creating inventory repository...")
 	return &dbRepo{
 		conn: conn,
 	}
 }
 
-func (d *dbRepo) SaveProduct(ctx context.Context, product Product, options ...core.UpdateOptions) error {
-	m := db.StartMetric("SaveProduct")
-	tx := db.GetUpdateOptions(d.conn, options...)
+func (d *dbRepo) SaveProduct(ctx context.Context, product Product, options ...persistence.UpdateOptions) error {
+	m := persistence.StartMetric("SaveProduct")
+	tx := persistence.GetUpdateOptions(d.conn, options...)
 
 	ct, err := tx.Exec(ctx, `
 		UPDATE products
@@ -49,9 +48,9 @@ func (d *dbRepo) SaveProduct(ctx context.Context, product Product, options ...co
 	return nil
 }
 
-func (d *dbRepo) SaveProductInventory(ctx context.Context, productInventory ProductInventory, options ...core.UpdateOptions) error {
-	m := db.StartMetric("SaveProductInventory")
-	tx := db.GetUpdateOptions(d.conn, options...)
+func (d *dbRepo) SaveProductInventory(ctx context.Context, productInventory ProductInventory, options ...persistence.UpdateOptions) error {
+	m := persistence.StartMetric("SaveProductInventory")
+	tx := persistence.GetUpdateOptions(d.conn, options...)
 
 	ct, err := tx.Exec(ctx, `
 		UPDATE product_inventory
@@ -75,9 +74,9 @@ func (d *dbRepo) SaveProductInventory(ctx context.Context, productInventory Prod
 	return nil
 }
 
-func (d *dbRepo) GetProduct(ctx context.Context, sku string, options ...core.QueryOptions) (Product, error) {
-	m := db.StartMetric("GetProduct")
-	tx, forUpdate := db.GetQueryOptions(d.conn, options...)
+func (d *dbRepo) GetProduct(ctx context.Context, sku string, options ...persistence.QueryOptions) (Product, error) {
+	m := persistence.StartMetric("GetProduct")
+	tx, forUpdate := persistence.GetQueryOptions(d.conn, options...)
 
 	product := Product{}
 	err := tx.QueryRow(ctx, `SELECT sku, upc, name FROM products WHERE sku = $1 `+forUpdate, sku).
@@ -86,7 +85,7 @@ func (d *dbRepo) GetProduct(ctx context.Context, sku string, options ...core.Que
 	if err != nil {
 		m.Complete(err)
 		if errors.Is(err, pgx.ErrNoRows) {
-			return product, core.ErrNotFound
+			return product, persistence.ErrNotFound
 		}
 		return product, err
 	}
@@ -95,9 +94,9 @@ func (d *dbRepo) GetProduct(ctx context.Context, sku string, options ...core.Que
 	return product, nil
 }
 
-func (d *dbRepo) GetProductInventory(ctx context.Context, sku string, options ...core.QueryOptions) (ProductInventory, error) {
-	m := db.StartMetric("GetProductInventory")
-	tx, forUpdate := db.GetQueryOptions(d.conn, options...)
+func (d *dbRepo) GetProductInventory(ctx context.Context, sku string, options ...persistence.QueryOptions) (ProductInventory, error) {
+	m := persistence.StartMetric("GetProductInventory")
+	tx, forUpdate := persistence.GetQueryOptions(d.conn, options...)
 
 	productInventory := ProductInventory{}
 	err := tx.QueryRow(ctx, `SELECT p.sku, p.upc, p.name, pi.available FROM products p, product_inventory pi WHERE p.sku = $1 AND p.sku = pi.sku `+forUpdate, sku).
@@ -106,7 +105,7 @@ func (d *dbRepo) GetProductInventory(ctx context.Context, sku string, options ..
 	if err != nil {
 		m.Complete(err)
 		if errors.Is(err, pgx.ErrNoRows) {
-			return productInventory, core.ErrNotFound
+			return productInventory, persistence.ErrNotFound
 		}
 		return productInventory, err
 	}
@@ -115,9 +114,9 @@ func (d *dbRepo) GetProductInventory(ctx context.Context, sku string, options ..
 	return productInventory, nil
 }
 
-func (d *dbRepo) GetAllProductInventory(ctx context.Context, limit int, offset int, options ...core.QueryOptions) ([]ProductInventory, error) {
-	m := db.StartMetric("GetAllProducts")
-	tx, forUpdate := db.GetQueryOptions(d.conn, options...)
+func (d *dbRepo) GetAllProductInventory(ctx context.Context, limit int, offset int, options ...persistence.QueryOptions) ([]ProductInventory, error) {
+	m := persistence.StartMetric("GetAllProducts")
+	tx, forUpdate := persistence.GetQueryOptions(d.conn, options...)
 
 	products := make([]ProductInventory, 0)
 	rows, err := tx.Query(ctx,
@@ -126,7 +125,7 @@ func (d *dbRepo) GetAllProductInventory(ctx context.Context, limit int, offset i
 	if err != nil {
 		m.Complete(err)
 		if errors.Is(err, pgx.ErrNoRows) {
-			return products, core.ErrNotFound
+			return products, persistence.ErrNotFound
 		}
 		return nil, err
 	}
@@ -138,7 +137,7 @@ func (d *dbRepo) GetAllProductInventory(ctx context.Context, limit int, offset i
 		if err != nil {
 			m.Complete(err)
 			if errors.Is(err, pgx.ErrNoRows) {
-				return nil, core.ErrNotFound
+				return nil, persistence.ErrNotFound
 			}
 			return nil, err
 		}
@@ -149,9 +148,9 @@ func (d *dbRepo) GetAllProductInventory(ctx context.Context, limit int, offset i
 	return products, nil
 }
 
-func (d *dbRepo) GetProductionEventByRequestID(ctx context.Context, requestID string, options ...core.QueryOptions) (pe ProductionEvent, err error) {
-	m := db.StartMetric("GetProductionEventByRequestID")
-	tx, forUpdate := db.GetQueryOptions(d.conn, options...)
+func (d *dbRepo) GetProductionEventByRequestID(ctx context.Context, requestID string, options ...persistence.QueryOptions) (pe ProductionEvent, err error) {
+	m := persistence.StartMetric("GetProductionEventByRequestID")
+	tx, forUpdate := persistence.GetQueryOptions(d.conn, options...)
 
 	pe = ProductionEvent{}
 	err = tx.QueryRow(ctx, `SELECT id, request_id, sku, quantity, created FROM production_events `+forUpdate+` WHERE request_id = $1 `+forUpdate, requestID).
@@ -160,7 +159,7 @@ func (d *dbRepo) GetProductionEventByRequestID(ctx context.Context, requestID st
 	if err != nil {
 		m.Complete(err)
 		if errors.Is(err, pgx.ErrNoRows) {
-			return pe, core.ErrNotFound
+			return pe, persistence.ErrNotFound
 		}
 		return pe, err
 	}
@@ -169,9 +168,9 @@ func (d *dbRepo) GetProductionEventByRequestID(ctx context.Context, requestID st
 	return pe, nil
 }
 
-func (d *dbRepo) SaveProductionEvent(ctx context.Context, event *ProductionEvent, options ...core.UpdateOptions) error {
-	m := db.StartMetric("SaveProductionEvent")
-	tx := db.GetUpdateOptions(d.conn, options...)
+func (d *dbRepo) SaveProductionEvent(ctx context.Context, event *ProductionEvent, options ...persistence.UpdateOptions) error {
+	m := persistence.StartMetric("SaveProductionEvent")
+	tx := persistence.GetUpdateOptions(d.conn, options...)
 
 	insert := `INSERT INTO production_events (request_id, sku, quantity, created)
 			       VALUES ($1, $2, $3, $4) RETURNING id;`
@@ -180,7 +179,7 @@ func (d *dbRepo) SaveProductionEvent(ctx context.Context, event *ProductionEvent
 	if err != nil {
 		m.Complete(err)
 		if errors.Is(err, pgx.ErrNoRows) {
-			return core.ErrNotFound
+			return persistence.ErrNotFound
 		}
 		return err
 	}
@@ -188,9 +187,9 @@ func (d *dbRepo) SaveProductionEvent(ctx context.Context, event *ProductionEvent
 	return nil
 }
 
-func (d *dbRepo) SaveReservation(ctx context.Context, r *Reservation, options ...core.UpdateOptions) error {
-	m := db.StartMetric("SaveReservation")
-	tx := db.GetUpdateOptions(d.conn, options...)
+func (d *dbRepo) SaveReservation(ctx context.Context, r *Reservation, options ...persistence.UpdateOptions) error {
+	m := persistence.StartMetric("SaveReservation")
+	tx := persistence.GetUpdateOptions(d.conn, options...)
 
 	insert := `INSERT INTO reservations (request_id, requester, sku, state, reserved_quantity, requested_quantity, created)
                       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id;`
@@ -198,7 +197,7 @@ func (d *dbRepo) SaveReservation(ctx context.Context, r *Reservation, options ..
 	if err != nil {
 		m.Complete(err)
 		if errors.Is(err, pgx.ErrNoRows) {
-			return core.ErrNotFound
+			return persistence.ErrNotFound
 		}
 		return err
 	}
@@ -206,9 +205,9 @@ func (d *dbRepo) SaveReservation(ctx context.Context, r *Reservation, options ..
 	return nil
 }
 
-func (d *dbRepo) UpdateReservation(ctx context.Context, ID uint64, state ReserveState, qty int64, options ...core.UpdateOptions) error {
-	m := db.StartMetric("UpdateReservation")
-	tx := db.GetUpdateOptions(d.conn, options...)
+func (d *dbRepo) UpdateReservation(ctx context.Context, ID uint64, state ReserveState, qty int64, options ...persistence.UpdateOptions) error {
+	m := persistence.StartMetric("UpdateReservation")
+	tx := persistence.GetUpdateOptions(d.conn, options...)
 
 	update := `UPDATE reservations SET state = $2, reserved_quantity = $3 WHERE id=$1;`
 	_, err := tx.Exec(ctx, update, ID, state, qty)
@@ -222,9 +221,9 @@ func (d *dbRepo) UpdateReservation(ctx context.Context, ID uint64, state Reserve
 
 const reservationFields = "id, request_id, requester, sku, state, reserved_quantity, requested_quantity, created"
 
-func (d *dbRepo) GetReservations(ctx context.Context, resOptions GetReservationsOptions, limit, offset int, options ...core.QueryOptions) ([]Reservation, error) {
-	m := db.StartMetric("GetSkuOpenReserves")
-	tx, forUpdate := db.GetQueryOptions(d.conn, options...)
+func (d *dbRepo) GetReservations(ctx context.Context, resOptions GetReservationsOptions, limit, offset int, options ...persistence.QueryOptions) ([]Reservation, error) {
+	m := persistence.StartMetric("GetSkuOpenReserves")
+	tx, forUpdate := persistence.GetQueryOptions(d.conn, options...)
 
 	params := make([]interface{}, 0)
 	params = append(params, limit)
@@ -262,7 +261,7 @@ func (d *dbRepo) GetReservations(ctx context.Context, resOptions GetReservations
 	if err != nil {
 		m.Complete(err)
 		if errors.Is(err, pgx.ErrNoRows) {
-			return reservations, core.ErrNotFound
+			return reservations, persistence.ErrNotFound
 		}
 		return nil, err
 	}
@@ -282,9 +281,9 @@ func (d *dbRepo) GetReservations(ctx context.Context, resOptions GetReservations
 	return reservations, nil
 }
 
-func (d *dbRepo) GetReservationByRequestID(ctx context.Context, requestId string, options ...core.QueryOptions) (Reservation, error) {
-	m := db.StartMetric("GetReservationByRequestID")
-	tx, forUpdate := db.GetQueryOptions(d.conn, options...)
+func (d *dbRepo) GetReservationByRequestID(ctx context.Context, requestId string, options ...persistence.QueryOptions) (Reservation, error) {
+	m := persistence.StartMetric("GetReservationByRequestID")
+	tx, forUpdate := persistence.GetQueryOptions(d.conn, options...)
 
 	r := Reservation{}
 	err := tx.QueryRow(ctx,
@@ -293,7 +292,7 @@ func (d *dbRepo) GetReservationByRequestID(ctx context.Context, requestId string
 	if err != nil {
 		m.Complete(err)
 		if errors.Is(err, pgx.ErrNoRows) {
-			return r, core.ErrNotFound
+			return r, persistence.ErrNotFound
 		}
 		return r, err
 	}
@@ -302,9 +301,9 @@ func (d *dbRepo) GetReservationByRequestID(ctx context.Context, requestId string
 	return r, nil
 }
 
-func (d *dbRepo) GetReservation(ctx context.Context, ID uint64, options ...core.QueryOptions) (Reservation, error) {
-	m := db.StartMetric("GetReservation")
-	tx, forUpdate := db.GetQueryOptions(d.conn, options...)
+func (d *dbRepo) GetReservation(ctx context.Context, ID uint64, options ...persistence.QueryOptions) (Reservation, error) {
+	m := persistence.StartMetric("GetReservation")
+	tx, forUpdate := persistence.GetQueryOptions(d.conn, options...)
 
 	r := Reservation{}
 	err := tx.QueryRow(ctx,
@@ -313,7 +312,7 @@ func (d *dbRepo) GetReservation(ctx context.Context, ID uint64, options ...core.
 	if err != nil {
 		m.Complete(err)
 		if errors.Is(err, pgx.ErrNoRows) {
-			return r, core.ErrNotFound
+			return r, persistence.ErrNotFound
 		}
 		return r, err
 	}
@@ -322,7 +321,7 @@ func (d *dbRepo) GetReservation(ctx context.Context, ID uint64, options ...core.
 	return r, nil
 }
 
-func (d *dbRepo) BeginTransaction(ctx context.Context) (core.Transaction, error) {
+func (d *dbRepo) BeginTransaction(ctx context.Context) (persistence.Transaction, error) {
 	tx, err := d.conn.Begin(ctx)
 	if err != nil {
 		return nil, err

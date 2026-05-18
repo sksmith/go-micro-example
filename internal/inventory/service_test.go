@@ -10,12 +10,10 @@ import (
 
 	"errors"
 	"github.com/jackc/pgx/v5"
-	"github.com/sksmith/go-micro-example/core"
-	"github.com/sksmith/go-micro-example/core/cache"
-	"github.com/sksmith/go-micro-example/db"
 	"github.com/sksmith/go-micro-example/internal/inventory"
-	"github.com/sksmith/go-micro-example/queue"
-	"github.com/sksmith/go-micro-example/testutil"
+	"github.com/sksmith/go-micro-example/internal/platform/cache"
+	"github.com/sksmith/go-micro-example/internal/platform/persistence"
+	"github.com/sksmith/go-micro-example/internal/testutil"
 )
 
 func TestMain(m *testing.M) {
@@ -59,7 +57,7 @@ func verifyRepoCalls(t *testing.T, m *inventory.MockRepo, want repoCounts) {
 	}
 }
 
-func verifyTxCalls(t *testing.T, m *db.MockTransaction, want txCounts) {
+func verifyTxCalls(t *testing.T, m *persistence.MockTransaction, want txCounts) {
 	t.Helper()
 	if m.CommitCalls != want.Commit {
 		t.Errorf("Commit calls got=%d want=%d", m.CommitCalls, want.Commit)
@@ -70,10 +68,10 @@ func verifyTxCalls(t *testing.T, m *db.MockTransaction, want txCounts) {
 }
 
 // verifySubTxCalls mirrors verifyTxCalls but for the sub-transaction
-// mock used in TestFillReserves, which is a *db.MockPgxTx (the
+// mock used in TestFillReserves, which is a *persistence.MockPgxTx (the
 // pgx.Tx-shaped mock returned from a transaction's own Begin call)
-// rather than a *db.MockTransaction.
-func verifySubTxCalls(t *testing.T, m *db.MockPgxTx, want txCounts) {
+// rather than a *persistence.MockTransaction.
+func verifySubTxCalls(t *testing.T, m *persistence.MockPgxTx, want txCounts) {
 	t.Helper()
 	if m.CommitCalls != want.Commit {
 		t.Errorf("sub-tx Commit calls got=%d want=%d", m.CommitCalls, want.Commit)
@@ -83,7 +81,7 @@ func verifySubTxCalls(t *testing.T, m *db.MockPgxTx, want txCounts) {
 	}
 }
 
-func verifyQueueCalls(t *testing.T, m *queue.MockQueue, want queueCounts) {
+func verifyQueueCalls(t *testing.T, m *inventory.MockQueue, want queueCounts) {
 	t.Helper()
 	if m.PublishInventoryCalls != want.PublishInventory {
 		t.Errorf("PublishInventory calls got=%d want=%d", m.PublishInventoryCalls, want.PublishInventory)
@@ -99,11 +97,11 @@ func TestCreateProduct(t *testing.T) {
 
 		product inventory.Product
 
-		getProductFunc           func(ctx context.Context, sku string, options ...core.QueryOptions) (inventory.Product, error)
-		saveProductFunc          func(ctx context.Context, product inventory.Product, options ...core.UpdateOptions) error
-		saveProductInventoryFunc func(ctx context.Context, productInventory inventory.ProductInventory, options ...core.UpdateOptions) error
+		getProductFunc           func(ctx context.Context, sku string, options ...persistence.QueryOptions) (inventory.Product, error)
+		saveProductFunc          func(ctx context.Context, product inventory.Product, options ...persistence.UpdateOptions) error
+		saveProductInventoryFunc func(ctx context.Context, productInventory inventory.ProductInventory, options ...persistence.UpdateOptions) error
 
-		beginTransactionFunc func(ctx context.Context) (core.Transaction, error)
+		beginTransactionFunc func(ctx context.Context) (persistence.Transaction, error)
 		commitFunc           func(ctx context.Context) error
 
 		wantRepoCalls repoCounts
@@ -122,7 +120,7 @@ func TestCreateProduct(t *testing.T) {
 			name:    "product already exists",
 			product: inventory.Product{Name: "productname", Sku: "productsku", Upc: "productupc"},
 
-			getProductFunc: func(ctx context.Context, sku string, options ...core.QueryOptions) (inventory.Product, error) {
+			getProductFunc: func(ctx context.Context, sku string, options ...persistence.QueryOptions) (inventory.Product, error) {
 				return inventory.Product{Name: "productname", Sku: "productsku", Upc: "productupc"}, nil
 			},
 
@@ -134,7 +132,7 @@ func TestCreateProduct(t *testing.T) {
 			name:    "unexpected error getting product",
 			product: inventory.Product{Name: "productname", Sku: "productsku", Upc: "productupc"},
 
-			getProductFunc: func(ctx context.Context, sku string, options ...core.QueryOptions) (inventory.Product, error) {
+			getProductFunc: func(ctx context.Context, sku string, options ...persistence.QueryOptions) (inventory.Product, error) {
 				return inventory.Product{}, errors.New("some unexpected error")
 			},
 
@@ -146,7 +144,7 @@ func TestCreateProduct(t *testing.T) {
 			name:    "unexpected error saving product",
 			product: inventory.Product{Name: "productname", Sku: "productsku", Upc: "productupc"},
 
-			saveProductFunc: func(ctx context.Context, product inventory.Product, options ...core.UpdateOptions) error {
+			saveProductFunc: func(ctx context.Context, product inventory.Product, options ...persistence.UpdateOptions) error {
 				return errors.New("some unexpected error")
 			},
 
@@ -158,7 +156,7 @@ func TestCreateProduct(t *testing.T) {
 			name:    "unexpected error saving product inventory",
 			product: inventory.Product{Name: "productname", Sku: "productsku", Upc: "productupc"},
 
-			saveProductInventoryFunc: func(ctx context.Context, productInventory inventory.ProductInventory, options ...core.UpdateOptions) error {
+			saveProductInventoryFunc: func(ctx context.Context, productInventory inventory.ProductInventory, options ...persistence.UpdateOptions) error {
 				return errors.New("some unexpected error")
 			},
 
@@ -170,7 +168,9 @@ func TestCreateProduct(t *testing.T) {
 			name:    "unexpected error beginning transaction",
 			product: inventory.Product{Name: "productname", Sku: "productsku", Upc: "productupc"},
 
-			beginTransactionFunc: func(ctx context.Context) (core.Transaction, error) { return nil, errors.New("some unexpected error") },
+			beginTransactionFunc: func(ctx context.Context) (persistence.Transaction, error) {
+				return nil, errors.New("some unexpected error")
+			},
 
 			wantRepoCalls: repoCounts{SaveProduct: 0, SaveProductInventory: 0},
 			wantTxCalls:   txCounts{Commit: 0, Rollback: 0},
@@ -193,8 +193,8 @@ func TestCreateProduct(t *testing.T) {
 		if test.getProductFunc != nil {
 			mockRepo.GetProductFunc = test.getProductFunc
 		} else {
-			mockRepo.GetProductFunc = func(ctx context.Context, sku string, options ...core.QueryOptions) (inventory.Product, error) {
-				return inventory.Product{}, core.ErrNotFound
+			mockRepo.GetProductFunc = func(ctx context.Context, sku string, options ...persistence.QueryOptions) (inventory.Product, error) {
+				return inventory.Product{}, persistence.ErrNotFound
 			}
 		}
 		if test.saveProductFunc != nil {
@@ -204,11 +204,11 @@ func TestCreateProduct(t *testing.T) {
 			mockRepo.SaveProductInventoryFunc = test.saveProductInventoryFunc
 		}
 
-		mockTx := db.NewMockTransaction()
+		mockTx := persistence.NewMockTransaction()
 		if test.beginTransactionFunc != nil {
 			mockRepo.BeginTransactionFunc = test.beginTransactionFunc
 		} else {
-			mockRepo.BeginTransactionFunc = func(ctx context.Context) (core.Transaction, error) {
+			mockRepo.BeginTransactionFunc = func(ctx context.Context) (persistence.Transaction, error) {
 				return mockTx, nil
 			}
 		}
@@ -217,7 +217,7 @@ func TestCreateProduct(t *testing.T) {
 			mockTx.CommitFunc = test.commitFunc
 		}
 
-		mockQueue := queue.NewMockQueue()
+		mockQueue := inventory.NewMockQueue()
 
 		service := inventory.NewService(mockRepo, mockQueue)
 
@@ -242,15 +242,15 @@ func TestProduce(t *testing.T) {
 		name    string
 		request inventory.ProductionRequest
 
-		getProductionEventByRequestIDFunc func(ctx context.Context, requestID string, options ...core.QueryOptions) (pe inventory.ProductionEvent, err error)
-		saveProductionEventFunc           func(ctx context.Context, event *inventory.ProductionEvent, options ...core.UpdateOptions) error
-		getProductInventoryFunc           func(ctx context.Context, sku string, options ...core.QueryOptions) (pi inventory.ProductInventory, err error)
-		saveProductInventoryFunc          func(ctx context.Context, productInventory inventory.ProductInventory, options ...core.UpdateOptions) error
+		getProductionEventByRequestIDFunc func(ctx context.Context, requestID string, options ...persistence.QueryOptions) (pe inventory.ProductionEvent, err error)
+		saveProductionEventFunc           func(ctx context.Context, event *inventory.ProductionEvent, options ...persistence.UpdateOptions) error
+		getProductInventoryFunc           func(ctx context.Context, sku string, options ...persistence.QueryOptions) (pi inventory.ProductInventory, err error)
+		saveProductInventoryFunc          func(ctx context.Context, productInventory inventory.ProductInventory, options ...persistence.UpdateOptions) error
 
 		publishInventoryFunc   func(ctx context.Context, productInventory inventory.ProductInventory) error
 		publishReservationFunc func(ctx context.Context, reservation inventory.Reservation) error
 
-		beginTransactionFunc func(ctx context.Context) (core.Transaction, error)
+		beginTransactionFunc func(ctx context.Context) (persistence.Transaction, error)
 		commitFunc           func(ctx context.Context) error
 
 		wantRepoCalls  repoCounts
@@ -302,7 +302,7 @@ func TestProduce(t *testing.T) {
 			name:    "production event already exists",
 			request: inventory.ProductionRequest{RequestID: "somerequestid", Quantity: 1},
 
-			getProductionEventByRequestIDFunc: func(ctx context.Context, requestID string, options ...core.QueryOptions) (pe inventory.ProductionEvent, err error) {
+			getProductionEventByRequestIDFunc: func(ctx context.Context, requestID string, options ...persistence.QueryOptions) (pe inventory.ProductionEvent, err error) {
 				return inventory.ProductionEvent{RequestID: "somerequestid", Quantity: 1}, nil
 			},
 
@@ -315,7 +315,7 @@ func TestProduce(t *testing.T) {
 			name:    "unexpected error getting production event",
 			request: inventory.ProductionRequest{RequestID: "somerequestid", Quantity: 1},
 
-			getProductionEventByRequestIDFunc: func(ctx context.Context, requestID string, options ...core.QueryOptions) (pe inventory.ProductionEvent, err error) {
+			getProductionEventByRequestIDFunc: func(ctx context.Context, requestID string, options ...persistence.QueryOptions) (pe inventory.ProductionEvent, err error) {
 				return inventory.ProductionEvent{}, errors.New("some unexpected error")
 			},
 
@@ -329,7 +329,7 @@ func TestProduce(t *testing.T) {
 			name:    "unexpected error beginning transaction",
 			request: inventory.ProductionRequest{RequestID: "somerequestid", Quantity: 1},
 
-			beginTransactionFunc: func(ctx context.Context) (core.Transaction, error) {
+			beginTransactionFunc: func(ctx context.Context) (persistence.Transaction, error) {
 				return nil, errors.New("some unexpected error")
 			},
 
@@ -343,7 +343,7 @@ func TestProduce(t *testing.T) {
 			name:    "unexpected error saving production event",
 			request: inventory.ProductionRequest{RequestID: "somerequestid", Quantity: 1},
 
-			saveProductionEventFunc: func(ctx context.Context, event *inventory.ProductionEvent, options ...core.UpdateOptions) error {
+			saveProductionEventFunc: func(ctx context.Context, event *inventory.ProductionEvent, options ...persistence.UpdateOptions) error {
 				return errors.New("some unexpected error")
 			},
 
@@ -357,7 +357,7 @@ func TestProduce(t *testing.T) {
 			name:    "unexpected error saving product inventory",
 			request: inventory.ProductionRequest{RequestID: "somerequestid", Quantity: 1},
 
-			saveProductInventoryFunc: func(ctx context.Context, productInventory inventory.ProductInventory, options ...core.UpdateOptions) error {
+			saveProductInventoryFunc: func(ctx context.Context, productInventory inventory.ProductInventory, options ...persistence.UpdateOptions) error {
 				return errors.New("some unexpected error")
 			},
 
@@ -386,7 +386,7 @@ func TestProduce(t *testing.T) {
 	for _, test := range tests {
 		productInventory = &inventory.ProductInventory{Product: product, Available: 1}
 
-		mockTx := db.NewMockTransaction()
+		mockTx := persistence.NewMockTransaction()
 		if test.commitFunc != nil {
 			mockTx.CommitFunc = test.commitFunc
 		}
@@ -395,7 +395,7 @@ func TestProduce(t *testing.T) {
 		if test.beginTransactionFunc != nil {
 			mockRepo.BeginTransactionFunc = test.beginTransactionFunc
 		} else {
-			mockRepo.BeginTransactionFunc = func(ctx context.Context) (core.Transaction, error) {
+			mockRepo.BeginTransactionFunc = func(ctx context.Context) (persistence.Transaction, error) {
 				return mockTx, nil
 			}
 		}
@@ -408,20 +408,20 @@ func TestProduce(t *testing.T) {
 		if test.getProductInventoryFunc != nil {
 			mockRepo.GetProductInventoryFunc = test.getProductInventoryFunc
 		} else {
-			mockRepo.GetProductInventoryFunc = func(ctx context.Context, sku string, options ...core.QueryOptions) (pi inventory.ProductInventory, err error) {
+			mockRepo.GetProductInventoryFunc = func(ctx context.Context, sku string, options ...persistence.QueryOptions) (pi inventory.ProductInventory, err error) {
 				return *productInventory, nil
 			}
 		}
 		if test.saveProductInventoryFunc != nil {
 			mockRepo.SaveProductInventoryFunc = test.saveProductInventoryFunc
 		} else {
-			mockRepo.SaveProductInventoryFunc = func(ctx context.Context, pi inventory.ProductInventory, options ...core.UpdateOptions) error {
+			mockRepo.SaveProductInventoryFunc = func(ctx context.Context, pi inventory.ProductInventory, options ...persistence.UpdateOptions) error {
 				productInventory = &pi
 				return nil
 			}
 		}
 
-		mockQueue := queue.NewMockQueue()
+		mockQueue := inventory.NewMockQueue()
 		if test.publishInventoryFunc != nil {
 			mockQueue.PublishInventoryFunc = test.publishInventoryFunc
 		}
@@ -454,11 +454,11 @@ func TestReserve(t *testing.T) {
 		name    string
 		request inventory.ReservationRequest
 
-		getProductFunc                func(ctx context.Context, sku string, options ...core.QueryOptions) (inventory.Product, error)
-		getReservationByRequestIDFunc func(ctx context.Context, requestId string, options ...core.QueryOptions) (inventory.Reservation, error)
-		saveReservationFunc           func(ctx context.Context, reservation *inventory.Reservation, options ...core.UpdateOptions) error
+		getProductFunc                func(ctx context.Context, sku string, options ...persistence.QueryOptions) (inventory.Product, error)
+		getReservationByRequestIDFunc func(ctx context.Context, requestId string, options ...persistence.QueryOptions) (inventory.Reservation, error)
+		saveReservationFunc           func(ctx context.Context, reservation *inventory.Reservation, options ...persistence.UpdateOptions) error
 
-		beginTransactionFunc func(ctx context.Context) (core.Transaction, error)
+		beginTransactionFunc func(ctx context.Context) (persistence.Transaction, error)
 		commitFunc           func(ctx context.Context) error
 
 		wantRepoCalls  repoCounts
@@ -510,7 +510,7 @@ func TestReserve(t *testing.T) {
 			name:    "unexpected error beginning transaction",
 			request: inventory.ReservationRequest{RequestID: "somerequestid", Sku: "somesku", Requester: "somerequester", Quantity: 1},
 
-			beginTransactionFunc: func(ctx context.Context) (core.Transaction, error) {
+			beginTransactionFunc: func(ctx context.Context) (persistence.Transaction, error) {
 				return nil, errors.New("some unexpected error")
 			},
 
@@ -523,7 +523,7 @@ func TestReserve(t *testing.T) {
 			name:    "unexpected error getting product",
 			request: inventory.ReservationRequest{RequestID: "somerequestid", Sku: "somesku", Requester: "somerequester", Quantity: 1},
 
-			getProductFunc: func(ctx context.Context, sku string, options ...core.QueryOptions) (inventory.Product, error) {
+			getProductFunc: func(ctx context.Context, sku string, options ...persistence.QueryOptions) (inventory.Product, error) {
 				return inventory.Product{}, errors.New("unexpected error")
 			},
 
@@ -536,7 +536,7 @@ func TestReserve(t *testing.T) {
 			name:    "reservation request has already been processed",
 			request: inventory.ReservationRequest{RequestID: "somerequestid", Sku: "somesku", Requester: "somerequester", Quantity: 1},
 
-			getReservationByRequestIDFunc: func(ctx context.Context, requestId string, options ...core.QueryOptions) (inventory.Reservation, error) {
+			getReservationByRequestIDFunc: func(ctx context.Context, requestId string, options ...persistence.QueryOptions) (inventory.Reservation, error) {
 				return inventory.Reservation{RequestID: "somerequestid"}, nil
 			},
 
@@ -549,7 +549,7 @@ func TestReserve(t *testing.T) {
 			name:    "unexpected error saving reservation",
 			request: inventory.ReservationRequest{RequestID: "somerequestid", Sku: "somesku", Requester: "somerequester", Quantity: 1},
 
-			saveReservationFunc: func(ctx context.Context, reservation *inventory.Reservation, options ...core.UpdateOptions) error {
+			saveReservationFunc: func(ctx context.Context, reservation *inventory.Reservation, options ...persistence.UpdateOptions) error {
 				return errors.New("some unexpected error")
 			},
 
@@ -574,7 +574,7 @@ func TestReserve(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		mockTx := db.NewMockTransaction()
+		mockTx := persistence.NewMockTransaction()
 		if test.commitFunc != nil {
 			mockTx.CommitFunc = test.commitFunc
 		}
@@ -583,7 +583,7 @@ func TestReserve(t *testing.T) {
 		if test.beginTransactionFunc != nil {
 			mockRepo.BeginTransactionFunc = test.beginTransactionFunc
 		} else {
-			mockRepo.BeginTransactionFunc = func(ctx context.Context) (core.Transaction, error) {
+			mockRepo.BeginTransactionFunc = func(ctx context.Context) (persistence.Transaction, error) {
 				return mockTx, nil
 			}
 		}
@@ -593,15 +593,15 @@ func TestReserve(t *testing.T) {
 		if test.getReservationByRequestIDFunc != nil {
 			mockRepo.GetReservationByRequestIDFunc = test.getReservationByRequestIDFunc
 		} else {
-			mockRepo.GetReservationByRequestIDFunc = func(ctx context.Context, requestId string, options ...core.QueryOptions) (inventory.Reservation, error) {
-				return inventory.Reservation{}, core.ErrNotFound
+			mockRepo.GetReservationByRequestIDFunc = func(ctx context.Context, requestId string, options ...persistence.QueryOptions) (inventory.Reservation, error) {
+				return inventory.Reservation{}, persistence.ErrNotFound
 			}
 		}
 		if test.saveReservationFunc != nil {
 			mockRepo.SaveReservationFunc = test.saveReservationFunc
 		}
 
-		mockQueue := queue.NewMockQueue()
+		mockQueue := inventory.NewMockQueue()
 
 		service := inventory.NewService(mockRepo, mockQueue)
 
@@ -630,7 +630,7 @@ func TestGetAllProductInventory(t *testing.T) {
 		limit  int
 		offset int
 
-		getAllProductInventoryFunc func(ctx context.Context, limit int, offset int, options ...core.QueryOptions) ([]inventory.ProductInventory, error)
+		getAllProductInventoryFunc func(ctx context.Context, limit int, offset int, options ...persistence.QueryOptions) ([]inventory.ProductInventory, error)
 
 		wantProductInventory []inventory.ProductInventory
 		wantErr              bool
@@ -641,7 +641,7 @@ func TestGetAllProductInventory(t *testing.T) {
 		},
 		{
 			name: "error is returned",
-			getAllProductInventoryFunc: func(ctx context.Context, limit, offset int, options ...core.QueryOptions) ([]inventory.ProductInventory, error) {
+			getAllProductInventoryFunc: func(ctx context.Context, limit, offset int, options ...persistence.QueryOptions) ([]inventory.ProductInventory, error) {
 				return []inventory.ProductInventory{}, errors.New("some unexpected error")
 			},
 			wantErr: true,
@@ -653,11 +653,11 @@ func TestGetAllProductInventory(t *testing.T) {
 		if test.getAllProductInventoryFunc != nil {
 			mockRepo.GetAllProductInventoryFunc = test.getAllProductInventoryFunc
 		} else {
-			mockRepo.GetAllProductInventoryFunc = func(ctx context.Context, limit, offset int, options ...core.QueryOptions) ([]inventory.ProductInventory, error) {
+			mockRepo.GetAllProductInventoryFunc = func(ctx context.Context, limit, offset int, options ...persistence.QueryOptions) ([]inventory.ProductInventory, error) {
 				return productInv, nil
 			}
 		}
-		mockQueue := queue.NewMockQueue()
+		mockQueue := inventory.NewMockQueue()
 
 		service := inventory.NewService(mockRepo, mockQueue)
 
@@ -683,7 +683,7 @@ func TestGetProduct(t *testing.T) {
 		limit  int
 		offset int
 
-		getProductFunc func(ctx context.Context, sku string, options ...core.QueryOptions) (inventory.Product, error)
+		getProductFunc func(ctx context.Context, sku string, options ...persistence.QueryOptions) (inventory.Product, error)
 
 		wantProduct inventory.Product
 		wantErr     bool
@@ -694,7 +694,7 @@ func TestGetProduct(t *testing.T) {
 		},
 		{
 			name: "error is returned",
-			getProductFunc: func(ctx context.Context, sku string, options ...core.QueryOptions) (inventory.Product, error) {
+			getProductFunc: func(ctx context.Context, sku string, options ...persistence.QueryOptions) (inventory.Product, error) {
 				return inventory.Product{}, errors.New("some unexpected error")
 			},
 			wantErr: true,
@@ -706,11 +706,11 @@ func TestGetProduct(t *testing.T) {
 		if test.getProductFunc != nil {
 			mockRepo.GetProductFunc = test.getProductFunc
 		} else {
-			mockRepo.GetProductFunc = func(ctx context.Context, sku string, options ...core.QueryOptions) (inventory.Product, error) {
+			mockRepo.GetProductFunc = func(ctx context.Context, sku string, options ...persistence.QueryOptions) (inventory.Product, error) {
 				return productInv[0].Product, nil
 			}
 		}
-		mockQueue := queue.NewMockQueue()
+		mockQueue := inventory.NewMockQueue()
 
 		service := inventory.NewService(mockRepo, mockQueue)
 
@@ -736,7 +736,7 @@ func TestGetProductInventory(t *testing.T) {
 		limit  int
 		offset int
 
-		getProductInventoryFunc func(ctx context.Context, sku string, options ...core.QueryOptions) (pi inventory.ProductInventory, err error)
+		getProductInventoryFunc func(ctx context.Context, sku string, options ...persistence.QueryOptions) (pi inventory.ProductInventory, err error)
 
 		wantProductInv inventory.ProductInventory
 		wantErr        bool
@@ -747,7 +747,7 @@ func TestGetProductInventory(t *testing.T) {
 		},
 		{
 			name: "error is returned",
-			getProductInventoryFunc: func(ctx context.Context, sku string, options ...core.QueryOptions) (pi inventory.ProductInventory, err error) {
+			getProductInventoryFunc: func(ctx context.Context, sku string, options ...persistence.QueryOptions) (pi inventory.ProductInventory, err error) {
 				return inventory.ProductInventory{}, errors.New("some unexpected error")
 			},
 			wantErr: true,
@@ -759,11 +759,11 @@ func TestGetProductInventory(t *testing.T) {
 		if test.getProductInventoryFunc != nil {
 			mockRepo.GetProductInventoryFunc = test.getProductInventoryFunc
 		} else {
-			mockRepo.GetProductInventoryFunc = func(ctx context.Context, sku string, options ...core.QueryOptions) (inventory.ProductInventory, error) {
+			mockRepo.GetProductInventoryFunc = func(ctx context.Context, sku string, options ...persistence.QueryOptions) (inventory.ProductInventory, error) {
 				return productInv[0], nil
 			}
 		}
-		mockQueue := queue.NewMockQueue()
+		mockQueue := inventory.NewMockQueue()
 
 		service := inventory.NewService(mockRepo, mockQueue)
 
@@ -789,7 +789,7 @@ func TestGetReservation(t *testing.T) {
 		name string
 		ID   uint64
 
-		getReservationFunc func(ctx context.Context, ID uint64, options ...core.QueryOptions) (inventory.Reservation, error)
+		getReservationFunc func(ctx context.Context, ID uint64, options ...persistence.QueryOptions) (inventory.Reservation, error)
 
 		wantReservation inventory.Reservation
 		wantErr         bool
@@ -800,7 +800,7 @@ func TestGetReservation(t *testing.T) {
 		},
 		{
 			name: "reservation is returned",
-			getReservationFunc: func(ctx context.Context, ID uint64, options ...core.QueryOptions) (inventory.Reservation, error) {
+			getReservationFunc: func(ctx context.Context, ID uint64, options ...persistence.QueryOptions) (inventory.Reservation, error) {
 				return inventory.Reservation{}, errors.New("some unexpected error")
 			},
 			wantErr: true,
@@ -812,11 +812,11 @@ func TestGetReservation(t *testing.T) {
 		if test.getReservationFunc != nil {
 			mockRepo.GetReservationFunc = test.getReservationFunc
 		} else {
-			mockRepo.GetReservationFunc = func(ctx context.Context, ID uint64, options ...core.QueryOptions) (inventory.Reservation, error) {
+			mockRepo.GetReservationFunc = func(ctx context.Context, ID uint64, options ...persistence.QueryOptions) (inventory.Reservation, error) {
 				return reservations[0], nil
 			}
 		}
-		mockQueue := queue.NewMockQueue()
+		mockQueue := inventory.NewMockQueue()
 
 		service := inventory.NewService(mockRepo, mockQueue)
 
@@ -844,7 +844,7 @@ func TestGetReservations(t *testing.T) {
 		limit   int
 		offset  int
 
-		getReservationsFunc func(ctx context.Context, resOptions inventory.GetReservationsOptions, limit int, offset int, options ...core.QueryOptions) ([]inventory.Reservation, error)
+		getReservationsFunc func(ctx context.Context, resOptions inventory.GetReservationsOptions, limit int, offset int, options ...persistence.QueryOptions) ([]inventory.Reservation, error)
 
 		wantReservations []inventory.Reservation
 		wantErr          bool
@@ -855,7 +855,7 @@ func TestGetReservations(t *testing.T) {
 		},
 		{
 			name: "reservation is returned",
-			getReservationsFunc: func(ctx context.Context, resOptions inventory.GetReservationsOptions, limit int, offset int, options ...core.QueryOptions) ([]inventory.Reservation, error) {
+			getReservationsFunc: func(ctx context.Context, resOptions inventory.GetReservationsOptions, limit int, offset int, options ...persistence.QueryOptions) ([]inventory.Reservation, error) {
 				return []inventory.Reservation{}, errors.New("some unexpected error")
 			},
 			wantReservations: []inventory.Reservation{},
@@ -868,11 +868,11 @@ func TestGetReservations(t *testing.T) {
 		if test.getReservationsFunc != nil {
 			mockRepo.GetReservationsFunc = test.getReservationsFunc
 		} else {
-			mockRepo.GetReservationsFunc = func(ctx context.Context, resOptions inventory.GetReservationsOptions, limit int, offset int, options ...core.QueryOptions) ([]inventory.Reservation, error) {
+			mockRepo.GetReservationsFunc = func(ctx context.Context, resOptions inventory.GetReservationsOptions, limit int, offset int, options ...persistence.QueryOptions) ([]inventory.Reservation, error) {
 				return reservations, nil
 			}
 		}
-		mockQueue := queue.NewMockQueue()
+		mockQueue := inventory.NewMockQueue()
 
 		service := inventory.NewService(mockRepo, mockQueue)
 
@@ -906,15 +906,15 @@ func TestFillReserves(t *testing.T) {
 		saveProductInventoryErr error
 		updateReservationErr    error
 
-		getReservationsFunc      func(ctx context.Context, resOptions inventory.GetReservationsOptions, limit int, offset int, options ...core.QueryOptions) ([]inventory.Reservation, error)
-		getProductInventoryFunc  func(ctx context.Context, sku string, options ...core.QueryOptions) (pi inventory.ProductInventory, err error)
-		saveProductInventoryFunc func(ctx context.Context, productInventory inventory.ProductInventory, options ...core.UpdateOptions) error
-		updateReservationFunc    func(ctx context.Context, ID uint64, state inventory.ReserveState, qty int64, options ...core.UpdateOptions) error
+		getReservationsFunc      func(ctx context.Context, resOptions inventory.GetReservationsOptions, limit int, offset int, options ...persistence.QueryOptions) ([]inventory.Reservation, error)
+		getProductInventoryFunc  func(ctx context.Context, sku string, options ...persistence.QueryOptions) (pi inventory.ProductInventory, err error)
+		saveProductInventoryFunc func(ctx context.Context, productInventory inventory.ProductInventory, options ...persistence.UpdateOptions) error
+		updateReservationFunc    func(ctx context.Context, ID uint64, state inventory.ReserveState, qty int64, options ...persistence.UpdateOptions) error
 
 		publishInventoryFunc   func(ctx context.Context, pi inventory.ProductInventory) error
 		publishReservationFunc func(ctx context.Context, r inventory.Reservation) error
 
-		beginTransactionFunc func(ctx context.Context) (core.Transaction, error)
+		beginTransactionFunc func(ctx context.Context) (persistence.Transaction, error)
 		commitFunc           func(ctx context.Context) error
 
 		wantRepoCalls        repoCounts
@@ -929,12 +929,12 @@ func TestFillReserves(t *testing.T) {
 			name:    "enough inventory to close reservation",
 			product: product,
 
-			getReservationsFunc: func(ctx context.Context, resOptions inventory.GetReservationsOptions, limit, offset int, options ...core.QueryOptions) ([]inventory.Reservation, error) {
+			getReservationsFunc: func(ctx context.Context, resOptions inventory.GetReservationsOptions, limit, offset int, options ...persistence.QueryOptions) ([]inventory.Reservation, error) {
 				return []inventory.Reservation{
 					{ID: 0, State: inventory.Open, ReservedQuantity: 0, RequestedQuantity: 10},
 				}, nil
 			},
-			getProductInventoryFunc: func(ctx context.Context, sku string, options ...core.QueryOptions) (pi inventory.ProductInventory, err error) {
+			getProductInventoryFunc: func(ctx context.Context, sku string, options ...persistence.QueryOptions) (pi inventory.ProductInventory, err error) {
 				return inventory.ProductInventory{Product: product, Available: 10}, nil
 			},
 
@@ -954,12 +954,12 @@ func TestFillReserves(t *testing.T) {
 			name:    "not enough inventory to close reservation",
 			product: product,
 
-			getReservationsFunc: func(ctx context.Context, resOptions inventory.GetReservationsOptions, limit, offset int, options ...core.QueryOptions) ([]inventory.Reservation, error) {
+			getReservationsFunc: func(ctx context.Context, resOptions inventory.GetReservationsOptions, limit, offset int, options ...persistence.QueryOptions) ([]inventory.Reservation, error) {
 				return []inventory.Reservation{
 					{ID: 0, State: inventory.Open, ReservedQuantity: 0, RequestedQuantity: 10},
 				}, nil
 			},
-			getProductInventoryFunc: func(ctx context.Context, sku string, options ...core.QueryOptions) (pi inventory.ProductInventory, err error) {
+			getProductInventoryFunc: func(ctx context.Context, sku string, options ...persistence.QueryOptions) (pi inventory.ProductInventory, err error) {
 				return inventory.ProductInventory{Product: product, Available: 5}, nil
 			},
 
@@ -980,14 +980,14 @@ func TestFillReserves(t *testing.T) {
 			name:    "enough inventory to close multiple reservations",
 			product: product,
 
-			getReservationsFunc: func(ctx context.Context, resOptions inventory.GetReservationsOptions, limit, offset int, options ...core.QueryOptions) ([]inventory.Reservation, error) {
+			getReservationsFunc: func(ctx context.Context, resOptions inventory.GetReservationsOptions, limit, offset int, options ...persistence.QueryOptions) ([]inventory.Reservation, error) {
 				return []inventory.Reservation{
 					{ID: 0, State: inventory.Open, ReservedQuantity: 0, RequestedQuantity: 3},
 					{ID: 1, State: inventory.Open, ReservedQuantity: 0, RequestedQuantity: 3},
 					{ID: 2, State: inventory.Open, ReservedQuantity: 0, RequestedQuantity: 3},
 				}, nil
 			},
-			getProductInventoryFunc: func(ctx context.Context, sku string, options ...core.QueryOptions) (pi inventory.ProductInventory, err error) {
+			getProductInventoryFunc: func(ctx context.Context, sku string, options ...persistence.QueryOptions) (pi inventory.ProductInventory, err error) {
 				return inventory.ProductInventory{Product: product, Available: 10}, nil
 			},
 
@@ -1010,12 +1010,12 @@ func TestFillReserves(t *testing.T) {
 			name:    "unexpected error saving inventory",
 			product: product,
 
-			getReservationsFunc: func(ctx context.Context, resOptions inventory.GetReservationsOptions, limit, offset int, options ...core.QueryOptions) ([]inventory.Reservation, error) {
+			getReservationsFunc: func(ctx context.Context, resOptions inventory.GetReservationsOptions, limit, offset int, options ...persistence.QueryOptions) ([]inventory.Reservation, error) {
 				return []inventory.Reservation{
 					{ID: 0, State: inventory.Open, ReservedQuantity: 0, RequestedQuantity: 3},
 				}, nil
 			},
-			getProductInventoryFunc: func(ctx context.Context, sku string, options ...core.QueryOptions) (pi inventory.ProductInventory, err error) {
+			getProductInventoryFunc: func(ctx context.Context, sku string, options ...persistence.QueryOptions) (pi inventory.ProductInventory, err error) {
 				return inventory.ProductInventory{Product: product, Available: 10}, nil
 			},
 			saveProductInventoryErr: errors.New("some unexpected error"),
@@ -1035,12 +1035,12 @@ func TestFillReserves(t *testing.T) {
 			name:    "unexpected error updating reservation",
 			product: product,
 
-			getReservationsFunc: func(ctx context.Context, resOptions inventory.GetReservationsOptions, limit, offset int, options ...core.QueryOptions) ([]inventory.Reservation, error) {
+			getReservationsFunc: func(ctx context.Context, resOptions inventory.GetReservationsOptions, limit, offset int, options ...persistence.QueryOptions) ([]inventory.Reservation, error) {
 				return []inventory.Reservation{
 					{ID: 0, State: inventory.Open, ReservedQuantity: 0, RequestedQuantity: 3},
 				}, nil
 			},
-			getProductInventoryFunc: func(ctx context.Context, sku string, options ...core.QueryOptions) (pi inventory.ProductInventory, err error) {
+			getProductInventoryFunc: func(ctx context.Context, sku string, options ...persistence.QueryOptions) (pi inventory.ProductInventory, err error) {
 				return inventory.ProductInventory{Product: product, Available: 10}, nil
 			},
 			updateReservationErr: errors.New("some unexpected error"),
@@ -1062,12 +1062,12 @@ func TestFillReserves(t *testing.T) {
 			name:    "unexpected error publishing inventory",
 			product: product,
 
-			getReservationsFunc: func(ctx context.Context, resOptions inventory.GetReservationsOptions, limit, offset int, options ...core.QueryOptions) ([]inventory.Reservation, error) {
+			getReservationsFunc: func(ctx context.Context, resOptions inventory.GetReservationsOptions, limit, offset int, options ...persistence.QueryOptions) ([]inventory.Reservation, error) {
 				return []inventory.Reservation{
 					{ID: 0, State: inventory.Open, ReservedQuantity: 0, RequestedQuantity: 3},
 				}, nil
 			},
-			getProductInventoryFunc: func(ctx context.Context, sku string, options ...core.QueryOptions) (pi inventory.ProductInventory, err error) {
+			getProductInventoryFunc: func(ctx context.Context, sku string, options ...persistence.QueryOptions) (pi inventory.ProductInventory, err error) {
 				return inventory.ProductInventory{Product: product, Available: 10}, nil
 			},
 			publishInventoryFunc: func(ctx context.Context, pi inventory.ProductInventory) error {
@@ -1091,12 +1091,12 @@ func TestFillReserves(t *testing.T) {
 			name:    "unexpected error publishing reservation",
 			product: product,
 
-			getReservationsFunc: func(ctx context.Context, resOptions inventory.GetReservationsOptions, limit, offset int, options ...core.QueryOptions) ([]inventory.Reservation, error) {
+			getReservationsFunc: func(ctx context.Context, resOptions inventory.GetReservationsOptions, limit, offset int, options ...persistence.QueryOptions) ([]inventory.Reservation, error) {
 				return []inventory.Reservation{
 					{ID: 0, State: inventory.Open, ReservedQuantity: 0, RequestedQuantity: 3},
 				}, nil
 			},
-			getProductInventoryFunc: func(ctx context.Context, sku string, options ...core.QueryOptions) (pi inventory.ProductInventory, err error) {
+			getProductInventoryFunc: func(ctx context.Context, sku string, options ...persistence.QueryOptions) (pi inventory.ProductInventory, err error) {
 				return inventory.ProductInventory{Product: product, Available: 10}, nil
 			},
 			publishReservationFunc: func(ctx context.Context, r inventory.Reservation) error {
@@ -1122,12 +1122,12 @@ func TestFillReserves(t *testing.T) {
 		if test.name == "unexpected error publishing reservation" {
 			fmt.Println("ugh")
 		}
-		mockTx := db.NewMockTransaction()
+		mockTx := persistence.NewMockTransaction()
 		if test.commitFunc != nil {
 			mockTx.CommitFunc = test.commitFunc
 		}
 
-		mockSubTx := db.NewMockPgxTx()
+		mockSubTx := persistence.NewMockPgxTx()
 		mockTx.BeginFunc = func(ctx context.Context) (pgx.Tx, error) {
 			return mockSubTx, nil
 		}
@@ -1136,7 +1136,7 @@ func TestFillReserves(t *testing.T) {
 		if test.beginTransactionFunc != nil {
 			mockRepo.BeginTransactionFunc = test.beginTransactionFunc
 		} else {
-			mockRepo.BeginTransactionFunc = func(ctx context.Context) (core.Transaction, error) {
+			mockRepo.BeginTransactionFunc = func(ctx context.Context) (persistence.Transaction, error) {
 				return mockTx, nil
 			}
 		}
@@ -1147,18 +1147,18 @@ func TestFillReserves(t *testing.T) {
 			mockRepo.GetProductInventoryFunc = test.getProductInventoryFunc
 		}
 		var gotProductInventory inventory.ProductInventory
-		mockRepo.SaveProductInventoryFunc = func(ctx context.Context, productInventory inventory.ProductInventory, options ...core.UpdateOptions) error {
+		mockRepo.SaveProductInventoryFunc = func(ctx context.Context, productInventory inventory.ProductInventory, options ...persistence.UpdateOptions) error {
 			gotProductInventory = productInventory
 			return test.saveProductInventoryErr
 		}
 
 		gotResUpdates := []reservationUpdate{}
-		mockRepo.UpdateReservationFunc = func(ctx context.Context, ID uint64, state inventory.ReserveState, qty int64, options ...core.UpdateOptions) error {
+		mockRepo.UpdateReservationFunc = func(ctx context.Context, ID uint64, state inventory.ReserveState, qty int64, options ...persistence.UpdateOptions) error {
 			gotResUpdates = append(gotResUpdates, reservationUpdate{ID: ID, State: state, Quantity: qty})
 			return test.updateReservationErr
 		}
 
-		mockQueue := queue.NewMockQueue()
+		mockQueue := inventory.NewMockQueue()
 		if test.publishInventoryFunc != nil {
 			mockQueue.PublishInventoryFunc = test.publishInventoryFunc
 		}
@@ -1194,10 +1194,10 @@ func TestFillReserves(t *testing.T) {
 
 func TestSubscribeInventory(t *testing.T) {
 	mockRepo := inventory.NewMockRepo()
-	mockQueue := queue.NewMockQueue()
+	mockQueue := inventory.NewMockQueue()
 	service := inventory.NewService(mockRepo, mockQueue)
 
-	mockRepo.GetProductInventoryFunc = func(ctx context.Context, sku string, options ...core.QueryOptions) (inventory.ProductInventory, error) {
+	mockRepo.GetProductInventoryFunc = func(ctx context.Context, sku string, options ...persistence.QueryOptions) (inventory.ProductInventory, error) {
 		return getProductInventory()[2], nil
 	}
 
@@ -1234,13 +1234,13 @@ func TestSubscribeInventory(t *testing.T) {
 
 func TestSubscribeReservations(t *testing.T) {
 	mockRepo := inventory.NewMockRepo()
-	mockQueue := queue.NewMockQueue()
+	mockQueue := inventory.NewMockQueue()
 	service := inventory.NewService(mockRepo, mockQueue)
 
-	mockRepo.GetReservationsFunc = func(ctx context.Context, resOptions inventory.GetReservationsOptions, limit int, offset int, options ...core.QueryOptions) ([]inventory.Reservation, error) {
+	mockRepo.GetReservationsFunc = func(ctx context.Context, resOptions inventory.GetReservationsOptions, limit int, offset int, options ...persistence.QueryOptions) ([]inventory.Reservation, error) {
 		return []inventory.Reservation{getReservations()[3]}, nil
 	}
-	mockRepo.GetProductInventoryFunc = func(ctx context.Context, sku string, options ...core.QueryOptions) (pi inventory.ProductInventory, err error) {
+	mockRepo.GetProductInventoryFunc = func(ctx context.Context, sku string, options ...persistence.QueryOptions) (pi inventory.ProductInventory, err error) {
 		pi = getProductInventory()[2]
 		pi.Available += 10
 		return pi, nil
@@ -1303,11 +1303,11 @@ func TestGetProductInventoryCacheHitSkipsRepo(t *testing.T) {
 
 	mockRepo := inventory.NewMockRepo()
 	var repoCalls int
-	mockRepo.GetProductInventoryFunc = func(ctx context.Context, sku string, options ...core.QueryOptions) (inventory.ProductInventory, error) {
+	mockRepo.GetProductInventoryFunc = func(ctx context.Context, sku string, options ...persistence.QueryOptions) (inventory.ProductInventory, error) {
 		repoCalls++
 		return pi, nil
 	}
-	mq := queue.NewMockQueue()
+	mq := inventory.NewMockQueue()
 	svc := inventory.NewService(mockRepo, mq)
 
 	c := cache.NewMemoryCache()
@@ -1336,10 +1336,10 @@ func TestGetProductInventoryCacheMissPopulatesCache(t *testing.T) {
 	pi := inventory.ProductInventory{Available: 7, Product: inventory.Product{Sku: "sku2", Upc: "upc", Name: "n"}}
 
 	mockRepo := inventory.NewMockRepo()
-	mockRepo.GetProductInventoryFunc = func(ctx context.Context, sku string, options ...core.QueryOptions) (inventory.ProductInventory, error) {
+	mockRepo.GetProductInventoryFunc = func(ctx context.Context, sku string, options ...persistence.QueryOptions) (inventory.ProductInventory, error) {
 		return pi, nil
 	}
-	svc := inventory.NewService(mockRepo, queue.NewMockQueue())
+	svc := inventory.NewService(mockRepo, inventory.NewMockQueue())
 
 	c := cache.NewMemoryCache()
 	svc.SetCache(c, time.Minute)
@@ -1366,17 +1366,17 @@ func TestGetProductInventoryCacheMissPopulatesCache(t *testing.T) {
 func TestProduceInvalidatesCache(t *testing.T) {
 	pi := inventory.ProductInventory{Available: 1, Product: inventory.Product{Sku: "sku3", Upc: "upc", Name: "n"}}
 	mockRepo := inventory.NewMockRepo()
-	mockRepo.GetProductionEventByRequestIDFunc = func(ctx context.Context, requestID string, options ...core.QueryOptions) (inventory.ProductionEvent, error) {
-		return inventory.ProductionEvent{}, core.ErrNotFound
+	mockRepo.GetProductionEventByRequestIDFunc = func(ctx context.Context, requestID string, options ...persistence.QueryOptions) (inventory.ProductionEvent, error) {
+		return inventory.ProductionEvent{}, persistence.ErrNotFound
 	}
-	mockRepo.GetProductInventoryFunc = func(ctx context.Context, sku string, options ...core.QueryOptions) (inventory.ProductInventory, error) {
+	mockRepo.GetProductInventoryFunc = func(ctx context.Context, sku string, options ...persistence.QueryOptions) (inventory.ProductInventory, error) {
 		return pi, nil
 	}
-	mockRepo.GetReservationsFunc = func(ctx context.Context, options inventory.GetReservationsOptions, limit, offset int, queryOptions ...core.QueryOptions) ([]inventory.Reservation, error) {
+	mockRepo.GetReservationsFunc = func(ctx context.Context, options inventory.GetReservationsOptions, limit, offset int, queryOptions ...persistence.QueryOptions) ([]inventory.Reservation, error) {
 		return nil, nil
 	}
 
-	svc := inventory.NewService(mockRepo, queue.NewMockQueue())
+	svc := inventory.NewService(mockRepo, inventory.NewMockQueue())
 	c := cache.NewMemoryCache()
 	svc.SetCache(c, time.Minute)
 

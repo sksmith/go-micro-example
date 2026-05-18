@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/sksmith/go-micro-example/events"
-	"github.com/sksmith/go-micro-example/kafka"
+	"github.com/sksmith/go-micro-example/internal/platform/events"
+	"github.com/sksmith/go-micro-example/internal/platform/messaging/kafka"
 )
 
 // InventoryEmitter adapts a *kafka.Producer to the EventEmitter

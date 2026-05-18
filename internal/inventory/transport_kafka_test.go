@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sksmith/go-micro-example/events"
 	"github.com/sksmith/go-micro-example/internal/inventory"
+	"github.com/sksmith/go-micro-example/internal/platform/events"
 )
 
 type fakeInventory struct {

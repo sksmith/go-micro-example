@@ -12,11 +12,11 @@ import (
 	"time"
 
 	"github.com/gobwas/ws"
-	"github.com/sksmith/go-micro-example/core"
 	"github.com/sksmith/go-micro-example/internal/catalog"
 	"github.com/sksmith/go-micro-example/internal/inventory"
 	"github.com/sksmith/go-micro-example/internal/platform/httpx"
-	"github.com/sksmith/go-micro-example/testutil"
+	"github.com/sksmith/go-micro-example/internal/platform/persistence"
+	"github.com/sksmith/go-micro-example/internal/testutil"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -322,7 +322,7 @@ func TestInventoryCreateProductionEvent(t *testing.T) {
 		},
 		{
 			getProductFunc: func(ctx context.Context, sku string) (inventory.Product, error) {
-				return inventory.Product{}, core.ErrNotFound
+				return inventory.Product{}, persistence.ErrNotFound
 			},
 			produceFunc:                 nil,
 			sku:                         "testsku1",
@@ -415,7 +415,7 @@ func TestInventoryGetProductInventory(t *testing.T) {
 		},
 		{
 			getProductFunc: func(ctx context.Context, sku string) (inventory.Product, error) {
-				return inventory.Product{}, core.ErrNotFound
+				return inventory.Product{}, persistence.ErrNotFound
 			},
 			getProductInventoryFunc: nil,
 			sku:                     "test1sku",
@@ -428,7 +428,7 @@ func TestInventoryGetProductInventory(t *testing.T) {
 				return getTestProductInventory()[0].Product, nil
 			},
 			getProductInventoryFunc: func(ctx context.Context, sku string) (inventory.ProductInventory, error) {
-				return inventory.ProductInventory{}, core.ErrNotFound
+				return inventory.ProductInventory{}, persistence.ErrNotFound
 			},
 			sku:                 "test1sku",
 			wantProductResponse: nil,

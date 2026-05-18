@@ -8,8 +8,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/rs/zerolog/log"
-	"github.com/sksmith/go-micro-example/core"
 	"github.com/sksmith/go-micro-example/internal/platform/httpx"
+	"github.com/sksmith/go-micro-example/internal/platform/persistence"
 	"github.com/sksmith/go-micro-example/internal/user"
 )
 
@@ -72,7 +72,7 @@ func (a *AuthApi) Token(w http.ResponseWriter, r *http.Request) {
 
 	u, err := a.users.Login(r.Context(), username, password)
 	if err != nil {
-		if errors.Is(err, core.ErrNotFound) {
+		if errors.Is(err, persistence.ErrNotFound) {
 			basicAuthErr(w)
 			return
 		}
