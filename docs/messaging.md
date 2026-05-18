@@ -159,3 +159,89 @@ schemas are already in the right shape (JSON Schema draft 2020-12
 with stable `$id`s) to upload to a network-attached registry
 (Confluent Schema Registry, Buf Schema Registry, or an Apicurio
 deployment).
+
+## RabbitMQ transport (TST-003)
+
+The broker plumbing lives in
+[`internal/platform/messaging/amqp`](../internal/platform/messaging/amqp).
+The package's API is three top-level functions that compose into the
+queue subsystem:
+
+- `Redial(ctx, url) chan chan Session` repeatedly dials the broker
+  and yields fresh `(connection, channel)` pairs as `Session`
+  values. The consumer (the publish or subscribe loop) reads a
+  `sess` channel off the outer channel, then reads exactly one
+  `Session` off `sess` per outer iteration. On dial failure the
+  loop retries internally with a 2-second back-off — it never
+  re-offers `sess` to a fresh consumer mid-attempt, which would
+  deadlock anyone already parked at `<-session`.
+- `Publish(sessions, exchange, messages, onSession)` consumes from
+  `messages` and publishes to `exchange` using sessions from
+  `Redial`. After each successful send it waits for the broker's
+  publisher-confirm; the producer span ends with `codes.Ok` on Ack,
+  `codes.Error` on Nack, publish error, or confirm-channel close.
+  `onSession` fires each time a fresh session is acquired (powers
+  the `/readyz` AMQP pinger from TST-004).
+- `Subscribe(sessions, queue, messages, onSession)` consumes
+  deliveries from `queue` and forwards them onto `messages`. Each
+  delivery is Ack'd individually; an Ack failure is logged but the
+  loop keeps running — connection-level failures surface as the
+  inner `range deliveries` ending, at which point the outer loop
+  pulls a fresh session.
+
+### Reconnection
+
+Reconnection is implicit. Every publish/subscribe call sites the
+`Redial(...)` channel into the loop directly:
+
+```go
+go amqp.Publish(amqp.Redial(ctx, url), exch, ch, onSession)
+```
+
+When the publish loop's session dies (publish error, confirm
+channel closes, broker hangs up) the inner loop breaks and the
+outer `for session := range sessions` re-iterates, pulling a fresh
+session from `Redial`. The redial back-off bounds reconnect storm.
+Tests in
+[`queue_test.go`](../internal/platform/messaging/amqp/queue_test.go)
+drive this with a scripted `Dialer` fake — see
+`TestRedial_DialFailureRetries` and
+`TestRedial_CtxCancelDuringBackoffExitsCleanly`.
+
+### Publisher confirms
+
+`Publish` enables RabbitMQ's publisher-confirm extension via
+`Channel.Confirm(false)`. Each in-flight body waits for an Ack
+before the loop reads the next message. This trades throughput for
+durability — the producer span (DSN-004a) only marks Ok once the
+broker has actually persisted the message.
+
+When the broker reports "publisher confirms not supported"
+(`Channel.Confirm` returns an error), the loop closes its internal
+confirm channel and bails out of the inner loop — effectively
+treating the not-supported path as a session-loss event. That's a
+deliberate "don't fall back to fire-and-forget silently" stance:
+the only AMQP broker this service is tested against is RabbitMQ,
+which supports confirms. A non-confirming broker shows up as a hot
+reconnect loop in metrics, which is what we want — it's a
+configuration error worth being loud about.
+`TestPublish_ConfirmsNotSupportedFallback` pins that exit path.
+
+### What this code does NOT guarantee
+
+- **Exactly-once delivery.** Publisher confirms give at-least-once;
+  consumers must dedupe (DSN-017 / DSN-025 for the Kafka and
+  forthcoming RabbitMQ idempotency stores).
+- **Ordering across exchanges or across reconnects.** A single
+  publish loop publishes in arrival order to its one exchange, but
+  there's no cross-loop ordering and a reconnect may flush pending
+  messages out of order.
+- **Persistence across crashes before broker confirm.** A producer
+  crash between `messages <- msg` and the broker Ack loses the
+  message. Persistent producer state (outbox pattern) is not in
+  scope.
+- **Untraced retry after publish error.** When `pub.Publish` returns
+  an error, the loop ends the producer span and re-queues the body
+  for the next session — the retry attempt itself has no span.
+  Full retry tracing would require restructuring the publish loop
+  to track per-message confirm correlation, which is a follow-up.
