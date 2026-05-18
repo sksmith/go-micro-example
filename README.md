@@ -17,11 +17,64 @@ fan of [Domain Driven Design](https://martinfowler.com/bliki/DomainDrivenDesign.
 nicely with [Hexagonal Architecture](https://alistair.cockburn.us/hexagonal-architecture/) and I wanted
 to see how a Go microservice might look structured using them.
 
-The starting point of the application is under the [cmd](cmd/main.go) directory. The "domain"
-core of the application where all business logic should reside is under the [core](core)
-directory. The other directories listed there are each of the external dependencies for the project.
+The layout is *domain-grouped under `internal/`*: each domain owns
+its service, repository, HTTP transport, messaging adapters, DTOs,
+and mocks in a single directory. Cross-cutting concerns live under
+`internal/platform/`. The composition root (config load, dependency
+wiring, HTTP listener, signal handling, shutdown) lives in
+`internal/app/`, and `cmd/server/main.go` is a thin entry point that
+delegates to it.
+
+```text
+cmd/
+  server/main.go            # thin entry: load config, build app.Server, run
+  demo/                     # DSN-015 demo orchestrator
+  stub-catalog/             # DSN-018 stub upstream for the catalog client demo
+
+internal/
+  inventory/                # inventory + reservation domain
+  user/                     # user domain
+  auth/                     # JWT signer + /auth/token transport + auth middleware
+  catalog/                  # outbound REST client (driven adapter)
+
+  platform/                 # cross-cutting; no domain knowledge
+    cache/                  # Redis + in-memory cache
+    observability/          # tracing, correlation IDs
+    ratelimit/              # token-bucket limiter (Redis + Lua)
+    secrets/                # secrets provider abstraction
+    idempotency/            # Kafka idempotency applier (+ rest/ for HTTP)
+    events/                 # event envelope + JSON Schema registry
+    httpx/                  # generic HTTP middleware, problem+json, pagination,
+                            # rate-limit middleware, render helpers, Scrub
+    messaging/
+      kafka/                # franz-go producer/consumer
+      amqp/                 # RabbitMQ publisher/subscriber primitives
+    persistence/            # pgx pool, Conn/Transaction interfaces, mocks,
+                            # migrations/
+
+  app/                      # composition root
+    server.go               # app.Server, New/NewWithDeps/Run/Cleanup
+    routes.go               # router construction
+    health.go, env.go,
+    docs.go                 # /live, /ready, /admin/env, /openapi.yaml + /docs
+
+  testutil/                 # test-only HTTP/logging helpers
+
+api/
+  client/v1/                # generated Go client (oapi-codegen)
+
+config/                     # viper-backed config + defaults
+docs/                       # human-authored ADRs, error model, lifecycle notes
+plan/                       # (gitignored) working tickets and matrix
+scripts/, web/              # ops scripts, frontend source
+```
 
 ![structure diagram](inventory.jpg)
+
+> The structure diagram predates the DSN-028 restructure and shows
+> the old `core/` / `api/` / `db/` / `queue/` layout. The semantics
+> (hexagonal boundaries between domain, transport, and persistence)
+> are preserved — only the directory layout changed.
 
 ## Running the Application Locally
 
@@ -109,7 +162,7 @@ when `offset > 0`.
 #### OpenAPI spec + Swagger UI
 
 The application is annotated with [`swaggo/swag`](https://github.com/swaggo/swag);
-`make openapi` regenerates [`api/openapi.yaml`](api/openapi.yaml) from the
+`make openapi` regenerates [`internal/app/openapi.yaml`](internal/app/openapi.yaml) from the
 handler comments. Generated artifacts are committed and a CI drift check
 ([.github/workflows/openapi.yml](.github/workflows/openapi.yml)) fails the
 build when the spec or the Go client are stale.
@@ -138,7 +191,7 @@ TS drift by hand for now.
 ### Rate limiting (auth-token)
 
 `/auth/token` is throttled by a distributed token-bucket rate
-limiter ([core/ratelimit](core/ratelimit/limiter.go), DSN-021b)
+limiter ([internal/platform/ratelimit](internal/platform/ratelimit/limiter.go), DSN-021b)
 backed by Redis. The bucket math runs inside a Lua script so the
 read-refill-subtract-write sequence is atomic against concurrent
 callers across replicas. Buckets are keyed per source IP
@@ -170,7 +223,7 @@ SEC-007 will tune per-route policy.
 
 ### Redis user cache
 
-`db/usrrepo` reads users through a Redis cache (DSN-021c), replacing
+`internal/user` reads users through a Redis cache (DSN-021c), replacing
 the previous in-process `hashicorp/golang-lru` cache. Same
 cache-aside shape as the inventory read-path:
 
@@ -196,7 +249,7 @@ cached row when the cached shape changes.
 ### Redis cache (inventory read-path)
 
 `GET /api/v1/inventory/{sku}` reads through a Redis cache
-([core/cache](core/cache/cache.go), DSN-020). The cache sits at the
+([internal/platform/cache](internal/platform/cache/cache.go), DSN-020). The cache sits at the
 *service* layer, not the handler — non-HTTP consumers (queue-driven
 flows, future gRPC) hit the same path.
 
@@ -234,7 +287,7 @@ so a probe fails fast if Redis is unreachable.
 Mutating routes (`PUT /api/v1/inventory/{sku}/productionEvent`, `PUT
 /api/v1/reservation`) require an `Idempotency-Key` request header
 (DSN-019). The middleware
-([idempotency/rest](idempotency/rest/middleware.go)) caches the
+([internal/platform/idempotency/rest](internal/platform/idempotency/rest/middleware.go)) caches the
 response under the `(key, sha256(body))` pair with a configurable
 TTL (default 24h, matching Stripe's contract):
 
@@ -251,7 +304,7 @@ The middleware is pluggable behind a small `Store` interface. When
 `GME_REDIS_URL` is set, DSN-021a backs the store with Redis so
 cross-replica retries replay correctly; otherwise it falls back to
 an in-memory store that's sufficient for single-replica deployments.
-The contract is in [idempotency/rest/store.go](idempotency/rest/store.go).
+The contract is in [internal/platform/idempotency/rest/store.go](internal/platform/idempotency/rest/store.go).
 
 Two layers of dedupe sit on top of each other deliberately: the
 middleware guards safe retries by replaying the original *response*,
@@ -274,7 +327,7 @@ Prometheus counters: `rest_idempotency_hits_total`,
 
 The inventory `GET /api/v1/inventory/{sku}` response is optionally
 enriched by an outbound call to a stub "catalog" upstream
-([core/catalog](core/catalog/client.go), DSN-018). The client wraps
+([internal/catalog](internal/catalog/client.go), DSN-018). The client wraps
 `*http.Client` with explicit timeouts, bounded retries with
 exponential backoff + jitter (5xx and transport errors only — 4xx is
 treated as a non-recoverable caller bug), `otelhttp.Transport` for
@@ -432,7 +485,7 @@ The application itself talks to no external secret store — the Vault Agent sid
 shared tmpfs and the app reads files. See [docs/adr/0001-secrets-management.md](docs/adr/0001-secrets-management.md)
 for the architectural decision and the rotation playbook.
 
-The required-secret list lives in [core/secrets/provider.go](core/secrets/provider.go) (`secrets.Required`); the
+The required-secret list lives in [internal/platform/secrets/provider.go](internal/platform/secrets/provider.go) (`secrets.Required`); the
 provider's `Load` fails fast at startup if any are missing.
 
 #### Local stack credentials
@@ -498,11 +551,11 @@ If `make tools` has not been run yet, `lint` and `sec` will fail with
 I'm using the [migrate](https://github.com/golang-migrate/migrate) project to manage database migrations.
 
 ```shell
-migrate create -ext sql -dir db/migrations -seq create_products_table
+migrate create -ext sql -dir internal/platform/persistence/migrations -seq create_products_table
 
-migrate -database postgres://postgres:postgres@localhost:5432/smfg-db?sslmode=disable -path db/migrations up
+migrate -database postgres://postgres:postgres@localhost:5432/smfg-db?sslmode=disable -path internal/platform/persistence/migrations up
 
-migrate -source file://db/migrations -database postgres://localhost:5432/database down
+migrate -source file://internal/platform/persistence/migrations -database postgres://localhost:5432/database down
 ```
 
 ## 12 Factors
