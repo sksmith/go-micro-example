@@ -1,4 +1,4 @@
-package kafka_test
+package inventory_test
 
 import (
 	"context"
@@ -7,9 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sksmith/go-micro-example/core/inventory"
 	"github.com/sksmith/go-micro-example/events"
-	gmekafka "github.com/sksmith/go-micro-example/kafka"
+	"github.com/sksmith/go-micro-example/internal/inventory"
 )
 
 type fakeInventory struct {
@@ -38,7 +37,7 @@ func (f *fakeInventory) Produce(_ context.Context, product inventory.Product, ev
 
 func TestInventoryCommandHandlerHappyPath(t *testing.T) {
 	fake := &fakeInventory{}
-	h := &gmekafka.InventoryCommandHandler{Service: fake}
+	h := &inventory.InventoryCommandHandler{Service: fake}
 
 	env, err := events.NewEnvelope(
 		"event-1",
@@ -63,7 +62,7 @@ func TestInventoryCommandHandlerHappyPath(t *testing.T) {
 }
 
 func TestInventoryCommandHandlerRejectsUnknownType(t *testing.T) {
-	h := &gmekafka.InventoryCommandHandler{Service: &fakeInventory{}}
+	h := &inventory.InventoryCommandHandler{Service: &fakeInventory{}}
 	env, _ := events.NewEnvelope("e", "inventory.never_heard_of_it", 1, time.Now(), struct{}{})
 	err := h.Handle(context.Background(), env)
 	if err == nil {
@@ -73,7 +72,7 @@ func TestInventoryCommandHandlerRejectsUnknownType(t *testing.T) {
 
 func TestInventoryCommandHandlerSurfacesGetError(t *testing.T) {
 	fake := &fakeInventory{getErr: errors.New("not found")}
-	h := &gmekafka.InventoryCommandHandler{Service: fake}
+	h := &inventory.InventoryCommandHandler{Service: fake}
 	env, _ := events.NewEnvelope("e", events.TypeRecordProduction, 1, time.Now(),
 		map[string]any{"sku": "missing", "requestId": "r", "quantity": 1})
 	err := h.Handle(context.Background(), env)
@@ -86,7 +85,7 @@ func TestInventoryCommandHandlerSurfacesGetError(t *testing.T) {
 }
 
 func TestInventoryCommandHandlerSurfacesBadPayload(t *testing.T) {
-	h := &gmekafka.InventoryCommandHandler{Service: &fakeInventory{}}
+	h := &inventory.InventoryCommandHandler{Service: &fakeInventory{}}
 	env := events.Envelope{
 		EventID:      "e",
 		EventType:    events.TypeRecordProduction,

@@ -20,21 +20,21 @@ const (
 	BearerAuthScopes bearerAuthContextKey = "BearerAuth.Scopes"
 )
 
-// Defines values for GithubComSksmithGoMicroExampleCoreInventoryReserveState.
+// Defines values for ReserveState.
 const (
-	GithubComSksmithGoMicroExampleCoreInventoryReserveStateClosed GithubComSksmithGoMicroExampleCoreInventoryReserveState = "Closed"
-	GithubComSksmithGoMicroExampleCoreInventoryReserveStateNone   GithubComSksmithGoMicroExampleCoreInventoryReserveState = ""
-	GithubComSksmithGoMicroExampleCoreInventoryReserveStateOpen   GithubComSksmithGoMicroExampleCoreInventoryReserveState = "Open"
+	ReserveStateClosed ReserveState = "Closed"
+	ReserveStateNone   ReserveState = ""
+	ReserveStateOpen   ReserveState = "Open"
 )
 
-// Valid indicates whether the value is a known member of the GithubComSksmithGoMicroExampleCoreInventoryReserveState enum.
-func (e GithubComSksmithGoMicroExampleCoreInventoryReserveState) Valid() bool {
+// Valid indicates whether the value is a known member of the ReserveState enum.
+func (e ReserveState) Valid() bool {
 	switch e {
-	case GithubComSksmithGoMicroExampleCoreInventoryReserveStateClosed:
+	case ReserveStateClosed:
 		return true
-	case GithubComSksmithGoMicroExampleCoreInventoryReserveStateNone:
+	case ReserveStateNone:
 		return true
-	case GithubComSksmithGoMicroExampleCoreInventoryReserveStateOpen:
+	case ReserveStateOpen:
 		return true
 	default:
 		return false
@@ -59,6 +59,30 @@ func (e GetApiV1ReservationParamsState) Valid() bool {
 	}
 }
 
+// CatalogInfo Catalog is the optional enrichment from the upstream catalog
+// service (DSN-018). Omitted when the catalog client is disabled
+// or when the upstream is unreachable — the inventory response
+// still succeeds in that case.
+type CatalogInfo struct {
+	Category    *string `json:"category,omitempty"`
+	Description *string `json:"description,omitempty"`
+}
+
+// CreateProductRequest defines model for CreateProductRequest.
+type CreateProductRequest struct {
+	Name *string `json:"name,omitempty"`
+	Sku  *string `json:"sku,omitempty"`
+	Upc  *string `json:"upc,omitempty"`
+}
+
+// CreateProductionEventRequest defines model for CreateProductionEventRequest.
+type CreateProductionEventRequest struct {
+	Created   *string `json:"created,omitempty"`
+	Id        *int    `json:"id,omitempty"`
+	Quantity  *int    `json:"quantity,omitempty"`
+	RequestID *string `json:"requestID,omitempty"`
+}
+
 // FieldProblem defines model for FieldProblem.
 type FieldProblem struct {
 	Detail *string `json:"detail,omitempty"`
@@ -75,29 +99,45 @@ type Problem struct {
 	Type     *string         `json:"type,omitempty"`
 }
 
-// ApiCatalogInfo Catalog is the optional enrichment from the upstream catalog
-// service (DSN-018). Omitted when the catalog client is disabled
-// or when the upstream is unreachable — the inventory response
-// still succeeds in that case.
-type ApiCatalogInfo struct {
-	Category    *string `json:"category,omitempty"`
-	Description *string `json:"description,omitempty"`
+// ProductResponse defines model for ProductResponse.
+type ProductResponse struct {
+	Available *int `json:"available,omitempty"`
+
+	// Catalog Catalog is the optional enrichment from the upstream catalog
+	// service (DSN-018). Omitted when the catalog client is disabled
+	// or when the upstream is unreachable — the inventory response
+	// still succeeds in that case.
+	Catalog *CatalogInfo `json:"catalog,omitempty"`
+	Name    *string      `json:"name,omitempty"`
+	Sku     *string      `json:"sku,omitempty"`
+	Upc     *string      `json:"upc,omitempty"`
 }
 
-// ApiCreateProductRequest defines model for api.CreateProductRequest.
-type ApiCreateProductRequest struct {
-	Name *string `json:"name,omitempty"`
-	Sku  *string `json:"sku,omitempty"`
-	Upc  *string `json:"upc,omitempty"`
-}
+// ProductionEventResponse defines model for ProductionEventResponse.
+type ProductionEventResponse = map[string]interface{}
 
-// ApiCreateProductionEventRequest defines model for api.CreateProductionEventRequest.
-type ApiCreateProductionEventRequest struct {
-	Created   *string `json:"created,omitempty"`
-	Id        *int    `json:"id,omitempty"`
+// ReservationRequestDto defines model for ReservationRequestDto.
+type ReservationRequestDto struct {
 	Quantity  *int    `json:"quantity,omitempty"`
-	RequestID *string `json:"requestID,omitempty"`
+	RequestId *string `json:"requestId,omitempty"`
+	Requester *string `json:"requester,omitempty"`
+	Sku       *string `json:"sku,omitempty"`
 }
+
+// ReservationResponse defines model for ReservationResponse.
+type ReservationResponse struct {
+	Created           *string       `json:"created,omitempty"`
+	Id                *int          `json:"id,omitempty"`
+	RequestId         *string       `json:"requestId,omitempty"`
+	RequestedQuantity *int          `json:"requestedQuantity,omitempty"`
+	Requester         *string       `json:"requester,omitempty"`
+	ReservedQuantity  *int          `json:"reservedQuantity,omitempty"`
+	Sku               *string       `json:"sku,omitempty"`
+	State             *ReserveState `json:"state,omitempty"`
+}
+
+// ReserveState defines model for ReserveState.
+type ReserveState string
 
 // ApiEnvResponse defines model for api.EnvResponse.
 type ApiEnvResponse struct {
@@ -118,43 +158,6 @@ type ApiEnvResponse struct {
 	Redis       *ConfigRedisConfig       `json:"redis,omitempty"`
 	Revision    *ConfigStringConfig      `json:"revision,omitempty"`
 	Sha1Version *ConfigStringConfig      `json:"sha1Version,omitempty"`
-}
-
-// ApiProductResponse defines model for api.ProductResponse.
-type ApiProductResponse struct {
-	Available *int `json:"available,omitempty"`
-
-	// Catalog Catalog is the optional enrichment from the upstream catalog
-	// service (DSN-018). Omitted when the catalog client is disabled
-	// or when the upstream is unreachable — the inventory response
-	// still succeeds in that case.
-	Catalog *ApiCatalogInfo `json:"catalog,omitempty"`
-	Name    *string         `json:"name,omitempty"`
-	Sku     *string         `json:"sku,omitempty"`
-	Upc     *string         `json:"upc,omitempty"`
-}
-
-// ApiProductionEventResponse defines model for api.ProductionEventResponse.
-type ApiProductionEventResponse = map[string]interface{}
-
-// ApiReservationRequest defines model for api.ReservationRequest.
-type ApiReservationRequest struct {
-	Quantity  *int    `json:"quantity,omitempty"`
-	RequestId *string `json:"requestId,omitempty"`
-	Requester *string `json:"requester,omitempty"`
-	Sku       *string `json:"sku,omitempty"`
-}
-
-// ApiReservationResponse defines model for api.ReservationResponse.
-type ApiReservationResponse struct {
-	Created           *string                                                  `json:"created,omitempty"`
-	Id                *int                                                     `json:"id,omitempty"`
-	RequestId         *string                                                  `json:"requestId,omitempty"`
-	RequestedQuantity *int                                                     `json:"requestedQuantity,omitempty"`
-	Requester         *string                                                  `json:"requester,omitempty"`
-	ReservedQuantity  *int                                                     `json:"reservedQuantity,omitempty"`
-	Sku               *string                                                  `json:"sku,omitempty"`
-	State             *GithubComSksmithGoMicroExampleCoreInventoryReserveState `json:"state,omitempty"`
 }
 
 // ApiTokenResponse defines model for api.TokenResponse.
@@ -324,9 +327,6 @@ type ConfigStringConfig struct {
 	Value       *string `json:"value,omitempty"`
 }
 
-// GithubComSksmithGoMicroExampleCoreInventoryReserveState defines model for github_com_sksmith_go-micro-example_core_inventory.ReserveState.
-type GithubComSksmithGoMicroExampleCoreInventoryReserveState string
-
 // InternalUserCreateUserRequestDto defines model for internal_user.CreateUserRequestDto.
 type InternalUserCreateUserRequestDto struct {
 	IsAdmin  *bool   `json:"isAdmin,omitempty"`
@@ -434,22 +434,22 @@ func (t *PutApiV1InventoryJSONBody) MergePutApiV1InventoryJSONBody0(v PutApiV1In
 	return err
 }
 
-// AsApiCreateProductRequest returns the union data inside the PutApiV1InventoryJSONBody as a ApiCreateProductRequest
-func (t PutApiV1InventoryJSONBody) AsApiCreateProductRequest() (ApiCreateProductRequest, error) {
-	var body ApiCreateProductRequest
+// AsCreateProductRequest returns the union data inside the PutApiV1InventoryJSONBody as a CreateProductRequest
+func (t PutApiV1InventoryJSONBody) AsCreateProductRequest() (CreateProductRequest, error) {
+	var body CreateProductRequest
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromApiCreateProductRequest overwrites any union data inside the PutApiV1InventoryJSONBody as the provided ApiCreateProductRequest
-func (t *PutApiV1InventoryJSONBody) FromApiCreateProductRequest(v ApiCreateProductRequest) error {
+// FromCreateProductRequest overwrites any union data inside the PutApiV1InventoryJSONBody as the provided CreateProductRequest
+func (t *PutApiV1InventoryJSONBody) FromCreateProductRequest(v CreateProductRequest) error {
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
 }
 
-// MergeApiCreateProductRequest performs a merge with any union data inside the PutApiV1InventoryJSONBody, using the provided ApiCreateProductRequest
-func (t *PutApiV1InventoryJSONBody) MergeApiCreateProductRequest(v ApiCreateProductRequest) error {
+// MergeCreateProductRequest performs a merge with any union data inside the PutApiV1InventoryJSONBody, using the provided CreateProductRequest
+func (t *PutApiV1InventoryJSONBody) MergeCreateProductRequest(v CreateProductRequest) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -496,22 +496,22 @@ func (t *PutApiV1InventorySkuProductionEventJSONBody) MergePutApiV1InventorySkuP
 	return err
 }
 
-// AsApiCreateProductionEventRequest returns the union data inside the PutApiV1InventorySkuProductionEventJSONBody as a ApiCreateProductionEventRequest
-func (t PutApiV1InventorySkuProductionEventJSONBody) AsApiCreateProductionEventRequest() (ApiCreateProductionEventRequest, error) {
-	var body ApiCreateProductionEventRequest
+// AsCreateProductionEventRequest returns the union data inside the PutApiV1InventorySkuProductionEventJSONBody as a CreateProductionEventRequest
+func (t PutApiV1InventorySkuProductionEventJSONBody) AsCreateProductionEventRequest() (CreateProductionEventRequest, error) {
+	var body CreateProductionEventRequest
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromApiCreateProductionEventRequest overwrites any union data inside the PutApiV1InventorySkuProductionEventJSONBody as the provided ApiCreateProductionEventRequest
-func (t *PutApiV1InventorySkuProductionEventJSONBody) FromApiCreateProductionEventRequest(v ApiCreateProductionEventRequest) error {
+// FromCreateProductionEventRequest overwrites any union data inside the PutApiV1InventorySkuProductionEventJSONBody as the provided CreateProductionEventRequest
+func (t *PutApiV1InventorySkuProductionEventJSONBody) FromCreateProductionEventRequest(v CreateProductionEventRequest) error {
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
 }
 
-// MergeApiCreateProductionEventRequest performs a merge with any union data inside the PutApiV1InventorySkuProductionEventJSONBody, using the provided ApiCreateProductionEventRequest
-func (t *PutApiV1InventorySkuProductionEventJSONBody) MergeApiCreateProductionEventRequest(v ApiCreateProductionEventRequest) error {
+// MergeCreateProductionEventRequest performs a merge with any union data inside the PutApiV1InventorySkuProductionEventJSONBody, using the provided CreateProductionEventRequest
+func (t *PutApiV1InventorySkuProductionEventJSONBody) MergeCreateProductionEventRequest(v CreateProductionEventRequest) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -558,22 +558,22 @@ func (t *PostApiV1ReservationJSONBody) MergePostApiV1ReservationJSONBody0(v Post
 	return err
 }
 
-// AsApiReservationRequest returns the union data inside the PostApiV1ReservationJSONBody as a ApiReservationRequest
-func (t PostApiV1ReservationJSONBody) AsApiReservationRequest() (ApiReservationRequest, error) {
-	var body ApiReservationRequest
+// AsReservationRequestDto returns the union data inside the PostApiV1ReservationJSONBody as a ReservationRequestDto
+func (t PostApiV1ReservationJSONBody) AsReservationRequestDto() (ReservationRequestDto, error) {
+	var body ReservationRequestDto
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromApiReservationRequest overwrites any union data inside the PostApiV1ReservationJSONBody as the provided ApiReservationRequest
-func (t *PostApiV1ReservationJSONBody) FromApiReservationRequest(v ApiReservationRequest) error {
+// FromReservationRequestDto overwrites any union data inside the PostApiV1ReservationJSONBody as the provided ReservationRequestDto
+func (t *PostApiV1ReservationJSONBody) FromReservationRequestDto(v ReservationRequestDto) error {
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
 }
 
-// MergeApiReservationRequest performs a merge with any union data inside the PostApiV1ReservationJSONBody, using the provided ApiReservationRequest
-func (t *PostApiV1ReservationJSONBody) MergeApiReservationRequest(v ApiReservationRequest) error {
+// MergeReservationRequestDto performs a merge with any union data inside the PostApiV1ReservationJSONBody, using the provided ReservationRequestDto
+func (t *PostApiV1ReservationJSONBody) MergeReservationRequestDto(v ReservationRequestDto) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -1497,7 +1497,7 @@ func (r GetApiV1AdminEnvResponse) ContentType() string {
 type GetApiV1InventoryResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *[]ApiProductResponse
+	JSON200      *[]ProductResponse
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON500      *Problem
@@ -1530,7 +1530,7 @@ func (r GetApiV1InventoryResponse) ContentType() string {
 type PutApiV1InventoryResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON201      *ApiProductResponse
+	JSON201      *ProductResponse
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON500      *Problem
@@ -1563,7 +1563,7 @@ func (r PutApiV1InventoryResponse) ContentType() string {
 type GetApiV1InventorySkuResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *ApiProductResponse
+	JSON200      *ProductResponse
 	JSON401      *Problem
 	JSON404      *Problem
 	JSON500      *Problem
@@ -1596,7 +1596,7 @@ func (r GetApiV1InventorySkuResponse) ContentType() string {
 type PutApiV1InventorySkuProductionEventResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON201      *ApiProductionEventResponse
+	JSON201      *ProductionEventResponse
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON404      *Problem
@@ -1630,7 +1630,7 @@ func (r PutApiV1InventorySkuProductionEventResponse) ContentType() string {
 type GetApiV1ReservationResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *[]ApiReservationResponse
+	JSON200      *[]ReservationResponse
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON404      *Problem
@@ -1664,7 +1664,7 @@ func (r GetApiV1ReservationResponse) ContentType() string {
 type PostApiV1ReservationResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON201      *ApiReservationResponse
+	JSON201      *ReservationResponse
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON404      *Problem
@@ -1698,7 +1698,7 @@ func (r PostApiV1ReservationResponse) ContentType() string {
 type GetApiV1ReservationIDResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *ApiReservationResponse
+	JSON200      *ReservationResponse
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON404      *Problem
@@ -1964,7 +1964,7 @@ func ParseGetApiV1InventoryResponse(rsp *http.Response) (*GetApiV1InventoryRespo
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest []ApiProductResponse
+		var dest []ProductResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -2011,7 +2011,7 @@ func ParsePutApiV1InventoryResponse(rsp *http.Response) (*PutApiV1InventoryRespo
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest ApiProductResponse
+		var dest ProductResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -2058,7 +2058,7 @@ func ParseGetApiV1InventorySkuResponse(rsp *http.Response) (*GetApiV1InventorySk
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ApiProductResponse
+		var dest ProductResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -2105,7 +2105,7 @@ func ParsePutApiV1InventorySkuProductionEventResponse(rsp *http.Response) (*PutA
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest ApiProductionEventResponse
+		var dest ProductionEventResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -2159,7 +2159,7 @@ func ParseGetApiV1ReservationResponse(rsp *http.Response) (*GetApiV1ReservationR
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest []ApiReservationResponse
+		var dest []ReservationResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -2213,7 +2213,7 @@ func ParsePostApiV1ReservationResponse(rsp *http.Response) (*PostApiV1Reservatio
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest ApiReservationResponse
+		var dest ReservationResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -2267,7 +2267,7 @@ func ParseGetApiV1ReservationIDResponse(rsp *http.Response) (*GetApiV1Reservatio
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ApiReservationResponse
+		var dest ReservationResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

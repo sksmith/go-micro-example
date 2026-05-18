@@ -10,9 +10,9 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/config"
-	"github.com/sksmith/go-micro-example/core/inventory"
 	"github.com/sksmith/go-micro-example/core/observability"
 	"github.com/sksmith/go-micro-example/events"
+	"github.com/sksmith/go-micro-example/internal/inventory"
 )
 
 // AMQPRequestIDHeader is the AMQP message header that carries the

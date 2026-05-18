@@ -1,4 +1,4 @@
-package api
+package inventory
 
 import (
 	"context"
@@ -13,20 +13,24 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/core"
 	"github.com/sksmith/go-micro-example/core/catalog"
-	"github.com/sksmith/go-micro-example/core/inventory"
 	"github.com/sksmith/go-micro-example/internal/platform/httpx"
 )
 
+// CtxKey is the context-key type used by handlers in this package to
+// stash request-scoped values (e.g. resolved product / reservation
+// objects from URL params) for downstream middleware and handlers.
+type CtxKey string
+
 type InventoryService interface {
-	Produce(ctx context.Context, product inventory.Product, event inventory.ProductionRequest) error
-	CreateProduct(ctx context.Context, product inventory.Product) error
+	Produce(ctx context.Context, product Product, event ProductionRequest) error
+	CreateProduct(ctx context.Context, product Product) error
 
-	GetProduct(ctx context.Context, sku string) (inventory.Product, error)
-	GetAllProductInventory(ctx context.Context, limit, offset int) ([]inventory.ProductInventory, error)
-	GetProductInventory(ctx context.Context, sku string) (inventory.ProductInventory, error)
+	GetProduct(ctx context.Context, sku string) (Product, error)
+	GetAllProductInventory(ctx context.Context, limit, offset int) ([]ProductInventory, error)
+	GetProductInventory(ctx context.Context, sku string) (ProductInventory, error)
 
-	SubscribeInventory(ch chan<- inventory.ProductInventory) (id inventory.InventorySubID)
-	UnsubscribeInventory(id inventory.InventorySubID)
+	SubscribeInventory(ch chan<- ProductInventory) (id InventorySubID)
+	UnsubscribeInventory(id InventorySubID)
 }
 
 type InventoryApi struct {
@@ -63,7 +67,7 @@ func (a *InventoryApi) ConfigureRouter(r chi.Router) {
 	r.HandleFunc("/subscribe", a.Subscribe)
 
 	r.Route("/", func(r chi.Router) {
-		r.With(Paginate).Get("/", a.List)
+		r.With(httpx.Paginate).Get("/", a.List)
 		r.Put("/", a.CreateProduct)
 
 		r.Route("/{sku}", func(r chi.Router) {
@@ -102,7 +106,7 @@ func (a *InventoryApi) Subscribe(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		defer conn.Close()
 
-		ch := make(chan inventory.ProductInventory, 1)
+		ch := make(chan ProductInventory, 1)
 
 		id := a.service.SubscribeInventory(ch)
 		defer func() {
@@ -142,7 +146,7 @@ func (a *InventoryApi) Subscribe(w http.ResponseWriter, r *http.Request) {
 //	@Router		/api/v1/inventory [get]
 //	@Security	BearerAuth
 func (a *InventoryApi) List(w http.ResponseWriter, r *http.Request) {
-	p := PaginationFrom(r.Context())
+	p := httpx.PaginationFrom(r.Context())
 
 	products, err := a.service.GetAllProductInventory(r.Context(), p.Limit, p.Offset)
 	if err != nil {
@@ -151,7 +155,7 @@ func (a *InventoryApi) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	WriteLinkHeader(w, r, p, len(products))
+	httpx.WriteLinkHeader(w, r, p, len(products))
 	httpx.RenderList(w, r, NewProductListResponse(products))
 }
 
@@ -176,7 +180,7 @@ func (a *InventoryApi) CreateProduct(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := a.service.CreateProduct(r.Context(), data.Product); err != nil {
-		if errors.Is(err, inventory.ErrInvalidInput) {
+		if errors.Is(err, ErrInvalidInput) {
 			httpx.Render(w, r, httpx.BadRequestProblem(err))
 			return
 		}
@@ -186,12 +190,12 @@ func (a *InventoryApi) CreateProduct(w http.ResponseWriter, r *http.Request) {
 	}
 
 	render.Status(r, http.StatusCreated)
-	httpx.Render(w, r, NewProductResponse(inventory.ProductInventory{Product: data.Product}))
+	httpx.Render(w, r, NewProductResponse(ProductInventory{Product: data.Product}))
 }
 
 func (a *InventoryApi) ProductCtx(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var product inventory.Product
+		var product Product
 		var err error
 
 		sku := chi.URLParam(r, "sku")
@@ -233,7 +237,7 @@ func (a *InventoryApi) ProductCtx(next http.Handler) http.Handler {
 //	@Router		/api/v1/inventory/{sku}/productionEvent [put]
 //	@Security	BearerAuth
 func (a *InventoryApi) CreateProductionEvent(w http.ResponseWriter, r *http.Request) {
-	product := r.Context().Value(CtxKeyProduct).(inventory.Product)
+	product := r.Context().Value(CtxKeyProduct).(Product)
 
 	data := &CreateProductionEventRequest{}
 	if err := render.Bind(r, data); err != nil {
@@ -242,7 +246,7 @@ func (a *InventoryApi) CreateProductionEvent(w http.ResponseWriter, r *http.Requ
 	}
 
 	if err := a.service.Produce(r.Context(), product, *data.ProductionRequest); err != nil {
-		if errors.Is(err, inventory.ErrInvalidInput) {
+		if errors.Is(err, ErrInvalidInput) {
 			httpx.Render(w, r, httpx.BadRequestProblem(err))
 			return
 		}
@@ -268,7 +272,7 @@ func (a *InventoryApi) CreateProductionEvent(w http.ResponseWriter, r *http.Requ
 //	@Router		/api/v1/inventory/{sku} [get]
 //	@Security	BearerAuth
 func (a *InventoryApi) GetProductInventory(w http.ResponseWriter, r *http.Request) {
-	product := r.Context().Value(CtxKeyProduct).(inventory.Product)
+	product := r.Context().Value(CtxKeyProduct).(Product)
 
 	res, err := a.service.GetProductInventory(r.Context(), product.Sku)
 

@@ -1,4 +1,4 @@
-package invrepo_test
+package inventory_test
 
 import (
 	"context"
@@ -9,8 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/pashagolub/pgxmock/v4"
 	"github.com/sksmith/go-micro-example/core"
-	"github.com/sksmith/go-micro-example/core/inventory"
-	"github.com/sksmith/go-micro-example/db/invrepo"
+	"github.com/sksmith/go-micro-example/internal/inventory"
 )
 
 // repoT exposes only the methods invrepo's *dbRepo provides; the
@@ -38,7 +37,7 @@ func newRepo(t *testing.T) (repoT, pgxmock.PgxConnIface) {
 		t.Fatalf("pgxmock.NewConn: %v", err)
 	}
 	t.Cleanup(func() { _ = mock.Close(context.Background()) })
-	return invrepo.NewPostgresRepo(mock), mock
+	return inventory.NewPostgresRepo(mock), mock
 }
 
 // SQL pattern constants, anchored with ^…$ and explicit \s+ for the
@@ -68,7 +67,7 @@ const (
 	listReservationsByBoth = `^SELECT id, request_id, requester, sku, state, reserved_quantity, requested_quantity, created FROM reservations  WHERE  sku = \$3 AND state = \$4 ORDER BY created ASC LIMIT \$1 OFFSET \$2\s*$`
 )
 
-func TestSaveProduct(t *testing.T) {
+func TestRepositorySaveProduct(t *testing.T) {
 	p := inventory.Product{Sku: "sku1", Upc: "upc1", Name: "name1"}
 
 	t.Run("update affects a row, no insert", func(t *testing.T) {
@@ -117,7 +116,7 @@ func TestSaveProduct(t *testing.T) {
 	})
 }
 
-func TestSaveProductInventory(t *testing.T) {
+func TestRepositorySaveProductInventory(t *testing.T) {
 	pi := inventory.ProductInventory{Product: inventory.Product{Sku: "sku1"}, Available: 5}
 
 	t.Run("update succeeds", func(t *testing.T) {
@@ -152,7 +151,7 @@ func TestSaveProductInventory(t *testing.T) {
 	})
 }
 
-func TestGetProduct(t *testing.T) {
+func TestRepositoryGetProduct(t *testing.T) {
 	t.Run("hit returns product", func(t *testing.T) {
 		repo, mock := newRepo(t)
 		mock.ExpectQuery(selectProduct).
@@ -183,7 +182,7 @@ func TestGetProduct(t *testing.T) {
 	})
 }
 
-func TestGetProductInventory(t *testing.T) {
+func TestRepositoryGetProductInventory(t *testing.T) {
 	t.Run("hit returns inventory", func(t *testing.T) {
 		repo, mock := newRepo(t)
 		mock.ExpectQuery(selectProductInventory).
@@ -201,7 +200,7 @@ func TestGetProductInventory(t *testing.T) {
 	})
 }
 
-func TestGetAllProductInventory(t *testing.T) {
+func TestRepositoryGetAllProductInventory(t *testing.T) {
 	repo, mock := newRepo(t)
 	mock.ExpectQuery(selectAllInventory).
 		WithArgs(10, 0).
@@ -222,7 +221,7 @@ func TestGetAllProductInventory(t *testing.T) {
 	}
 }
 
-func TestSaveProductionEvent(t *testing.T) {
+func TestRepositorySaveProductionEvent(t *testing.T) {
 	t.Run("RETURNING id is scanned back into the event", func(t *testing.T) {
 		repo, mock := newRepo(t)
 		ev := &inventory.ProductionEvent{RequestID: "req1", Sku: "sku1", Quantity: 4, Created: time.Unix(0, 0).UTC()}
@@ -239,7 +238,7 @@ func TestSaveProductionEvent(t *testing.T) {
 	})
 }
 
-func TestGetProductionEventByRequestID(t *testing.T) {
+func TestRepositoryGetProductionEventByRequestID(t *testing.T) {
 	repo, mock := newRepo(t)
 	created := time.Unix(0, 0).UTC()
 	mock.ExpectQuery(selectProductionEvent).
@@ -256,7 +255,7 @@ func TestGetProductionEventByRequestID(t *testing.T) {
 	}
 }
 
-func TestSaveReservation(t *testing.T) {
+func TestRepositorySaveReservation(t *testing.T) {
 	repo, mock := newRepo(t)
 	r := &inventory.Reservation{
 		RequestID: "req1", Requester: "x", Sku: "sku1",
@@ -274,7 +273,7 @@ func TestSaveReservation(t *testing.T) {
 	}
 }
 
-func TestUpdateReservation(t *testing.T) {
+func TestRepositoryUpdateReservation(t *testing.T) {
 	repo, mock := newRepo(t)
 	mock.ExpectExec(updateReservationStmt).
 		WithArgs(uint64(7), inventory.Closed, int64(5)).
@@ -285,7 +284,7 @@ func TestUpdateReservation(t *testing.T) {
 	}
 }
 
-func TestGetReservations(t *testing.T) {
+func TestRepositoryGetReservations(t *testing.T) {
 	emptyRows := func() *pgxmock.Rows {
 		return pgxmock.NewRows([]string{"id", "request_id", "requester", "sku", "state", "reserved_quantity", "requested_quantity", "created"})
 	}
@@ -342,7 +341,7 @@ func TestGetReservations(t *testing.T) {
 	})
 }
 
-func TestGetReservation(t *testing.T) {
+func TestRepositoryGetReservation(t *testing.T) {
 	repo, mock := newRepo(t)
 	created := time.Unix(0, 0).UTC()
 	mock.ExpectQuery(selectReservationByID).
@@ -359,7 +358,7 @@ func TestGetReservation(t *testing.T) {
 	}
 }
 
-func TestGetReservationByRequestID(t *testing.T) {
+func TestRepositoryGetReservationByRequestID(t *testing.T) {
 	repo, mock := newRepo(t)
 	created := time.Unix(0, 0).UTC()
 	mock.ExpectQuery(selectReservationByReq).
@@ -376,7 +375,7 @@ func TestGetReservationByRequestID(t *testing.T) {
 	}
 }
 
-func TestBeginTransaction(t *testing.T) {
+func TestRepositoryBeginTransaction(t *testing.T) {
 	t.Run("delegates to conn.Begin", func(t *testing.T) {
 		repo, mock := newRepo(t)
 		mock.ExpectBegin()

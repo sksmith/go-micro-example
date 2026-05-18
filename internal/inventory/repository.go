@@ -1,4 +1,4 @@
-package invrepo
+package inventory
 
 import (
 	"context"
@@ -8,7 +8,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/core"
-	"github.com/sksmith/go-micro-example/core/inventory"
 	"github.com/sksmith/go-micro-example/db"
 )
 
@@ -23,7 +22,7 @@ func NewPostgresRepo(conn core.Conn) *dbRepo {
 	}
 }
 
-func (d *dbRepo) SaveProduct(ctx context.Context, product inventory.Product, options ...core.UpdateOptions) error {
+func (d *dbRepo) SaveProduct(ctx context.Context, product Product, options ...core.UpdateOptions) error {
 	m := db.StartMetric("SaveProduct")
 	tx := db.GetUpdateOptions(d.conn, options...)
 
@@ -50,7 +49,7 @@ func (d *dbRepo) SaveProduct(ctx context.Context, product inventory.Product, opt
 	return nil
 }
 
-func (d *dbRepo) SaveProductInventory(ctx context.Context, productInventory inventory.ProductInventory, options ...core.UpdateOptions) error {
+func (d *dbRepo) SaveProductInventory(ctx context.Context, productInventory ProductInventory, options ...core.UpdateOptions) error {
 	m := db.StartMetric("SaveProductInventory")
 	tx := db.GetUpdateOptions(d.conn, options...)
 
@@ -76,11 +75,11 @@ func (d *dbRepo) SaveProductInventory(ctx context.Context, productInventory inve
 	return nil
 }
 
-func (d *dbRepo) GetProduct(ctx context.Context, sku string, options ...core.QueryOptions) (inventory.Product, error) {
+func (d *dbRepo) GetProduct(ctx context.Context, sku string, options ...core.QueryOptions) (Product, error) {
 	m := db.StartMetric("GetProduct")
 	tx, forUpdate := db.GetQueryOptions(d.conn, options...)
 
-	product := inventory.Product{}
+	product := Product{}
 	err := tx.QueryRow(ctx, `SELECT sku, upc, name FROM products WHERE sku = $1 `+forUpdate, sku).
 		Scan(&product.Sku, &product.Upc, &product.Name)
 
@@ -96,11 +95,11 @@ func (d *dbRepo) GetProduct(ctx context.Context, sku string, options ...core.Que
 	return product, nil
 }
 
-func (d *dbRepo) GetProductInventory(ctx context.Context, sku string, options ...core.QueryOptions) (inventory.ProductInventory, error) {
+func (d *dbRepo) GetProductInventory(ctx context.Context, sku string, options ...core.QueryOptions) (ProductInventory, error) {
 	m := db.StartMetric("GetProductInventory")
 	tx, forUpdate := db.GetQueryOptions(d.conn, options...)
 
-	productInventory := inventory.ProductInventory{}
+	productInventory := ProductInventory{}
 	err := tx.QueryRow(ctx, `SELECT p.sku, p.upc, p.name, pi.available FROM products p, product_inventory pi WHERE p.sku = $1 AND p.sku = pi.sku `+forUpdate, sku).
 		Scan(&productInventory.Sku, &productInventory.Upc, &productInventory.Name, &productInventory.Available)
 
@@ -116,11 +115,11 @@ func (d *dbRepo) GetProductInventory(ctx context.Context, sku string, options ..
 	return productInventory, nil
 }
 
-func (d *dbRepo) GetAllProductInventory(ctx context.Context, limit int, offset int, options ...core.QueryOptions) ([]inventory.ProductInventory, error) {
+func (d *dbRepo) GetAllProductInventory(ctx context.Context, limit int, offset int, options ...core.QueryOptions) ([]ProductInventory, error) {
 	m := db.StartMetric("GetAllProducts")
 	tx, forUpdate := db.GetQueryOptions(d.conn, options...)
 
-	products := make([]inventory.ProductInventory, 0)
+	products := make([]ProductInventory, 0)
 	rows, err := tx.Query(ctx,
 		`SELECT p.sku, p.upc, p.name, pi.available FROM products p, product_inventory pi WHERE p.sku = pi.sku ORDER BY p.sku LIMIT $1 OFFSET $2 `+forUpdate,
 		limit, offset)
@@ -134,7 +133,7 @@ func (d *dbRepo) GetAllProductInventory(ctx context.Context, limit int, offset i
 	defer rows.Close()
 
 	for rows.Next() {
-		product := inventory.ProductInventory{}
+		product := ProductInventory{}
 		err = rows.Scan(&product.Sku, &product.Upc, &product.Name, &product.Available)
 		if err != nil {
 			m.Complete(err)
@@ -150,11 +149,11 @@ func (d *dbRepo) GetAllProductInventory(ctx context.Context, limit int, offset i
 	return products, nil
 }
 
-func (d *dbRepo) GetProductionEventByRequestID(ctx context.Context, requestID string, options ...core.QueryOptions) (pe inventory.ProductionEvent, err error) {
+func (d *dbRepo) GetProductionEventByRequestID(ctx context.Context, requestID string, options ...core.QueryOptions) (pe ProductionEvent, err error) {
 	m := db.StartMetric("GetProductionEventByRequestID")
 	tx, forUpdate := db.GetQueryOptions(d.conn, options...)
 
-	pe = inventory.ProductionEvent{}
+	pe = ProductionEvent{}
 	err = tx.QueryRow(ctx, `SELECT id, request_id, sku, quantity, created FROM production_events `+forUpdate+` WHERE request_id = $1 `+forUpdate, requestID).
 		Scan(&pe.ID, &pe.RequestID, &pe.Sku, &pe.Quantity, &pe.Created)
 
@@ -170,7 +169,7 @@ func (d *dbRepo) GetProductionEventByRequestID(ctx context.Context, requestID st
 	return pe, nil
 }
 
-func (d *dbRepo) SaveProductionEvent(ctx context.Context, event *inventory.ProductionEvent, options ...core.UpdateOptions) error {
+func (d *dbRepo) SaveProductionEvent(ctx context.Context, event *ProductionEvent, options ...core.UpdateOptions) error {
 	m := db.StartMetric("SaveProductionEvent")
 	tx := db.GetUpdateOptions(d.conn, options...)
 
@@ -189,7 +188,7 @@ func (d *dbRepo) SaveProductionEvent(ctx context.Context, event *inventory.Produ
 	return nil
 }
 
-func (d *dbRepo) SaveReservation(ctx context.Context, r *inventory.Reservation, options ...core.UpdateOptions) error {
+func (d *dbRepo) SaveReservation(ctx context.Context, r *Reservation, options ...core.UpdateOptions) error {
 	m := db.StartMetric("SaveReservation")
 	tx := db.GetUpdateOptions(d.conn, options...)
 
@@ -207,7 +206,7 @@ func (d *dbRepo) SaveReservation(ctx context.Context, r *inventory.Reservation, 
 	return nil
 }
 
-func (d *dbRepo) UpdateReservation(ctx context.Context, ID uint64, state inventory.ReserveState, qty int64, options ...core.UpdateOptions) error {
+func (d *dbRepo) UpdateReservation(ctx context.Context, ID uint64, state ReserveState, qty int64, options ...core.UpdateOptions) error {
 	m := db.StartMetric("UpdateReservation")
 	tx := db.GetUpdateOptions(d.conn, options...)
 
@@ -223,7 +222,7 @@ func (d *dbRepo) UpdateReservation(ctx context.Context, ID uint64, state invento
 
 const reservationFields = "id, request_id, requester, sku, state, reserved_quantity, requested_quantity, created"
 
-func (d *dbRepo) GetReservations(ctx context.Context, resOptions inventory.GetReservationsOptions, limit, offset int, options ...core.QueryOptions) ([]inventory.Reservation, error) {
+func (d *dbRepo) GetReservations(ctx context.Context, resOptions GetReservationsOptions, limit, offset int, options ...core.QueryOptions) ([]Reservation, error) {
 	m := db.StartMetric("GetSkuOpenReserves")
 	tx, forUpdate := db.GetQueryOptions(d.conn, options...)
 
@@ -234,7 +233,7 @@ func (d *dbRepo) GetReservations(ctx context.Context, resOptions inventory.GetRe
 	whereClause := ""
 	paramIdx := 2
 
-	if resOptions.Sku != "" || resOptions.State != inventory.None {
+	if resOptions.Sku != "" || resOptions.State != None {
 		whereClause = " WHERE "
 	}
 
@@ -247,7 +246,7 @@ func (d *dbRepo) GetReservations(ctx context.Context, resOptions inventory.GetRe
 		params = append(params, resOptions.Sku)
 	}
 
-	if resOptions.State != inventory.None {
+	if resOptions.State != None {
 		if paramIdx > 2 {
 			whereClause += " AND"
 		}
@@ -256,7 +255,7 @@ func (d *dbRepo) GetReservations(ctx context.Context, resOptions inventory.GetRe
 		params = append(params, resOptions.State)
 	}
 
-	reservations := make([]inventory.Reservation, 0)
+	reservations := make([]Reservation, 0)
 	rows, err := tx.Query(ctx,
 		`SELECT `+reservationFields+` FROM reservations `+whereClause+` ORDER BY created ASC LIMIT $1 OFFSET $2 `+forUpdate,
 		params...)
@@ -270,7 +269,7 @@ func (d *dbRepo) GetReservations(ctx context.Context, resOptions inventory.GetRe
 	defer rows.Close()
 
 	for rows.Next() {
-		r := inventory.Reservation{}
+		r := Reservation{}
 		err = rows.Scan(&r.ID, &r.RequestID, &r.Requester, &r.Sku, &r.State, &r.ReservedQuantity, &r.RequestedQuantity, &r.Created)
 		if err != nil {
 			m.Complete(err)
@@ -283,11 +282,11 @@ func (d *dbRepo) GetReservations(ctx context.Context, resOptions inventory.GetRe
 	return reservations, nil
 }
 
-func (d *dbRepo) GetReservationByRequestID(ctx context.Context, requestId string, options ...core.QueryOptions) (inventory.Reservation, error) {
+func (d *dbRepo) GetReservationByRequestID(ctx context.Context, requestId string, options ...core.QueryOptions) (Reservation, error) {
 	m := db.StartMetric("GetReservationByRequestID")
 	tx, forUpdate := db.GetQueryOptions(d.conn, options...)
 
-	r := inventory.Reservation{}
+	r := Reservation{}
 	err := tx.QueryRow(ctx,
 		`SELECT `+reservationFields+` FROM reservations WHERE request_id = $1 `+forUpdate,
 		requestId).Scan(&r.ID, &r.RequestID, &r.Requester, &r.Sku, &r.State, &r.ReservedQuantity, &r.RequestedQuantity, &r.Created)
@@ -303,11 +302,11 @@ func (d *dbRepo) GetReservationByRequestID(ctx context.Context, requestId string
 	return r, nil
 }
 
-func (d *dbRepo) GetReservation(ctx context.Context, ID uint64, options ...core.QueryOptions) (inventory.Reservation, error) {
+func (d *dbRepo) GetReservation(ctx context.Context, ID uint64, options ...core.QueryOptions) (Reservation, error) {
 	m := db.StartMetric("GetReservation")
 	tx, forUpdate := db.GetQueryOptions(d.conn, options...)
 
-	r := inventory.Reservation{}
+	r := Reservation{}
 	err := tx.QueryRow(ctx,
 		`SELECT `+reservationFields+` FROM reservations WHERE id = $1 `+forUpdate, ID).
 		Scan(&r.ID, &r.RequestID, &r.Requester, &r.Sku, &r.State, &r.ReservedQuantity, &r.RequestedQuantity, &r.Created)

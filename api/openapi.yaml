@@ -1,5 +1,37 @@
 components:
   schemas:
+    CatalogInfo:
+      description: |-
+        Catalog is the optional enrichment from the upstream catalog
+        service (DSN-018). Omitted when the catalog client is disabled
+        or when the upstream is unreachable — the inventory response
+        still succeeds in that case.
+      properties:
+        category:
+          type: string
+        description:
+          type: string
+      type: object
+    CreateProductRequest:
+      properties:
+        name:
+          type: string
+        sku:
+          type: string
+        upc:
+          type: string
+      type: object
+    CreateProductionEventRequest:
+      properties:
+        created:
+          type: string
+        id:
+          type: integer
+        quantity:
+          type: integer
+        requestID:
+          type: string
+      type: object
     FieldProblem:
       properties:
         detail:
@@ -25,20 +57,12 @@ components:
         type:
           type: string
       type: object
-    api.CatalogInfo:
-      description: |-
-        Catalog is the optional enrichment from the upstream catalog
-        service (DSN-018). Omitted when the catalog client is disabled
-        or when the upstream is unreachable — the inventory response
-        still succeeds in that case.
+    ProductResponse:
       properties:
-        category:
-          type: string
-        description:
-          type: string
-      type: object
-    api.CreateProductRequest:
-      properties:
+        available:
+          type: integer
+        catalog:
+          $ref: '#/components/schemas/CatalogInfo'
         name:
           type: string
         sku:
@@ -46,17 +70,48 @@ components:
         upc:
           type: string
       type: object
-    api.CreateProductionEventRequest:
+    ProductionEventResponse:
+      type: object
+    ReservationRequestDto:
+      properties:
+        quantity:
+          type: integer
+        requestId:
+          type: string
+        requester:
+          type: string
+        sku:
+          type: string
+      type: object
+    ReservationResponse:
       properties:
         created:
           type: string
         id:
           type: integer
-        quantity:
-          type: integer
-        requestID:
+        requestId:
           type: string
+        requestedQuantity:
+          type: integer
+        requester:
+          type: string
+        reservedQuantity:
+          type: integer
+        sku:
+          type: string
+        state:
+          $ref: '#/components/schemas/ReserveState'
       type: object
+    ReserveState:
+      enum:
+      - Open
+      - Closed
+      - ""
+      type: string
+      x-enum-varnames:
+      - Open
+      - Closed
+      - None
     api.EnvResponse:
       properties:
         appName:
@@ -93,51 +148,6 @@ components:
           $ref: '#/components/schemas/config.StringConfig'
         sha1Version:
           $ref: '#/components/schemas/config.StringConfig'
-      type: object
-    api.ProductResponse:
-      properties:
-        available:
-          type: integer
-        catalog:
-          $ref: '#/components/schemas/api.CatalogInfo'
-        name:
-          type: string
-        sku:
-          type: string
-        upc:
-          type: string
-      type: object
-    api.ProductionEventResponse:
-      type: object
-    api.ReservationRequest:
-      properties:
-        quantity:
-          type: integer
-        requestId:
-          type: string
-        requester:
-          type: string
-        sku:
-          type: string
-      type: object
-    api.ReservationResponse:
-      properties:
-        created:
-          type: string
-        id:
-          type: integer
-        requestId:
-          type: string
-        requestedQuantity:
-          type: integer
-        requester:
-          type: string
-        reservedQuantity:
-          type: integer
-        sku:
-          type: string
-        state:
-          $ref: '#/components/schemas/github_com_sksmith_go-micro-example_core_inventory.ReserveState'
       type: object
     api.TokenResponse:
       properties:
@@ -368,16 +378,6 @@ components:
         value:
           type: string
       type: object
-    github_com_sksmith_go-micro-example_core_inventory.ReserveState:
-      enum:
-      - Open
-      - Closed
-      - ""
-      type: string
-      x-enum-varnames:
-      - Open
-      - Closed
-      - None
     internal_user.CreateUserRequestDto:
       properties:
         isAdmin:
@@ -446,7 +446,7 @@ paths:
             application/json:
               schema:
                 items:
-                  $ref: '#/components/schemas/api.ProductResponse'
+                  $ref: '#/components/schemas/ProductResponse'
                 type: array
           description: OK
           headers:
@@ -484,7 +484,7 @@ paths:
             schema:
               oneOf:
               - type: object
-              - $ref: '#/components/schemas/api.CreateProductRequest'
+              - $ref: '#/components/schemas/CreateProductRequest'
                 description: product to create
                 summary: product
         description: product to create
@@ -494,7 +494,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ProductResponse'
+                $ref: '#/components/schemas/ProductResponse'
           description: Created
         "400":
           content:
@@ -533,7 +533,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ProductResponse'
+                $ref: '#/components/schemas/ProductResponse'
           description: OK
         "401":
           content:
@@ -573,7 +573,7 @@ paths:
             schema:
               oneOf:
               - type: object
-              - $ref: '#/components/schemas/api.CreateProductionEventRequest'
+              - $ref: '#/components/schemas/CreateProductionEventRequest'
                 description: production event
                 summary: event
         description: production event
@@ -583,7 +583,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ProductionEventResponse'
+                $ref: '#/components/schemas/ProductionEventResponse'
           description: Created
         "400":
           content:
@@ -648,7 +648,7 @@ paths:
             application/json:
               schema:
                 items:
-                  $ref: '#/components/schemas/api.ReservationResponse'
+                  $ref: '#/components/schemas/ReservationResponse'
                 type: array
           description: OK
           headers:
@@ -692,7 +692,7 @@ paths:
             schema:
               oneOf:
               - type: object
-              - $ref: '#/components/schemas/api.ReservationRequest'
+              - $ref: '#/components/schemas/ReservationRequestDto'
                 description: reservation request
                 summary: reservation
         description: reservation request
@@ -702,7 +702,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ReservationResponse'
+                $ref: '#/components/schemas/ReservationResponse'
           description: Created
         "400":
           content:
@@ -747,7 +747,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ReservationResponse'
+                $ref: '#/components/schemas/ReservationResponse'
           description: OK
         "400":
           content:

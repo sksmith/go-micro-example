@@ -86,7 +86,7 @@ func runRESTRoundTrip(ctx context.Context, cfg Config) (string, error) {
 	// underlying type but doesn't transfer to the defined request
 	// type — a known oapi-codegen 3.1 limitation). Marshal the
 	// variant ourselves and use the WithBody entrypoint instead.
-	createBody, err := json.Marshal(v1.ApiCreateProductRequest{
+	createBody, err := json.Marshal(v1.CreateProductRequest{
 		Sku:  ptrString(sku),
 		Upc:  ptrString("demo-upc"),
 		Name: ptrString("Demo Widget"),

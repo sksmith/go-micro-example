@@ -1,17 +1,15 @@
-package api
+package inventory
 
 import (
 	"errors"
 	"net/http"
-
-	"github.com/sksmith/go-micro-example/core/inventory"
 )
 
-type ReservationRequest struct {
-	*inventory.ReservationRequest
-}
+type ReservationRequestDto struct {
+	*ReservationRequest
+} // @name ReservationRequestDto
 
-func (r *ReservationRequest) Bind(_ *http.Request) error {
+func (r *ReservationRequestDto) Bind(_ *http.Request) error {
 	if r.ReservationRequest == nil {
 		return errors.New("missing required Reservation fields")
 	}
@@ -26,8 +24,8 @@ func (r *ReservationRequest) Bind(_ *http.Request) error {
 }
 
 type ReservationResponse struct {
-	inventory.Reservation
-}
+	Reservation
+} // @name ReservationResponse
 
 func (r *ReservationResponse) Render(_ http.ResponseWriter, _ *http.Request) error {
 	return nil

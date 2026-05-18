@@ -1,4 +1,4 @@
-package api_test
+package inventory_test
 
 import (
 	"context"
@@ -12,10 +12,9 @@ import (
 	"time"
 
 	"github.com/gobwas/ws"
-	"github.com/sksmith/go-micro-example/api"
 	"github.com/sksmith/go-micro-example/core"
 	"github.com/sksmith/go-micro-example/core/catalog"
-	"github.com/sksmith/go-micro-example/core/inventory"
+	"github.com/sksmith/go-micro-example/internal/inventory"
 	"github.com/sksmith/go-micro-example/internal/platform/httpx"
 	"github.com/sksmith/go-micro-example/testutil"
 
@@ -58,7 +57,7 @@ func TestInventorySubscribe(t *testing.T) {
 		unsubscribed <- struct{}{}
 	}
 
-	invApi := api.NewInventoryApi(mockSvc)
+	invApi := inventory.NewInventoryApi(mockSvc)
 	r := chi.NewRouter()
 	invApi.ConfigureRouter(r)
 	ts := httptest.NewServer(r)
@@ -97,7 +96,7 @@ func TestInventorySubscribe(t *testing.T) {
 
 func setupInventoryTestServer() (*httptest.Server, *inventory.MockInventoryService) {
 	mockSvc := inventory.NewMockInventoryService()
-	invApi := api.NewInventoryApi(mockSvc)
+	invApi := inventory.NewInventoryApi(mockSvc)
 	r := chi.NewRouter()
 	invApi.ConfigureRouter(r)
 	ts := httptest.NewServer(r)
@@ -220,9 +219,9 @@ func TestInventoryCreateProduct(t *testing.T) {
 	defer ts.Close()
 
 	tests := []struct {
-		request             api.CreateProductRequest
+		request             inventory.CreateProductRequest
 		serviceErr          error
-		wantProductResponse *api.ProductResponse
+		wantProductResponse *inventory.ProductResponse
 		wantErr             *httpx.Problem
 		wantStatusCode      int
 	}{
@@ -275,7 +274,7 @@ func TestInventoryCreateProduct(t *testing.T) {
 		}
 
 		if test.wantErr == nil {
-			got := api.ProductResponse{}
+			got := inventory.ProductResponse{}
 			testutil.Unmarshal(res, &got, t)
 
 			if !reflect.DeepEqual(got, *test.wantProductResponse) {
@@ -303,8 +302,8 @@ func TestInventoryCreateProductionEvent(t *testing.T) {
 		getProductFunc              func(ctx context.Context, sku string) (inventory.Product, error)
 		produceFunc                 func(ctx context.Context, product inventory.Product, event inventory.ProductionRequest) error
 		sku                         string
-		request                     *api.CreateProductionEventRequest
-		wantProductionEventResponse *api.ProductionEventResponse
+		request                     *inventory.CreateProductionEventRequest
+		wantProductionEventResponse *inventory.ProductionEventResponse
 		wantErr                     *httpx.Problem
 		wantStatusCode              int
 	}{
@@ -317,7 +316,7 @@ func TestInventoryCreateProductionEvent(t *testing.T) {
 			},
 			sku:                         "testsku1",
 			request:                     createProductionEventRequest("abc123", 1),
-			wantProductionEventResponse: &api.ProductionEventResponse{},
+			wantProductionEventResponse: &inventory.ProductionEventResponse{},
 			wantErr:                     nil,
 			wantStatusCode:              http.StatusCreated,
 		},
@@ -370,7 +369,7 @@ func TestInventoryCreateProductionEvent(t *testing.T) {
 		}
 
 		if test.wantErr == nil {
-			got := api.ProductionEventResponse{}
+			got := inventory.ProductionEventResponse{}
 			testutil.Unmarshal(res, &got, t)
 
 			if !reflect.DeepEqual(got, *test.wantProductionEventResponse) {
@@ -398,7 +397,7 @@ func TestInventoryGetProductInventory(t *testing.T) {
 		sku                     string
 		getProductFunc          func(ctx context.Context, sku string) (inventory.Product, error)
 		getProductInventoryFunc func(ctx context.Context, sku string) (inventory.ProductInventory, error)
-		wantProductResponse     *api.ProductResponse
+		wantProductResponse     *inventory.ProductResponse
 		wantErr                 *httpx.Problem
 		wantStatusCode          int
 	}{
@@ -474,7 +473,7 @@ func TestInventoryGetProductInventory(t *testing.T) {
 		}
 
 		if test.wantErr == nil {
-			got := api.ProductResponse{}
+			got := inventory.ProductResponse{}
 			testutil.Unmarshal(res, &got, t)
 
 			if !reflect.DeepEqual(got, *test.wantProductResponse) {
@@ -503,7 +502,7 @@ func TestInventoryGetProductInventoryEnriched(t *testing.T) {
 	tests := []struct {
 		name        string
 		client      catalog.Client
-		wantCatalog *api.CatalogInfo
+		wantCatalog *inventory.CatalogInfo
 	}{
 		{
 			name: "lookup ok adds catalog fields",
@@ -512,7 +511,7 @@ func TestInventoryGetProductInventoryEnriched(t *testing.T) {
 					return catalog.Product{Sku: sku, Description: "Widget desc", Category: "tools"}, nil
 				},
 			},
-			wantCatalog: &api.CatalogInfo{Description: "Widget desc", Category: "tools"},
+			wantCatalog: &inventory.CatalogInfo{Description: "Widget desc", Category: "tools"},
 		},
 		{
 			name: "lookup error drops to unenriched response",
@@ -533,7 +532,7 @@ func TestInventoryGetProductInventoryEnriched(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			mockSvc := inventory.NewMockInventoryService()
-			invApi := api.NewInventoryApi(mockSvc)
+			invApi := inventory.NewInventoryApi(mockSvc)
 			invApi.SetCatalog(tc.client)
 			r := chi.NewRouter()
 			invApi.ConfigureRouter(r)
@@ -555,7 +554,7 @@ func TestInventoryGetProductInventoryEnriched(t *testing.T) {
 			if res.StatusCode != http.StatusOK {
 				t.Fatalf("status=%d, want 200", res.StatusCode)
 			}
-			got := api.ProductResponse{}
+			got := inventory.ProductResponse{}
 			testutil.Unmarshal(res, &got, t)
 
 			if !reflect.DeepEqual(got.Catalog, tc.wantCatalog) {
@@ -576,18 +575,18 @@ func (s stubCatalogClient) Lookup(ctx context.Context, sku string) (catalog.Prod
 	return s.lookup(ctx, sku)
 }
 
-func createProductionEventRequest(requestID string, quantity int64) *api.CreateProductionEventRequest {
-	return &api.CreateProductionEventRequest{
+func createProductionEventRequest(requestID string, quantity int64) *inventory.CreateProductionEventRequest {
+	return &inventory.CreateProductionEventRequest{
 		ProductionRequest: &inventory.ProductionRequest{RequestID: requestID, Quantity: quantity},
 	}
 }
 
-func createProductRequest(name, sku, upc string) api.CreateProductRequest {
-	return api.CreateProductRequest{Product: inventory.Product{Name: name, Sku: sku, Upc: upc}}
+func createProductRequest(name, sku, upc string) inventory.CreateProductRequest {
+	return inventory.CreateProductRequest{Product: inventory.Product{Name: name, Sku: sku, Upc: upc}}
 }
 
-func createProductResponse(name, sku, upc string, available int64) *api.ProductResponse {
-	return &api.ProductResponse{
+func createProductResponse(name, sku, upc string, available int64) *inventory.ProductResponse {
+	return &inventory.ProductResponse{
 		ProductInventory: inventory.ProductInventory{
 			Available: available,
 			Product:   inventory.Product{Name: name, Sku: sku, Upc: upc},

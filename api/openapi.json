@@ -1,6 +1,49 @@
 {
     "components": {
         "schemas": {
+            "CatalogInfo": {
+                "description": "Catalog is the optional enrichment from the upstream catalog\nservice (DSN-018). Omitted when the catalog client is disabled\nor when the upstream is unreachable — the inventory response\nstill succeeds in that case.",
+                "properties": {
+                    "category": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "CreateProductRequest": {
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "sku": {
+                        "type": "string"
+                    },
+                    "upc": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "CreateProductionEventRequest": {
+                "properties": {
+                    "created": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "integer"
+                    },
+                    "quantity": {
+                        "type": "integer"
+                    },
+                    "requestID": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "FieldProblem": {
                 "properties": {
                     "detail": {
@@ -39,20 +82,14 @@
                 },
                 "type": "object"
             },
-            "api.CatalogInfo": {
-                "description": "Catalog is the optional enrichment from the upstream catalog\nservice (DSN-018). Omitted when the catalog client is disabled\nor when the upstream is unreachable — the inventory response\nstill succeeds in that case.",
+            "ProductResponse": {
                 "properties": {
-                    "category": {
-                        "type": "string"
+                    "available": {
+                        "type": "integer"
                     },
-                    "description": {
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "api.CreateProductRequest": {
-                "properties": {
+                    "catalog": {
+                        "$ref": "#/components/schemas/CatalogInfo"
+                    },
                     "name": {
                         "type": "string"
                     },
@@ -65,7 +102,27 @@
                 },
                 "type": "object"
             },
-            "api.CreateProductionEventRequest": {
+            "ProductionEventResponse": {
+                "type": "object"
+            },
+            "ReservationRequestDto": {
+                "properties": {
+                    "quantity": {
+                        "type": "integer"
+                    },
+                    "requestId": {
+                        "type": "string"
+                    },
+                    "requester": {
+                        "type": "string"
+                    },
+                    "sku": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "ReservationResponse": {
                 "properties": {
                     "created": {
                         "type": "string"
@@ -73,14 +130,39 @@
                     "id": {
                         "type": "integer"
                     },
-                    "quantity": {
+                    "requestId": {
+                        "type": "string"
+                    },
+                    "requestedQuantity": {
                         "type": "integer"
                     },
-                    "requestID": {
+                    "requester": {
                         "type": "string"
+                    },
+                    "reservedQuantity": {
+                        "type": "integer"
+                    },
+                    "sku": {
+                        "type": "string"
+                    },
+                    "state": {
+                        "$ref": "#/components/schemas/ReserveState"
                     }
                 },
                 "type": "object"
+            },
+            "ReserveState": {
+                "enum": [
+                    "Open",
+                    "Closed",
+                    ""
+                ],
+                "type": "string",
+                "x-enum-varnames": [
+                    "Open",
+                    "Closed",
+                    "None"
+                ]
             },
             "api.EnvResponse": {
                 "properties": {
@@ -134,75 +216,6 @@
                     },
                     "sha1Version": {
                         "$ref": "#/components/schemas/config.StringConfig"
-                    }
-                },
-                "type": "object"
-            },
-            "api.ProductResponse": {
-                "properties": {
-                    "available": {
-                        "type": "integer"
-                    },
-                    "catalog": {
-                        "$ref": "#/components/schemas/api.CatalogInfo"
-                    },
-                    "name": {
-                        "type": "string"
-                    },
-                    "sku": {
-                        "type": "string"
-                    },
-                    "upc": {
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "api.ProductionEventResponse": {
-                "type": "object"
-            },
-            "api.ReservationRequest": {
-                "properties": {
-                    "quantity": {
-                        "type": "integer"
-                    },
-                    "requestId": {
-                        "type": "string"
-                    },
-                    "requester": {
-                        "type": "string"
-                    },
-                    "sku": {
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "api.ReservationResponse": {
-                "properties": {
-                    "created": {
-                        "type": "string"
-                    },
-                    "id": {
-                        "type": "integer"
-                    },
-                    "requestId": {
-                        "type": "string"
-                    },
-                    "requestedQuantity": {
-                        "type": "integer"
-                    },
-                    "requester": {
-                        "type": "string"
-                    },
-                    "reservedQuantity": {
-                        "type": "integer"
-                    },
-                    "sku": {
-                        "type": "string"
-                    },
-                    "state": {
-                        "$ref": "#/components/schemas/github_com_sksmith_go-micro-example_core_inventory.ReserveState"
                     }
                 },
                 "type": "object"
@@ -561,19 +574,6 @@
                 },
                 "type": "object"
             },
-            "github_com_sksmith_go-micro-example_core_inventory.ReserveState": {
-                "enum": [
-                    "Open",
-                    "Closed",
-                    ""
-                ],
-                "type": "string",
-                "x-enum-varnames": [
-                    "Open",
-                    "Closed",
-                    "None"
-                ]
-            },
             "internal_user.CreateUserRequestDto": {
                 "properties": {
                     "isAdmin": {
@@ -671,7 +671,7 @@
                             "application/json": {
                                 "schema": {
                                     "items": {
-                                        "$ref": "#/components/schemas/api.ProductResponse"
+                                        "$ref": "#/components/schemas/ProductResponse"
                                     },
                                     "type": "array"
                                 }
@@ -738,7 +738,7 @@
                                         "type": "object"
                                     },
                                     {
-                                        "$ref": "#/components/schemas/api.CreateProductRequest",
+                                        "$ref": "#/components/schemas/CreateProductRequest",
                                         "summary": "product",
                                         "description": "product to create"
                                     }
@@ -754,7 +754,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/api.ProductResponse"
+                                    "$ref": "#/components/schemas/ProductResponse"
                                 }
                             }
                         },
@@ -820,7 +820,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/api.ProductResponse"
+                                    "$ref": "#/components/schemas/ProductResponse"
                                 }
                             }
                         },
@@ -890,7 +890,7 @@
                                         "type": "object"
                                     },
                                     {
-                                        "$ref": "#/components/schemas/api.CreateProductionEventRequest",
+                                        "$ref": "#/components/schemas/CreateProductionEventRequest",
                                         "summary": "event",
                                         "description": "production event"
                                     }
@@ -906,7 +906,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/api.ProductionEventResponse"
+                                    "$ref": "#/components/schemas/ProductionEventResponse"
                                 }
                             }
                         },
@@ -1012,7 +1012,7 @@
                             "application/json": {
                                 "schema": {
                                     "items": {
-                                        "$ref": "#/components/schemas/api.ReservationResponse"
+                                        "$ref": "#/components/schemas/ReservationResponse"
                                     },
                                     "type": "array"
                                 }
@@ -1089,7 +1089,7 @@
                                         "type": "object"
                                     },
                                     {
-                                        "$ref": "#/components/schemas/api.ReservationRequest",
+                                        "$ref": "#/components/schemas/ReservationRequestDto",
                                         "summary": "reservation",
                                         "description": "reservation request"
                                     }
@@ -1105,7 +1105,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/api.ReservationResponse"
+                                    "$ref": "#/components/schemas/ReservationResponse"
                                 }
                             }
                         },
@@ -1181,7 +1181,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/api.ReservationResponse"
+                                    "$ref": "#/components/schemas/ReservationResponse"
                                 }
                             }
                         },

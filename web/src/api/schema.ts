@@ -79,7 +79,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["api.ProductResponse"][];
+                        "application/json": components["schemas"]["ProductResponse"][];
                     };
                 };
                 /** @description Bad Request */
@@ -122,7 +122,7 @@ export interface paths {
             /** @description product to create */
             requestBody: {
                 content: {
-                    "application/json": Record<string, never> | components["schemas"]["api.CreateProductRequest"];
+                    "application/json": Record<string, never> | components["schemas"]["CreateProductRequest"];
                 };
             };
             responses: {
@@ -132,7 +132,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["api.ProductResponse"];
+                        "application/json": components["schemas"]["ProductResponse"];
                     };
                 };
                 /** @description Bad Request */
@@ -197,7 +197,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["api.ProductResponse"];
+                        "application/json": components["schemas"]["ProductResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -259,7 +259,7 @@ export interface paths {
             /** @description production event */
             requestBody: {
                 content: {
-                    "application/json": Record<string, never> | components["schemas"]["api.CreateProductionEventRequest"];
+                    "application/json": Record<string, never> | components["schemas"]["CreateProductionEventRequest"];
                 };
             };
             responses: {
@@ -269,7 +269,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["api.ProductionEventResponse"];
+                        "application/json": components["schemas"]["ProductionEventResponse"];
                     };
                 };
                 /** @description Bad Request */
@@ -351,7 +351,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["api.ReservationResponse"][];
+                        "application/json": components["schemas"]["ReservationResponse"][];
                     };
                 };
                 /** @description Bad Request */
@@ -404,7 +404,7 @@ export interface paths {
             /** @description reservation request */
             requestBody: {
                 content: {
-                    "application/json": Record<string, never> | components["schemas"]["api.ReservationRequest"];
+                    "application/json": Record<string, never> | components["schemas"]["ReservationRequestDto"];
                 };
             };
             responses: {
@@ -414,7 +414,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["api.ReservationResponse"];
+                        "application/json": components["schemas"]["ReservationResponse"];
                     };
                 };
                 /** @description Bad Request */
@@ -487,7 +487,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["api.ReservationResponse"];
+                        "application/json": components["schemas"]["ReservationResponse"];
                     };
                 };
                 /** @description Bad Request */
@@ -665,6 +665,27 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * @description Catalog is the optional enrichment from the upstream catalog
+         *     service (DSN-018). Omitted when the catalog client is disabled
+         *     or when the upstream is unreachable — the inventory response
+         *     still succeeds in that case.
+         */
+        CatalogInfo: {
+            category?: string;
+            description?: string;
+        };
+        CreateProductRequest: {
+            name?: string;
+            sku?: string;
+            upc?: string;
+        };
+        CreateProductionEventRequest: {
+            created?: string;
+            id?: number;
+            quantity?: number;
+            requestID?: string;
+        };
         FieldProblem: {
             detail?: string;
             field?: string;
@@ -677,27 +698,32 @@ export interface components {
             title?: string;
             type?: string;
         };
-        /**
-         * @description Catalog is the optional enrichment from the upstream catalog
-         *     service (DSN-018). Omitted when the catalog client is disabled
-         *     or when the upstream is unreachable — the inventory response
-         *     still succeeds in that case.
-         */
-        "api.CatalogInfo": {
-            category?: string;
-            description?: string;
-        };
-        "api.CreateProductRequest": {
+        ProductResponse: {
+            available?: number;
+            catalog?: components["schemas"]["CatalogInfo"];
             name?: string;
             sku?: string;
             upc?: string;
         };
-        "api.CreateProductionEventRequest": {
+        ProductionEventResponse: Record<string, never>;
+        ReservationRequestDto: {
+            quantity?: number;
+            requestId?: string;
+            requester?: string;
+            sku?: string;
+        };
+        ReservationResponse: {
             created?: string;
             id?: number;
-            quantity?: number;
-            requestID?: string;
+            requestId?: string;
+            requestedQuantity?: number;
+            requester?: string;
+            reservedQuantity?: number;
+            sku?: string;
+            state?: components["schemas"]["ReserveState"];
         };
+        /** @enum {string} */
+        ReserveState: "Open" | "Closed" | "";
         "api.EnvResponse": {
             appName?: components["schemas"]["config.StringConfig"];
             appVersion?: components["schemas"]["config.StringConfig"];
@@ -716,30 +742,6 @@ export interface components {
             redis?: components["schemas"]["config.RedisConfig"];
             revision?: components["schemas"]["config.StringConfig"];
             sha1Version?: components["schemas"]["config.StringConfig"];
-        };
-        "api.ProductResponse": {
-            available?: number;
-            catalog?: components["schemas"]["api.CatalogInfo"];
-            name?: string;
-            sku?: string;
-            upc?: string;
-        };
-        "api.ProductionEventResponse": Record<string, never>;
-        "api.ReservationRequest": {
-            quantity?: number;
-            requestId?: string;
-            requester?: string;
-            sku?: string;
-        };
-        "api.ReservationResponse": {
-            created?: string;
-            id?: number;
-            requestId?: string;
-            requestedQuantity?: number;
-            requester?: string;
-            reservedQuantity?: number;
-            sku?: string;
-            state?: components["schemas"]["github_com_sksmith_go-micro-example_core_inventory.ReserveState"];
         };
         "api.TokenResponse": {
             access_token?: string;
@@ -866,8 +868,6 @@ export interface components {
             description?: string;
             value?: string;
         };
-        /** @enum {string} */
-        "github_com_sksmith_go-micro-example_core_inventory.ReserveState": "Open" | "Closed" | "";
         "internal_user.CreateUserRequestDto": {
             isAdmin?: boolean;
             password?: string;

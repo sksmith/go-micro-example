@@ -1,4 +1,4 @@
-package api_test
+package httpx_test
 
 import (
 	"context"
@@ -11,15 +11,14 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/sksmith/go-micro-example/api"
-	"github.com/sksmith/go-micro-example/core/inventory"
+	"github.com/sksmith/go-micro-example/internal/inventory"
 	"github.com/sksmith/go-micro-example/internal/platform/httpx"
 )
 
 func paginationTestServer(t *testing.T) (*httptest.Server, *inventory.MockInventoryService) {
 	t.Helper()
 	mockSvc := inventory.NewMockInventoryService()
-	invApi := api.NewInventoryApi(mockSvc)
+	invApi := inventory.NewInventoryApi(mockSvc)
 	r := chi.NewRouter()
 	invApi.ConfigureRouter(r)
 	return httptest.NewServer(r), mockSvc
@@ -37,7 +36,7 @@ func TestPaginationRejectsInvalidInput(t *testing.T) {
 		{"non-numeric limit", "limit=abc", "limit"},
 		{"zero limit", "limit=0", "limit"},
 		{"negative limit", "limit=-1", "limit"},
-		{"limit over max", "limit=" + strconv.Itoa(api.MaxPageLimit+1), "limit"},
+		{"limit over max", "limit=" + strconv.Itoa(httpx.MaxPageLimit+1), "limit"},
 		{"non-numeric offset", "offset=xyz", "offset"},
 		{"negative offset", "offset=-5", "offset"},
 	}
@@ -92,21 +91,21 @@ func TestPaginationDefaultsAndClamp(t *testing.T) {
 		t.Fatal(err)
 	}
 	res.Body.Close()
-	if gotLimit != api.DefaultPageLimit {
-		t.Errorf("default limit got=%d want=%d", gotLimit, api.DefaultPageLimit)
+	if gotLimit != httpx.DefaultPageLimit {
+		t.Errorf("default limit got=%d want=%d", gotLimit, httpx.DefaultPageLimit)
 	}
 	if gotOffset != 0 {
 		t.Errorf("default offset got=%d want=0", gotOffset)
 	}
 
 	// Max-boundary limit accepted.
-	res, err = http.Get(ts.URL + "/?limit=" + strconv.Itoa(api.MaxPageLimit))
+	res, err = http.Get(ts.URL + "/?limit=" + strconv.Itoa(httpx.MaxPageLimit))
 	if err != nil {
 		t.Fatal(err)
 	}
 	res.Body.Close()
-	if gotLimit != api.MaxPageLimit {
-		t.Errorf("boundary limit got=%d want=%d", gotLimit, api.MaxPageLimit)
+	if gotLimit != httpx.MaxPageLimit {
+		t.Errorf("boundary limit got=%d want=%d", gotLimit, httpx.MaxPageLimit)
 	}
 }
 
