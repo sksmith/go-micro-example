@@ -139,6 +139,13 @@ type ReservationResponse struct {
 // ReserveState defines model for ReserveState.
 type ReserveState string
 
+// TokenResponse defines model for TokenResponse.
+type TokenResponse struct {
+	AccessToken *string `json:"access_token,omitempty"`
+	ExpiresIn   *int    `json:"expires_in,omitempty"`
+	TokenType   *string `json:"token_type,omitempty"`
+}
+
 // ApiEnvResponse defines model for api.EnvResponse.
 type ApiEnvResponse struct {
 	AppName     *ConfigStringConfig      `json:"appName,omitempty"`
@@ -158,13 +165,6 @@ type ApiEnvResponse struct {
 	Redis       *ConfigRedisConfig       `json:"redis,omitempty"`
 	Revision    *ConfigStringConfig      `json:"revision,omitempty"`
 	Sha1Version *ConfigStringConfig      `json:"sha1Version,omitempty"`
-}
-
-// ApiTokenResponse defines model for api.TokenResponse.
-type ApiTokenResponse struct {
-	AccessToken *string `json:"access_token,omitempty"`
-	ExpiresIn   *int    `json:"expires_in,omitempty"`
-	TokenType   *string `json:"token_type,omitempty"`
 }
 
 // ConfigBoolConfig defines model for config.BoolConfig.
@@ -1765,7 +1765,7 @@ func (r PostApiV1UserResponse) ContentType() string {
 type PostAuthTokenResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *ApiTokenResponse
+	JSON200      *TokenResponse
 	JSON401      *Problem
 	JSON500      *Problem
 }
@@ -2368,7 +2368,7 @@ func ParsePostAuthTokenResponse(rsp *http.Response) (*PostAuthTokenResponse, err
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ApiTokenResponse
+		var dest TokenResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

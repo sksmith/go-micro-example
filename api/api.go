@@ -13,8 +13,8 @@ import (
 	"github.com/riandyrn/otelchi"
 	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/config"
-	"github.com/sksmith/go-micro-example/core/auth"
-	"github.com/sksmith/go-micro-example/core/catalog"
+	"github.com/sksmith/go-micro-example/internal/auth"
+	"github.com/sksmith/go-micro-example/internal/catalog"
 	"github.com/sksmith/go-micro-example/internal/inventory"
 	"github.com/sksmith/go-micro-example/internal/user"
 )
@@ -88,7 +88,7 @@ func ConfigureRouter(cfg *config.Config, invSvc inventory.InventoryService, resS
 	}
 
 	if signer != nil {
-		authApi := NewAuthApi(userService, signer)
+		authApi := auth.NewAuthApi(userService, signer)
 		authApi.SetRateLimit(authRateLimitMw)
 		r.Route(AuthPath, authApi.ConfigureRouter)
 	}

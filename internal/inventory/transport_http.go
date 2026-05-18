@@ -12,7 +12,7 @@ import (
 	"github.com/gobwas/ws/wsutil"
 	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/core"
-	"github.com/sksmith/go-micro-example/core/catalog"
+	"github.com/sksmith/go-micro-example/internal/catalog"
 	"github.com/sksmith/go-micro-example/internal/platform/httpx"
 )
 
