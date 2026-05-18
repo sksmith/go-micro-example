@@ -44,6 +44,8 @@ components:
           $ref: '#/components/schemas/config.CatalogConfig'
         config:
           $ref: '#/components/schemas/config.ConfigSource'
+        cors:
+          $ref: '#/components/schemas/config.CORSConfig'
         db:
           $ref: '#/components/schemas/config.DbConfig'
         docs:
@@ -168,6 +170,15 @@ components:
           type: string
         value:
           type: boolean
+      type: object
+    config.CORSConfig:
+      properties:
+        allowCredentials:
+          $ref: '#/components/schemas/config.BoolConfig'
+        allowedOrigins:
+          $ref: '#/components/schemas/config.StringConfig'
+        description:
+          type: string
       type: object
     config.CatalogConfig:
       properties:

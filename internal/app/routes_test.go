@@ -38,19 +38,30 @@ func newTestRouterWithSigner() (chi.Router, *user.MockUserService, *auth.Signer)
 }
 
 func TestCorsConfig(t *testing.T) {
+	// SEC-006: CORS now drives off an explicit comma-separated
+	// exact-origin list in config.cors.allowedOrigins. Defaults allow
+	// http://localhost:8080 + https://localhost; anything else — wildcards,
+	// suffix attacks, look-alike hostnames — must be denied.
 	tests := []struct {
 		origin string
 		want   string
 	}{
+		// Exact-match origins from the default config: reflected.
+		{origin: "http://localhost:8080", want: "http://localhost:8080"},
+		{origin: "https://localhost", want: "https://localhost"},
+
+		// Unlisted origins: no Access-Control-Allow-Origin.
 		{origin: "https://evilorigin.com", want: ""},
 		{origin: "http://evilorigin.com", want: ""},
-		{origin: "https://subdomain.seanksmith.me", want: "https://subdomain.seanksmith.me"},
-		{origin: "http://subdomain.seanksmith.me", want: "http://subdomain.seanksmith.me"},
-		{origin: "http://subdomain.seanksmith.evil.me", want: ""},
-		{origin: "http://localhost:8080", want: "http://localhost:8080"},
-		{origin: "http://localhost:3000", want: "http://localhost:3000"},
-		{origin: "https://localhost:8080", want: "https://localhost:8080"},
-		{origin: "https://localhost:3000", want: "https://localhost:3000"},
+
+		// Old wildcarded entries (https://*.seanksmith.me, http://localhost:*)
+		// must no longer match anything.
+		{origin: "https://subdomain.seanksmith.me", want: ""},
+		{origin: "http://subdomain.seanksmith.me", want: ""},
+		{origin: "http://localhost:3000", want: ""},
+		{origin: "https://localhost:8080", want: ""},
+
+		// Look-alike host that prefix-matched the old localhost wildcard.
 		{origin: "https://localhostevil:3000", want: ""},
 	}
 
@@ -75,8 +86,37 @@ func TestCorsConfig(t *testing.T) {
 
 		got := res.Header.Get("Access-Control-Allow-Origin")
 		if got != test.want {
-			t.Errorf("failed cors test got=[%v] want=[%v]", got, test.want)
+			t.Errorf("failed cors test origin=%q got=[%v] want=[%v]", test.origin, got, test.want)
 		}
+	}
+}
+
+func TestCorsDisabledWhenAllowedOriginsEmpty(t *testing.T) {
+	// SEC-006: empty config.cors.allowedOrigins must skip the CORS
+	// middleware entirely — no Access-Control-Allow-Origin header on
+	// any request, regardless of the Origin sent.
+	cfg := config.LoadDefaults()
+	cfg.CORS.AllowedOrigins.Value = ""
+	invSvc, resSvc, usrSvc := getMocks()
+	signer, err := auth.NewSigner(nil, 0, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := app.ConfigureRouter(cfg, invSvc, resSvc, usrSvc, signer, nil, nil, nil, nil)
+	ts := httptest.NewServer(r)
+	defer ts.Close()
+
+	req, err := http.NewRequest("GET", ts.URL+app.ApiPath+app.InventoryPath, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Add("Origin", "http://localhost:8080")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := res.Header.Get("Access-Control-Allow-Origin"); got != "" {
+		t.Errorf("expected no Access-Control-Allow-Origin when CORS disabled, got %q", got)
 	}
 }
 

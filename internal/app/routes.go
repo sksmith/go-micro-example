@@ -4,6 +4,7 @@ package app
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -56,14 +57,25 @@ func ConfigureRouter(cfg *config.Config, invSvc inventory.InventoryService, resS
 	log.Info().Msg("configuring router...")
 	r := chi.NewRouter()
 
-	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"https://*.seanksmith.me", "http://*.seanksmith.me", "http://localhost:*", "https://localhost:*"},
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
-		ExposedHeaders:   []string{"Link"},
-		AllowCredentials: true,
-		MaxAge:           300, // Maximum value not ignored by any of major browsers
-	}))
+	// SEC-006: CORS uses an explicit, environment-driven list of exact
+	// origins. AllowCredentials is only safe alongside an exact list,
+	// never a wildcard. An empty list disables CORS entirely: go-chi's
+	// cors handler with no allowed origins emits no
+	// Access-Control-Allow-Origin header, which is the right behavior
+	// for a same-origin or first-party-only deployment.
+	if origins := parseCORSOrigins(cfg.CORS.AllowedOrigins.Value); len(origins) > 0 {
+		r.Use(cors.Handler(cors.Options{
+			AllowedOrigins: origins,
+			AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+			// X-CSRF-Token removed: SEC-002c took the project to
+			// bearer-token auth, and no CSRF token strategy exists
+			// to back the header. Re-add only when a real one does.
+			AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
+			ExposedHeaders:   []string{"Link"},
+			AllowCredentials: cfg.CORS.AllowCredentials.Value,
+			MaxAge:           300, // Maximum value not ignored by any of major browsers
+		}))
+	}
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Recoverer)
 	// HSTS only emits a header on TLS requests (direct or via
@@ -113,4 +125,23 @@ func ConfigureRouter(cfg *config.Config, invSvc inventory.InventoryService, resS
 	})
 
 	return r
+}
+
+// parseCORSOrigins splits the comma-separated cors.allowedOrigins
+// config value into a clean slice. Whitespace and empty entries are
+// dropped so a trailing comma or a "  " entry in YAML doesn't quietly
+// permit the empty-string origin (which go-chi's matcher would treat
+// as a wildcard).
+func parseCORSOrigins(raw string) []string {
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if trimmed := strings.TrimSpace(p); trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+	return out
 }
