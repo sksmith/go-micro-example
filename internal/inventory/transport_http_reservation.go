@@ -1,4 +1,4 @@
-package api
+package inventory
 
 import (
 	"context"
@@ -13,18 +13,17 @@ import (
 	"github.com/gobwas/ws/wsutil"
 	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/core"
-	"github.com/sksmith/go-micro-example/core/inventory"
 	"github.com/sksmith/go-micro-example/internal/platform/httpx"
 )
 
 type ReservationService interface {
-	Reserve(ctx context.Context, rr inventory.ReservationRequest) (inventory.Reservation, error)
+	Reserve(ctx context.Context, rr ReservationRequest) (Reservation, error)
 
-	GetReservations(ctx context.Context, options inventory.GetReservationsOptions, limit, offset int) ([]inventory.Reservation, error)
-	GetReservation(ctx context.Context, ID uint64) (inventory.Reservation, error)
+	GetReservations(ctx context.Context, options GetReservationsOptions, limit, offset int) ([]Reservation, error)
+	GetReservation(ctx context.Context, ID uint64) (Reservation, error)
 
-	SubscribeReservations(ch chan<- inventory.Reservation) (id inventory.ReservationsSubID)
-	UnsubscribeReservations(id inventory.ReservationsSubID)
+	SubscribeReservations(ch chan<- Reservation) (id ReservationsSubID)
+	UnsubscribeReservations(id ReservationsSubID)
 }
 
 type ReservationApi struct {
@@ -51,7 +50,7 @@ func (ra *ReservationApi) ConfigureRouter(r chi.Router) {
 	r.HandleFunc("/subscribe", ra.Subscribe)
 
 	r.Route("/", func(r chi.Router) {
-		r.With(Paginate).Get("/", ra.List)
+		r.With(httpx.Paginate).Get("/", ra.List)
 		create := http.HandlerFunc(ra.Create)
 		if ra.idempotency != nil {
 			r.Method(http.MethodPut, "/", ra.idempotency(create))
@@ -79,7 +78,7 @@ func (a *ReservationApi) Subscribe(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		defer conn.Close()
 
-		ch := make(chan inventory.Reservation, 1)
+		ch := make(chan Reservation, 1)
 
 		id := a.service.SubscribeReservations(ch)
 		defer func() {
@@ -119,7 +118,7 @@ func (a *ReservationApi) Subscribe(w http.ResponseWriter, r *http.Request) {
 //	@Router		/api/v1/reservation/{ID} [get]
 //	@Security	BearerAuth
 func (a *ReservationApi) Get(w http.ResponseWriter, r *http.Request) {
-	res := r.Context().Value(CtxKeyReservation).(inventory.Reservation)
+	res := r.Context().Value(CtxKeyReservation).(Reservation)
 
 	resp := &ReservationResponse{Reservation: res}
 	render.Status(r, http.StatusOK)
@@ -132,7 +131,7 @@ func (a *ReservationApi) Get(w http.ResponseWriter, r *http.Request) {
 //	@Tags		reservation
 //	@Accept		json
 //	@Produce	json
-//	@Param		reservation	body		ReservationRequest	true	"reservation request"
+//	@Param		reservation	body		ReservationRequestDto	true	"reservation request"
 //	@Success	201			{object}	ReservationResponse
 //	@Failure	400			{object}	httpx.Problem
 //	@Failure	401			{object}	httpx.Problem
@@ -141,7 +140,7 @@ func (a *ReservationApi) Get(w http.ResponseWriter, r *http.Request) {
 //	@Router		/api/v1/reservation [post]
 //	@Security	BearerAuth
 func (a *ReservationApi) Create(w http.ResponseWriter, r *http.Request) {
-	data := &ReservationRequest{}
+	data := &ReservationRequestDto{}
 	if err := render.Bind(r, data); err != nil {
 		httpx.Render(w, r, httpx.BadRequestProblem(err))
 		return
@@ -153,7 +152,7 @@ func (a *ReservationApi) Create(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case errors.Is(err, core.ErrNotFound):
 			httpx.Render(w, r, httpx.NotFoundProblem())
-		case errors.Is(err, inventory.ErrInvalidInput):
+		case errors.Is(err, ErrInvalidInput):
 			httpx.Render(w, r, httpx.BadRequestProblem(err))
 		default:
 			log.Ctx(r.Context()).Error().Err(err).Interface("reservationRequest", data).Msg("failed to reserve")
@@ -223,17 +222,17 @@ func (a *ReservationApi) ReservationCtx(next http.Handler) http.Handler {
 //	@Router		/api/v1/reservation [get]
 //	@Security	BearerAuth
 func (a *ReservationApi) List(w http.ResponseWriter, r *http.Request) {
-	p := PaginationFrom(r.Context())
+	p := httpx.PaginationFrom(r.Context())
 
 	sku := r.URL.Query().Get("sku")
 
-	state, err := inventory.ParseReserveState(r.URL.Query().Get("state"))
+	state, err := ParseReserveState(r.URL.Query().Get("state"))
 	if err != nil {
 		httpx.Render(w, r, httpx.BadRequestProblem(errors.New("invalid state")))
 		return
 	}
 
-	res, err := a.service.GetReservations(r.Context(), inventory.GetReservationsOptions{Sku: sku, State: state}, p.Limit, p.Offset)
+	res, err := a.service.GetReservations(r.Context(), GetReservationsOptions{Sku: sku, State: state}, p.Limit, p.Offset)
 
 	if err != nil {
 		if errors.Is(err, core.ErrNotFound) {
@@ -245,7 +244,7 @@ func (a *ReservationApi) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	WriteLinkHeader(w, r, p, len(res))
+	httpx.WriteLinkHeader(w, r, p, len(res))
 
 	resList := NewReservationListResponse(res)
 	render.Status(r, http.StatusOK)

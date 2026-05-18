@@ -35,7 +35,7 @@ type ProductInventory struct {
 	Available int64 `json:"available"`
 }
 
-type ReserveState string
+type ReserveState string // @name ReserveState
 
 const (
 	Open   ReserveState = "Open"

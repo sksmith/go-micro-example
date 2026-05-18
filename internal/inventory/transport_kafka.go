@@ -1,19 +1,19 @@
-package kafka
+package inventory
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
 
-	"github.com/sksmith/go-micro-example/core/inventory"
 	"github.com/sksmith/go-micro-example/events"
+	"github.com/sksmith/go-micro-example/kafka"
 )
 
-// InventoryEmitter adapts a *Producer to the
-// inventory.EventEmitter interface so the inventory service can
-// publish product-quantity-changed events to Kafka without importing
+// InventoryEmitter adapts a *kafka.Producer to the EventEmitter
+// interface so the inventory service can publish
+// product-quantity-changed events to Kafka without importing
 // franz-go.
-type InventoryEmitter struct{ Producer *Producer }
+type InventoryEmitter struct{ Producer *kafka.Producer }
 
 // EmitProductQuantityChanged publishes an inventory.product_quantity_changed
 // v1 event for the given SKU.
@@ -32,12 +32,12 @@ type InventoryCommandHandler struct {
 	Service InventoryCommandTarget
 }
 
-// InventoryCommandTarget is the slice of inventory.Service the handler
+// InventoryCommandTarget is the slice of Service the handler
 // needs. The full service satisfies it; using a narrow interface
 // keeps the kafka package off the core/inventory import graph in tests.
 type InventoryCommandTarget interface {
-	GetProduct(ctx context.Context, sku string) (inventory.Product, error)
-	Produce(ctx context.Context, product inventory.Product, event inventory.ProductionRequest) error
+	GetProduct(ctx context.Context, sku string) (Product, error)
+	Produce(ctx context.Context, product Product, event ProductionRequest) error
 }
 
 // Handle implements Handler. Only inventory.record_production v1 is
@@ -54,7 +54,7 @@ func (h *InventoryCommandHandler) Handle(ctx context.Context, env events.Envelop
 	if err != nil {
 		return fmt.Errorf("lookup product %q: %w", cmd.Sku, err)
 	}
-	return h.Service.Produce(ctx, product, inventory.ProductionRequest{RequestID: cmd.RequestID, Quantity: cmd.Quantity})
+	return h.Service.Produce(ctx, product, ProductionRequest{RequestID: cmd.RequestID, Quantity: cmd.Quantity})
 }
 
 type recordProductionPayload struct {

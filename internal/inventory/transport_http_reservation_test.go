@@ -1,4 +1,4 @@
-package api_test
+package inventory_test
 
 import (
 	"context"
@@ -12,9 +12,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/gobwas/ws"
-	"github.com/sksmith/go-micro-example/api"
 	"github.com/sksmith/go-micro-example/core"
-	"github.com/sksmith/go-micro-example/core/inventory"
+	"github.com/sksmith/go-micro-example/internal/inventory"
 	"github.com/sksmith/go-micro-example/internal/platform/httpx"
 	"github.com/sksmith/go-micro-example/testutil"
 )
@@ -51,7 +50,7 @@ func TestReservationSubscribe(t *testing.T) {
 		unsubscribed <- struct{}{}
 	}
 
-	resApi := api.NewReservationApi(mockSvc)
+	resApi := inventory.NewReservationApi(mockSvc)
 	r := chi.NewRouter()
 	resApi.ConfigureRouter(r)
 	ts := httptest.NewServer(r)
@@ -93,7 +92,7 @@ func TestReservationGet(t *testing.T) {
 	tests := []struct {
 		getReservationFunc func(ctx context.Context, ID uint64) (inventory.Reservation, error)
 		ID                 string
-		wantResponse       *api.ReservationResponse
+		wantResponse       *inventory.ReservationResponse
 		wantErr            *httpx.Problem
 		wantStatusCode     int
 	}{
@@ -102,7 +101,7 @@ func TestReservationGet(t *testing.T) {
 				return getTestReservations()[0], nil
 			},
 			ID:             "1",
-			wantResponse:   &api.ReservationResponse{Reservation: getTestReservations()[0]},
+			wantResponse:   &inventory.ReservationResponse{Reservation: getTestReservations()[0]},
 			wantErr:        nil,
 			wantStatusCode: http.StatusOK,
 		},
@@ -140,7 +139,7 @@ func TestReservationGet(t *testing.T) {
 		}
 
 		if test.wantErr == nil {
-			got := api.ReservationResponse{}
+			got := inventory.ReservationResponse{}
 			testutil.Unmarshal(res, &got, t)
 
 			if !reflect.DeepEqual(got, *test.wantResponse) {
@@ -193,8 +192,8 @@ func TestReservationCreate(t *testing.T) {
 
 	tests := []struct {
 		reserveFunc    func(ctx context.Context, rr inventory.ReservationRequest) (inventory.Reservation, error)
-		request        *api.ReservationRequest
-		wantResponse   *api.ReservationResponse
+		request        *inventory.ReservationRequestDto
+		wantResponse   *inventory.ReservationResponse
 		wantErr        *httpx.Problem
 		wantStatusCode int
 	}{
@@ -203,7 +202,7 @@ func TestReservationCreate(t *testing.T) {
 				return getTestReservations()[0], nil
 			},
 			request:        createReservationRequest("requestid1", "requester1", "sku1", 1),
-			wantResponse:   &api.ReservationResponse{Reservation: getTestReservations()[0]},
+			wantResponse:   &inventory.ReservationResponse{Reservation: getTestReservations()[0]},
 			wantErr:        nil,
 			wantStatusCode: http.StatusCreated,
 		},
@@ -238,7 +237,7 @@ func TestReservationCreate(t *testing.T) {
 		}
 
 		if test.wantErr == nil {
-			got := api.ReservationResponse{}
+			got := inventory.ReservationResponse{}
 			testutil.Unmarshal(res, &got, t)
 
 			if !reflect.DeepEqual(got, *test.wantResponse) {
@@ -378,8 +377,8 @@ func TestReservationList(t *testing.T) {
 				t.Errorf("error text got=%s want=%s", got.Detail, want.Detail)
 			}
 		} else {
-			want := test.wantResponse.([]api.ReservationResponse)
-			got := []api.ReservationResponse{}
+			want := test.wantResponse.([]inventory.ReservationResponse)
+			got := []inventory.ReservationResponse{}
 			testutil.Unmarshal(res, &got, t)
 
 			if !reflect.DeepEqual(got, want) {
@@ -389,15 +388,15 @@ func TestReservationList(t *testing.T) {
 	}
 }
 
-func createReservationRequest(requestID, requester, sku string, quantity int64) *api.ReservationRequest {
-	return &api.ReservationRequest{ReservationRequest: &inventory.ReservationRequest{
+func createReservationRequest(requestID, requester, sku string, quantity int64) *inventory.ReservationRequestDto {
+	return &inventory.ReservationRequestDto{ReservationRequest: &inventory.ReservationRequest{
 		Sku: sku, RequestID: requestID, Requester: requester, Quantity: quantity},
 	}
 }
 
 func setupReservationTestServer() (*httptest.Server, *inventory.MockReservationService) {
 	mockSvc := inventory.NewMockReservationService()
-	invApi := api.NewReservationApi(mockSvc)
+	invApi := inventory.NewReservationApi(mockSvc)
 	r := chi.NewRouter()
 	invApi.ConfigureRouter(r)
 	ts := httptest.NewServer(r)
@@ -415,21 +414,21 @@ func getTestReservations() []inventory.Reservation {
 	return testReservations
 }
 
-func getTestReservationResponses() []api.ReservationResponse {
-	responses := []api.ReservationResponse{}
+func getTestReservationResponses() []inventory.ReservationResponse {
+	responses := []inventory.ReservationResponse{}
 
 	for _, res := range testReservations {
-		responses = append(responses, api.ReservationResponse{Reservation: res})
+		responses = append(responses, inventory.ReservationResponse{Reservation: res})
 	}
 
 	return responses
 }
 
-func convertReservationsToResponse(reservations []inventory.Reservation) []api.ReservationResponse {
-	responses := []api.ReservationResponse{}
+func convertReservationsToResponse(reservations []inventory.Reservation) []inventory.ReservationResponse {
+	responses := []inventory.ReservationResponse{}
 
 	for _, res := range reservations {
-		responses = append(responses, api.ReservationResponse{Reservation: res})
+		responses = append(responses, inventory.ReservationResponse{Reservation: res})
 	}
 
 	return responses

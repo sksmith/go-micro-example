@@ -1,4 +1,4 @@
-package api
+package inventory
 
 import (
 	"errors"
@@ -6,18 +6,17 @@ import (
 	"time"
 
 	"github.com/go-chi/render"
-	"github.com/sksmith/go-micro-example/core/inventory"
 )
 
 type ProductResponse struct {
-	inventory.ProductInventory
+	ProductInventory
 
 	// Catalog is the optional enrichment from the upstream catalog
 	// service (DSN-018). Omitted when the catalog client is disabled
 	// or when the upstream is unreachable — the inventory response
 	// still succeeds in that case.
 	Catalog *CatalogInfo `json:"catalog,omitempty"`
-}
+} // @name ProductResponse
 
 // CatalogInfo is the subset of upstream catalog data the inventory
 // API exposes. Keep this in sync with core/catalog.Product —
@@ -26,9 +25,9 @@ type ProductResponse struct {
 type CatalogInfo struct {
 	Description string `json:"description"`
 	Category    string `json:"category,omitempty"`
-}
+} // @name CatalogInfo
 
-func NewProductResponse(product inventory.ProductInventory) *ProductResponse {
+func NewProductResponse(product ProductInventory) *ProductResponse {
 	resp := &ProductResponse{ProductInventory: product}
 	return resp
 }
@@ -38,7 +37,7 @@ func (rd *ProductResponse) Render(_ http.ResponseWriter, _ *http.Request) error 
 	return nil
 }
 
-func NewProductListResponse(products []inventory.ProductInventory) []render.Renderer {
+func NewProductListResponse(products []ProductInventory) []render.Renderer {
 	list := make([]render.Renderer, 0)
 	for _, product := range products {
 		list = append(list, NewProductResponse(product))
@@ -46,7 +45,7 @@ func NewProductListResponse(products []inventory.ProductInventory) []render.Rend
 	return list
 }
 
-func NewReservationListResponse(reservations []inventory.Reservation) []render.Renderer {
+func NewReservationListResponse(reservations []Reservation) []render.Renderer {
 	list := make([]render.Renderer, 0)
 	for _, rsv := range reservations {
 		list = append(list, &ReservationResponse{Reservation: rsv})
@@ -56,8 +55,8 @@ func NewReservationListResponse(reservations []inventory.Reservation) []render.R
 }
 
 type CreateProductRequest struct {
-	inventory.Product
-}
+	Product
+} // @name CreateProductRequest
 
 func (p *CreateProductRequest) Bind(_ *http.Request) error {
 	if p.Upc == "" || p.Name == "" || p.Sku == "" {
@@ -68,11 +67,11 @@ func (p *CreateProductRequest) Bind(_ *http.Request) error {
 }
 
 type CreateProductionEventRequest struct {
-	*inventory.ProductionRequest
+	*ProductionRequest
 
 	ProtectedID      uint64    `json:"id"`
 	ProtectedCreated time.Time `json:"created"`
-}
+} // @name CreateProductionEventRequest
 
 func (p *CreateProductionEventRequest) Bind(_ *http.Request) error {
 	if p.ProductionRequest == nil {
@@ -89,7 +88,7 @@ func (p *CreateProductionEventRequest) Bind(_ *http.Request) error {
 }
 
 type ProductionEventResponse struct {
-}
+} // @name ProductionEventResponse
 
 func (p *ProductionEventResponse) Render(_ http.ResponseWriter, _ *http.Request) error {
 	return nil

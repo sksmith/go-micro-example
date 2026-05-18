@@ -33,15 +33,14 @@ import (
 	"github.com/sksmith/go-micro-example/core/auth"
 	"github.com/sksmith/go-micro-example/core/cache"
 	"github.com/sksmith/go-micro-example/core/catalog"
-	"github.com/sksmith/go-micro-example/core/inventory"
 	"github.com/sksmith/go-micro-example/core/observability"
 	"github.com/sksmith/go-micro-example/core/ratelimit"
 	"github.com/sksmith/go-micro-example/core/secrets"
 	"github.com/sksmith/go-micro-example/db"
-	"github.com/sksmith/go-micro-example/db/invrepo"
 	"github.com/sksmith/go-micro-example/events"
 	"github.com/sksmith/go-micro-example/idempotency"
 	restidempotency "github.com/sksmith/go-micro-example/idempotency/rest"
+	"github.com/sksmith/go-micro-example/internal/inventory"
 	"github.com/sksmith/go-micro-example/internal/user"
 	gmekafka "github.com/sksmith/go-micro-example/kafka"
 	"github.com/sksmith/go-micro-example/queue"
@@ -104,7 +103,7 @@ func main() {
 
 	iq := queue.NewInventoryQueue(ctx, cfg)
 
-	ir := invrepo.NewPostgresRepo(dbPool)
+	ir := inventory.NewPostgresRepo(dbPool)
 
 	invService := inventory.NewService(ir, iq)
 
@@ -320,10 +319,10 @@ func startKafka(ctx context.Context, cfg *config.Config, invService kafkaInvento
 		log.Error().Err(err).Msg("kafka producer init failed; continuing without Kafka")
 		return func() {}
 	}
-	invService.SetEventEmitter(&gmekafka.InventoryEmitter{Producer: prod})
+	invService.SetEventEmitter(&inventory.InventoryEmitter{Producer: prod})
 
 	applier := idempotency.NewApplier(pool, cfg.Kafka.ConsumerGroup.Value)
-	inner := &gmekafka.InventoryCommandHandler{Service: invService}
+	inner := &inventory.InventoryCommandHandler{Service: invService}
 	handler := idempotentHandler{applier: applier, inner: inner}
 
 	consumer, err := gmekafka.NewConsumer(gmekafka.ConsumerConfig{

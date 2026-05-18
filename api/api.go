@@ -15,6 +15,7 @@ import (
 	"github.com/sksmith/go-micro-example/config"
 	"github.com/sksmith/go-micro-example/core/auth"
 	"github.com/sksmith/go-micro-example/core/catalog"
+	"github.com/sksmith/go-micro-example/internal/inventory"
 	"github.com/sksmith/go-micro-example/internal/user"
 )
 
@@ -50,7 +51,7 @@ const (
 //
 // authRateLimitMw is the optional DSN-021b rate-limit middleware
 // applied to /auth/token. nil leaves the route un-throttled.
-func ConfigureRouter(cfg *config.Config, invSvc InventoryService, resSvc ReservationService, userService user.UserService, signer *auth.Signer, readinessDeps map[string]Pinger, catalogClient catalog.Client, idempotencyMw func(http.Handler) http.Handler, authRateLimitMw func(http.Handler) http.Handler) chi.Router {
+func ConfigureRouter(cfg *config.Config, invSvc inventory.InventoryService, resSvc inventory.ReservationService, userService user.UserService, signer *auth.Signer, readinessDeps map[string]Pinger, catalogClient catalog.Client, idempotencyMw func(http.Handler) http.Handler, authRateLimitMw func(http.Handler) http.Handler) chi.Router {
 	log.Info().Msg("configuring router...")
 	r := chi.NewRouter()
 
@@ -93,11 +94,11 @@ func ConfigureRouter(cfg *config.Config, invSvc InventoryService, resSvc Reserva
 	}
 
 	r.With(Authenticate(signer)).Route(ApiPath, func(r chi.Router) {
-		invApi := NewInventoryApi(invSvc)
+		invApi := inventory.NewInventoryApi(invSvc)
 		invApi.SetCatalog(catalogClient)
 		invApi.SetIdempotency(idempotencyMw)
 		r.Route(InventoryPath, invApi.ConfigureRouter)
-		resApi := NewReservationApi(resSvc)
+		resApi := inventory.NewReservationApi(resSvc)
 		resApi.SetIdempotency(idempotencyMw)
 		r.Route(ReservationPath, resApi.ConfigureRouter)
 		r.With(AdminOnly).Route(UserPath, user.NewUserApi(userService).ConfigureRouter)

@@ -12,9 +12,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/sksmith/go-micro-example/core"
 	"github.com/sksmith/go-micro-example/core/cache"
-	"github.com/sksmith/go-micro-example/core/inventory"
 	"github.com/sksmith/go-micro-example/db"
-	"github.com/sksmith/go-micro-example/db/invrepo"
+	"github.com/sksmith/go-micro-example/internal/inventory"
 	"github.com/sksmith/go-micro-example/queue"
 	"github.com/sksmith/go-micro-example/testutil"
 )
@@ -24,7 +23,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-// repoCounts is the expected call count for each invrepo.MockRepo
+// repoCounts is the expected call count for each inventory.MockRepo
 // method exercised by the service tests. Adding a new field is the
 // way to add a new assertion — typoed names won't compile.
 type repoCounts struct {
@@ -44,7 +43,7 @@ type queueCounts struct {
 	PublishReservation int
 }
 
-func verifyRepoCalls(t *testing.T, m *invrepo.MockRepo, want repoCounts) {
+func verifyRepoCalls(t *testing.T, m *inventory.MockRepo, want repoCounts) {
 	t.Helper()
 	if m.SaveProductCalls != want.SaveProduct {
 		t.Errorf("SaveProduct calls got=%d want=%d", m.SaveProductCalls, want.SaveProduct)
@@ -190,7 +189,7 @@ func TestCreateProduct(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		mockRepo := invrepo.NewMockRepo()
+		mockRepo := inventory.NewMockRepo()
 		if test.getProductFunc != nil {
 			mockRepo.GetProductFunc = test.getProductFunc
 		} else {
@@ -392,7 +391,7 @@ func TestProduce(t *testing.T) {
 			mockTx.CommitFunc = test.commitFunc
 		}
 
-		mockRepo := invrepo.NewMockRepo()
+		mockRepo := inventory.NewMockRepo()
 		if test.beginTransactionFunc != nil {
 			mockRepo.BeginTransactionFunc = test.beginTransactionFunc
 		} else {
@@ -580,7 +579,7 @@ func TestReserve(t *testing.T) {
 			mockTx.CommitFunc = test.commitFunc
 		}
 
-		mockRepo := invrepo.NewMockRepo()
+		mockRepo := inventory.NewMockRepo()
 		if test.beginTransactionFunc != nil {
 			mockRepo.BeginTransactionFunc = test.beginTransactionFunc
 		} else {
@@ -650,7 +649,7 @@ func TestGetAllProductInventory(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		mockRepo := invrepo.NewMockRepo()
+		mockRepo := inventory.NewMockRepo()
 		if test.getAllProductInventoryFunc != nil {
 			mockRepo.GetAllProductInventoryFunc = test.getAllProductInventoryFunc
 		} else {
@@ -703,7 +702,7 @@ func TestGetProduct(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		mockRepo := invrepo.NewMockRepo()
+		mockRepo := inventory.NewMockRepo()
 		if test.getProductFunc != nil {
 			mockRepo.GetProductFunc = test.getProductFunc
 		} else {
@@ -756,7 +755,7 @@ func TestGetProductInventory(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		mockRepo := invrepo.NewMockRepo()
+		mockRepo := inventory.NewMockRepo()
 		if test.getProductInventoryFunc != nil {
 			mockRepo.GetProductInventoryFunc = test.getProductInventoryFunc
 		} else {
@@ -809,7 +808,7 @@ func TestGetReservation(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		mockRepo := invrepo.NewMockRepo()
+		mockRepo := inventory.NewMockRepo()
 		if test.getReservationFunc != nil {
 			mockRepo.GetReservationFunc = test.getReservationFunc
 		} else {
@@ -865,7 +864,7 @@ func TestGetReservations(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		mockRepo := invrepo.NewMockRepo()
+		mockRepo := inventory.NewMockRepo()
 		if test.getReservationsFunc != nil {
 			mockRepo.GetReservationsFunc = test.getReservationsFunc
 		} else {
@@ -1133,7 +1132,7 @@ func TestFillReserves(t *testing.T) {
 			return mockSubTx, nil
 		}
 
-		mockRepo := invrepo.NewMockRepo()
+		mockRepo := inventory.NewMockRepo()
 		if test.beginTransactionFunc != nil {
 			mockRepo.BeginTransactionFunc = test.beginTransactionFunc
 		} else {
@@ -1194,7 +1193,7 @@ func TestFillReserves(t *testing.T) {
 }
 
 func TestSubscribeInventory(t *testing.T) {
-	mockRepo := invrepo.NewMockRepo()
+	mockRepo := inventory.NewMockRepo()
 	mockQueue := queue.NewMockQueue()
 	service := inventory.NewService(mockRepo, mockQueue)
 
@@ -1234,7 +1233,7 @@ func TestSubscribeInventory(t *testing.T) {
 }
 
 func TestSubscribeReservations(t *testing.T) {
-	mockRepo := invrepo.NewMockRepo()
+	mockRepo := inventory.NewMockRepo()
 	mockQueue := queue.NewMockQueue()
 	service := inventory.NewService(mockRepo, mockQueue)
 
@@ -1302,7 +1301,7 @@ func getReservations() []inventory.Reservation {
 func TestGetProductInventoryCacheHitSkipsRepo(t *testing.T) {
 	pi := inventory.ProductInventory{Available: 5, Product: inventory.Product{Sku: "sku1", Upc: "upc", Name: "n"}}
 
-	mockRepo := invrepo.NewMockRepo()
+	mockRepo := inventory.NewMockRepo()
 	var repoCalls int
 	mockRepo.GetProductInventoryFunc = func(ctx context.Context, sku string, options ...core.QueryOptions) (inventory.ProductInventory, error) {
 		repoCalls++
@@ -1336,7 +1335,7 @@ func TestGetProductInventoryCacheHitSkipsRepo(t *testing.T) {
 func TestGetProductInventoryCacheMissPopulatesCache(t *testing.T) {
 	pi := inventory.ProductInventory{Available: 7, Product: inventory.Product{Sku: "sku2", Upc: "upc", Name: "n"}}
 
-	mockRepo := invrepo.NewMockRepo()
+	mockRepo := inventory.NewMockRepo()
 	mockRepo.GetProductInventoryFunc = func(ctx context.Context, sku string, options ...core.QueryOptions) (inventory.ProductInventory, error) {
 		return pi, nil
 	}
@@ -1366,7 +1365,7 @@ func TestGetProductInventoryCacheMissPopulatesCache(t *testing.T) {
 // transaction commits, which is where the cache key is dropped.
 func TestProduceInvalidatesCache(t *testing.T) {
 	pi := inventory.ProductInventory{Available: 1, Product: inventory.Product{Sku: "sku3", Upc: "upc", Name: "n"}}
-	mockRepo := invrepo.NewMockRepo()
+	mockRepo := inventory.NewMockRepo()
 	mockRepo.GetProductionEventByRequestIDFunc = func(ctx context.Context, requestID string, options ...core.QueryOptions) (inventory.ProductionEvent, error) {
 		return inventory.ProductionEvent{}, core.ErrNotFound
 	}

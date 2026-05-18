@@ -6,9 +6,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/sksmith/go-micro-example/core/inventory"
 	"github.com/sksmith/go-micro-example/core/observability"
 	"github.com/sksmith/go-micro-example/events"
+	"github.com/sksmith/go-micro-example/internal/inventory"
 )
 
 // TestNewMessage_CapturesRequestIDFromContext pins the producer-side
