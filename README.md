@@ -216,6 +216,31 @@ Plaintext responses get no header.
 See [docs/deployment.md](docs/deployment.md) for the full deployment
 posture and production checklist.
 
+### Container image
+
+The image is two-stage: a digest-pinned `golang:1.26-alpine` builder
+compiles a static binary, and a digest-pinned
+`gcr.io/distroless/static-debian12:nonroot` runtime stage holds only
+the binary, the bundled `config.yml` defaults, and the migration
+files. Pinning both stages by `@sha256:...` (SEC-011) means a rebuild
+fetches the exact bytes CI saw last green; bump the digests in the
+same PR that bumps the Go minor version.
+
+The runtime stage runs as UID `65532:65532`
+(distroless `nonroot`) declared explicitly via `USER` so admission
+controllers (`runAsNonRoot`, Kyverno) can assert the value without
+resolving base-image metadata. No shell, package manager, or libc
+ships in the final image, so the attack surface for a compromised
+process is just the Go binary and the kernel.
+
+OCI labels (`org.opencontainers.image.source`, `revision`, `version`,
+`created`, `licenses`, `title`, `description`) are set from
+`make docker` build args so registry UIs and provenance tools can
+trace any image back to its commit. `HEALTHCHECK` is intentionally
+omitted — distroless has nothing to exec — and liveness/readiness
+are wired to the `/livez` and `/readyz` endpoints (DSN-002) via the
+Kubernetes pod spec instead.
+
 ### Rate limiting & request-size caps
 
 Two layers of throttling protect the API, both backed by the same
