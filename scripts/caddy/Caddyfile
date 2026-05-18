@@ -1,0 +1,27 @@
+# SEC-005: local-dev HTTPS terminator.
+#
+# `tls internal` makes Caddy generate (and trust, inside its own
+# container) a self-signed cert for the listed host. Browsers will
+# warn on first visit because the cert chain is not in the host
+# trust store — that's expected for compose-based dev. The point is
+# to match prod's topology (HTTPS in, plaintext to the app on a
+# private port) so headers like HSTS and middleware that branch on
+# r.TLS / X-Forwarded-Proto see the same shape locally.
+#
+# In prod, replace `tls internal` with a real cert (file paths or
+# ACME), and replace `:443` with whatever the ingress fronts.
+:443 {
+	tls internal
+
+	# Forward to the app over the compose-internal network. The
+	# trailing :8080 is the plaintext listener inside the app
+	# container. reverse_proxy sets X-Forwarded-* automatically.
+	reverse_proxy app:8080
+
+	# Ask Caddy to log access in JSON so it lines up with the app's
+	# structured-log mode when both are tailed together.
+	log {
+		output stdout
+		format json
+	}
+}

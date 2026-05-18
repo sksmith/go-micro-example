@@ -68,6 +68,8 @@ components:
           $ref: '#/components/schemas/config.StringConfig'
         sha1Version:
           $ref: '#/components/schemas/config.StringConfig'
+        tls:
+          $ref: '#/components/schemas/config.TLSConfig'
       type: object
     FieldProblem:
       properties:
@@ -377,6 +379,17 @@ components:
           type: string
         value:
           type: string
+      type: object
+    config.TLSConfig:
+      properties:
+        certFile:
+          $ref: '#/components/schemas/config.StringConfig'
+        description:
+          type: string
+        enabled:
+          $ref: '#/components/schemas/config.BoolConfig'
+        keyFile:
+          $ref: '#/components/schemas/config.StringConfig'
       type: object
     internal_user.CreateUserRequestDto:
       properties:

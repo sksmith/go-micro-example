@@ -188,6 +188,34 @@ The TS step shells out to `npx openapi-typescript@7` — it needs Node
 locally and is intentionally out of CI's Go-only matrix. Reviewers spot
 TS drift by hand for now.
 
+### TLS termination
+
+By default the HTTP server binds plaintext and TLS is terminated
+upstream by an ingress controller, service-mesh sidecar, or local-dev
+reverse proxy. The Caddy service in
+[docker-compose.yml](docker-compose.yml) demonstrates this locally:
+hit `https://localhost:8443` and Caddy reverse-proxies plaintext to
+the app on the compose network.
+
+The service can also serve HTTPS itself for single-host deployments
+without a terminator:
+
+| env var | default | meaning |
+| --- | --- | --- |
+| `GME_TLS_ENABLED` | `false` | When `true`, serve HTTPS via `ListenAndServeTLS`. |
+| `GME_TLS_CERTFILE` | *empty* | Path to a PEM cert (required when `tls.enabled=true`). |
+| `GME_TLS_KEYFILE` | *empty* | Path to the matching PEM private key. |
+
+The in-process TLS profile is TLS 1.2+ with the Mozilla "intermediate"
+AEAD cipher list. An [HSTS middleware](internal/platform/httpx/hsts.go)
+sets `Strict-Transport-Security: max-age=31536000; includeSubDomains`
+on responses to requests that arrived over TLS — either directly (
+`r.TLS` non-nil) or via `X-Forwarded-Proto: https` from a terminator.
+Plaintext responses get no header.
+
+See [docs/deployment.md](docs/deployment.md) for the full deployment
+posture and production checklist.
+
 ### Rate limiting (auth-token)
 
 `/auth/token` is throttled by a distributed token-bucket rate
