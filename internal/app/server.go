@@ -377,6 +377,7 @@ func buildDeps(ctx context.Context, cfg *config.Config) (Deps, error) {
 	if redisClient != nil {
 		readinessDeps["redis"] = redisPinger{client: redisClient}
 	}
+	readinessDeps["amqp.inventory"] = iq
 
 	catalogClient := buildCatalogClient(cfg)
 	idempotencyMw := buildIdempotencyMiddleware(cfg, redisClient)
@@ -384,7 +385,8 @@ func buildDeps(ctx context.Context, cfg *config.Config) (Deps, error) {
 	globalRateLimitMw := buildGlobalRateLimitMiddleware(cfg, redisClient)
 	bodyLimitMw := buildBodyLimitMiddleware(cfg)
 
-	_ = inventory.NewProductQueue(ctx, cfg, invService)
+	prodQueue := inventory.NewProductQueue(ctx, cfg, invService)
+	readinessDeps["amqp.product"] = prodQueue
 
 	kafkaCleanup := func() {}
 	if cfg.Kafka.Brokers.Value != "" {

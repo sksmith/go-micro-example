@@ -355,7 +355,12 @@ Config (env vars):
 | `GME_REDIS_CACHETTLMINUTES` | `5` | TTL for cached ProductInventory entries. |
 
 `/ready` adds Redis to its dependency map when the client is wired,
-so a probe fails fast if Redis is unreachable.
+so a probe fails fast if Redis is unreachable. It also reports AMQP
+under `amqp.inventory` and `amqp.product`: each queue tracks the
+timestamp of its most-recent successful redial and reports unready
+on startup until the first session arrives, and again if the
+redial loop fails to obtain a session for more than 10 seconds
+(TST-004).
 
 ### REST idempotency (Idempotency-Key)
 

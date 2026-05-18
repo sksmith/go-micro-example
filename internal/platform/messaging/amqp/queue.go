@@ -123,8 +123,11 @@ func Redial(ctx context.Context, url string) chan chan session {
 
 // Publish publishes messages to a reconnecting session against a
 // fanout exchange. Messages from messages are consumed and delivered;
-// the loop drains and retries on transient failures.
-func Publish(sessions chan chan session, exchange string, messages <-chan Message) {
+// the loop drains and retries on transient failures. onSession is
+// called each time a fresh (connection, channel) pair is obtained so
+// callers can track liveness for readiness probes (TST-004); nil is
+// allowed for callers that don't need the signal.
+func Publish(sessions chan chan session, exchange string, messages <-chan Message, onSession func()) {
 	for session := range sessions {
 		var (
 			running bool
@@ -134,6 +137,9 @@ func Publish(sessions chan chan session, exchange string, messages <-chan Messag
 		)
 
 		pub := <-session
+		if onSession != nil {
+			onSession()
+		}
 
 		// publisher confirms for this channel/connection
 		if err := pub.Confirm(false); err != nil {
@@ -190,8 +196,10 @@ func Publish(sessions chan chan session, exchange string, messages <-chan Messag
 
 // Subscribe consumes deliveries from an exclusive queue and forwards
 // them onto messages. The request_id header is restored onto the
-// Message so context propagation survives the broker hop.
-func Subscribe(sessions chan chan session, queue string, messages chan<- Message) {
+// Message so context propagation survives the broker hop. onSession
+// is called each time a fresh session is obtained and Consume
+// succeeds (TST-004); nil is allowed.
+func Subscribe(sessions chan chan session, queue string, messages chan<- Message, onSession func()) {
 	for session := range sessions {
 		sub := <-session
 
@@ -199,6 +207,10 @@ func Subscribe(sessions chan chan session, queue string, messages chan<- Message
 		if err != nil {
 			log.Error().Str("queue", queue).Err(err).Msg("cannot consume from")
 			return
+		}
+
+		if onSession != nil {
+			onSession()
 		}
 
 		log.Info().Str("queue", queue).Msg("listening for messages")
