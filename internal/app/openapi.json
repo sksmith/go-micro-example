@@ -44,6 +44,62 @@
                 },
                 "type": "object"
             },
+            "EnvResponse": {
+                "properties": {
+                    "appName": {
+                        "$ref": "#/components/schemas/config.StringConfig"
+                    },
+                    "appVersion": {
+                        "$ref": "#/components/schemas/config.StringConfig"
+                    },
+                    "buildTime": {
+                        "$ref": "#/components/schemas/config.StringConfig"
+                    },
+                    "catalog": {
+                        "$ref": "#/components/schemas/config.CatalogConfig"
+                    },
+                    "config": {
+                        "$ref": "#/components/schemas/config.ConfigSource"
+                    },
+                    "db": {
+                        "$ref": "#/components/schemas/config.DbConfig"
+                    },
+                    "docs": {
+                        "$ref": "#/components/schemas/config.DocsConfig"
+                    },
+                    "idempotency": {
+                        "$ref": "#/components/schemas/config.IdempotencyConfig"
+                    },
+                    "kafka": {
+                        "$ref": "#/components/schemas/config.KafkaConfig"
+                    },
+                    "log": {
+                        "$ref": "#/components/schemas/config.LogConfig"
+                    },
+                    "port": {
+                        "$ref": "#/components/schemas/config.StringConfig"
+                    },
+                    "profile": {
+                        "$ref": "#/components/schemas/config.StringConfig"
+                    },
+                    "rabbitmq": {
+                        "$ref": "#/components/schemas/config.QueueConfig"
+                    },
+                    "rateLimit": {
+                        "$ref": "#/components/schemas/config.RateLimitConfig"
+                    },
+                    "redis": {
+                        "$ref": "#/components/schemas/config.RedisConfig"
+                    },
+                    "revision": {
+                        "$ref": "#/components/schemas/config.StringConfig"
+                    },
+                    "sha1Version": {
+                        "$ref": "#/components/schemas/config.StringConfig"
+                    }
+                },
+                "type": "object"
+            },
             "FieldProblem": {
                 "properties": {
                     "detail": {
@@ -174,62 +230,6 @@
                     },
                     "token_type": {
                         "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "api.EnvResponse": {
-                "properties": {
-                    "appName": {
-                        "$ref": "#/components/schemas/config.StringConfig"
-                    },
-                    "appVersion": {
-                        "$ref": "#/components/schemas/config.StringConfig"
-                    },
-                    "buildTime": {
-                        "$ref": "#/components/schemas/config.StringConfig"
-                    },
-                    "catalog": {
-                        "$ref": "#/components/schemas/config.CatalogConfig"
-                    },
-                    "config": {
-                        "$ref": "#/components/schemas/config.ConfigSource"
-                    },
-                    "db": {
-                        "$ref": "#/components/schemas/config.DbConfig"
-                    },
-                    "docs": {
-                        "$ref": "#/components/schemas/config.DocsConfig"
-                    },
-                    "idempotency": {
-                        "$ref": "#/components/schemas/config.IdempotencyConfig"
-                    },
-                    "kafka": {
-                        "$ref": "#/components/schemas/config.KafkaConfig"
-                    },
-                    "log": {
-                        "$ref": "#/components/schemas/config.LogConfig"
-                    },
-                    "port": {
-                        "$ref": "#/components/schemas/config.StringConfig"
-                    },
-                    "profile": {
-                        "$ref": "#/components/schemas/config.StringConfig"
-                    },
-                    "rabbitmq": {
-                        "$ref": "#/components/schemas/config.QueueConfig"
-                    },
-                    "rateLimit": {
-                        "$ref": "#/components/schemas/config.RateLimitConfig"
-                    },
-                    "redis": {
-                        "$ref": "#/components/schemas/config.RedisConfig"
-                    },
-                    "revision": {
-                        "$ref": "#/components/schemas/config.StringConfig"
-                    },
-                    "sha1Version": {
-                        "$ref": "#/components/schemas/config.StringConfig"
                     }
                 },
                 "type": "object"
@@ -615,7 +615,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/api.EnvResponse"
+                                    "$ref": "#/components/schemas/EnvResponse"
                                 }
                             }
                         },

@@ -83,6 +83,27 @@ type CreateProductionEventRequest struct {
 	RequestID *string `json:"requestID,omitempty"`
 }
 
+// EnvResponse defines model for EnvResponse.
+type EnvResponse struct {
+	AppName     *ConfigStringConfig      `json:"appName,omitempty"`
+	AppVersion  *ConfigStringConfig      `json:"appVersion,omitempty"`
+	BuildTime   *ConfigStringConfig      `json:"buildTime,omitempty"`
+	Catalog     *ConfigCatalogConfig     `json:"catalog,omitempty"`
+	Config      *ConfigConfigSource      `json:"config,omitempty"`
+	Db          *ConfigDbConfig          `json:"db,omitempty"`
+	Docs        *ConfigDocsConfig        `json:"docs,omitempty"`
+	Idempotency *ConfigIdempotencyConfig `json:"idempotency,omitempty"`
+	Kafka       *ConfigKafkaConfig       `json:"kafka,omitempty"`
+	Log         *ConfigLogConfig         `json:"log,omitempty"`
+	Port        *ConfigStringConfig      `json:"port,omitempty"`
+	Profile     *ConfigStringConfig      `json:"profile,omitempty"`
+	Rabbitmq    *ConfigQueueConfig       `json:"rabbitmq,omitempty"`
+	RateLimit   *ConfigRateLimitConfig   `json:"rateLimit,omitempty"`
+	Redis       *ConfigRedisConfig       `json:"redis,omitempty"`
+	Revision    *ConfigStringConfig      `json:"revision,omitempty"`
+	Sha1Version *ConfigStringConfig      `json:"sha1Version,omitempty"`
+}
+
 // FieldProblem defines model for FieldProblem.
 type FieldProblem struct {
 	Detail *string `json:"detail,omitempty"`
@@ -144,27 +165,6 @@ type TokenResponse struct {
 	AccessToken *string `json:"access_token,omitempty"`
 	ExpiresIn   *int    `json:"expires_in,omitempty"`
 	TokenType   *string `json:"token_type,omitempty"`
-}
-
-// ApiEnvResponse defines model for api.EnvResponse.
-type ApiEnvResponse struct {
-	AppName     *ConfigStringConfig      `json:"appName,omitempty"`
-	AppVersion  *ConfigStringConfig      `json:"appVersion,omitempty"`
-	BuildTime   *ConfigStringConfig      `json:"buildTime,omitempty"`
-	Catalog     *ConfigCatalogConfig     `json:"catalog,omitempty"`
-	Config      *ConfigConfigSource      `json:"config,omitempty"`
-	Db          *ConfigDbConfig          `json:"db,omitempty"`
-	Docs        *ConfigDocsConfig        `json:"docs,omitempty"`
-	Idempotency *ConfigIdempotencyConfig `json:"idempotency,omitempty"`
-	Kafka       *ConfigKafkaConfig       `json:"kafka,omitempty"`
-	Log         *ConfigLogConfig         `json:"log,omitempty"`
-	Port        *ConfigStringConfig      `json:"port,omitempty"`
-	Profile     *ConfigStringConfig      `json:"profile,omitempty"`
-	Rabbitmq    *ConfigQueueConfig       `json:"rabbitmq,omitempty"`
-	RateLimit   *ConfigRateLimitConfig   `json:"rateLimit,omitempty"`
-	Redis       *ConfigRedisConfig       `json:"redis,omitempty"`
-	Revision    *ConfigStringConfig      `json:"revision,omitempty"`
-	Sha1Version *ConfigStringConfig      `json:"sha1Version,omitempty"`
 }
 
 // ConfigBoolConfig defines model for config.BoolConfig.
@@ -1466,7 +1466,7 @@ type ClientWithResponsesInterface interface {
 type GetApiV1AdminEnvResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *ApiEnvResponse
+	JSON200      *EnvResponse
 	JSON401      *Problem
 }
 
@@ -1931,7 +1931,7 @@ func ParseGetApiV1AdminEnvResponse(rsp *http.Response) (*GetApiV1AdminEnvRespons
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ApiEnvResponse
+		var dest EnvResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

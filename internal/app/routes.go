@@ -1,6 +1,6 @@
 // The api package packages handles configuring routing for http and websocket requests into the
 // server. It validates those requests and sends those to the core through the provided ports.
-package api
+package app
 
 import (
 	"net/http"

@@ -1,4 +1,4 @@
-package api_test
+package app_test
 
 import (
 	"context"
@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/sksmith/go-micro-example/api"
 	"github.com/sksmith/go-micro-example/config"
+	"github.com/sksmith/go-micro-example/internal/app"
 	"github.com/sksmith/go-micro-example/internal/auth"
 	"github.com/sksmith/go-micro-example/internal/inventory"
 	"github.com/sksmith/go-micro-example/internal/testutil"
@@ -34,7 +34,7 @@ func newTestRouterWithSigner() (chi.Router, *user.MockUserService, *auth.Signer)
 	if err != nil {
 		panic(err)
 	}
-	return api.ConfigureRouter(cfg, invSvc, resSvc, usrSvc, signer, nil, nil, nil, nil), usrSvc, signer
+	return app.ConfigureRouter(cfg, invSvc, resSvc, usrSvc, signer, nil, nil, nil, nil), usrSvc, signer
 }
 
 func TestCorsConfig(t *testing.T) {
@@ -59,7 +59,7 @@ func TestCorsConfig(t *testing.T) {
 	defer ts.Close()
 
 	client := http.DefaultClient
-	url := ts.URL + api.ApiPath + api.InventoryPath
+	url := ts.URL + app.ApiPath + app.InventoryPath
 
 	for _, test := range tests {
 		req, err := http.NewRequest("GET", url, nil)
@@ -92,10 +92,10 @@ func TestApiRoutesRequireAuthentication(t *testing.T) {
 		name string
 		path string
 	}{
-		{"inventory", api.ApiPath + api.InventoryPath},
-		{"reservation", api.ApiPath + api.ReservationPath},
-		{"user", api.ApiPath + api.UserPath},
-		{"admin/env", api.ApiPath + api.AdminPath + api.EnvPath},
+		{"inventory", app.ApiPath + app.InventoryPath},
+		{"reservation", app.ApiPath + app.ReservationPath},
+		{"user", app.ApiPath + app.UserPath},
+		{"admin/env", app.ApiPath + app.AdminPath + app.EnvPath},
 	}
 
 	for _, test := range tests {
@@ -141,7 +141,7 @@ func TestUnauthenticatedEndpointsRemainOpen(t *testing.T) {
 	ts := httptest.NewServer(r)
 	defer ts.Close()
 
-	openPaths := []string{api.LivenessEndpoint, api.ReadinessEndpoint, api.MetricsEndpoint}
+	openPaths := []string{app.LivenessEndpoint, app.ReadinessEndpoint, app.MetricsEndpoint}
 	for _, p := range openPaths {
 		res, err := http.Get(ts.URL + p)
 		if err != nil {

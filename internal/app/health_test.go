@@ -1,4 +1,4 @@
-package api_test
+package app_test
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sksmith/go-micro-example/api"
+	"github.com/sksmith/go-micro-example/internal/app"
 )
 
 type fakePinger struct {
@@ -31,7 +31,7 @@ func (f fakePinger) Ping(ctx context.Context) error {
 
 func TestLivenessHandler(t *testing.T) {
 	rec := httptest.NewRecorder()
-	api.LivenessHandler()(rec, httptest.NewRequest(http.MethodGet, "/live", nil))
+	app.LivenessHandler()(rec, httptest.NewRequest(http.MethodGet, "/live", nil))
 
 	if rec.Code != http.StatusOK {
 		t.Errorf("status got=%d want=200", rec.Code)
@@ -43,7 +43,7 @@ func TestLivenessHandler(t *testing.T) {
 
 func TestReadinessHandlerHealthy(t *testing.T) {
 	rec := httptest.NewRecorder()
-	api.ReadinessHandler(map[string]api.Pinger{
+	app.ReadinessHandler(map[string]app.Pinger{
 		"db": fakePinger{},
 	})(rec, httptest.NewRequest(http.MethodGet, "/ready", nil))
 
@@ -56,7 +56,7 @@ func TestReadinessHandlerNoDeps(t *testing.T) {
 	// nil map should be safe (an empty readiness configuration
 	// is "always ready" — useful for tests and bootstrap).
 	rec := httptest.NewRecorder()
-	api.ReadinessHandler(nil)(rec, httptest.NewRequest(http.MethodGet, "/ready", nil))
+	app.ReadinessHandler(nil)(rec, httptest.NewRequest(http.MethodGet, "/ready", nil))
 
 	if rec.Code != http.StatusOK {
 		t.Errorf("status got=%d want=200", rec.Code)
@@ -65,7 +65,7 @@ func TestReadinessHandlerNoDeps(t *testing.T) {
 
 func TestReadinessHandlerFailingDep(t *testing.T) {
 	rec := httptest.NewRecorder()
-	api.ReadinessHandler(map[string]api.Pinger{
+	app.ReadinessHandler(map[string]app.Pinger{
 		"db": fakePinger{err: errors.New("connection refused")},
 	})(rec, httptest.NewRequest(http.MethodGet, "/ready", nil))
 
@@ -86,7 +86,7 @@ func TestReadinessHandlerSlowDepTimesOut(t *testing.T) {
 	// deadline path and surface "timeout" in the body.
 	rec := httptest.NewRecorder()
 	start := time.Now()
-	api.ReadinessHandler(map[string]api.Pinger{
+	app.ReadinessHandler(map[string]app.Pinger{
 		"db": fakePinger{delay: 2 * time.Second},
 	})(rec, httptest.NewRequest(http.MethodGet, "/ready", nil))
 	elapsed := time.Since(start)
@@ -107,7 +107,7 @@ func TestReadinessHandlerSlowDepTimesOut(t *testing.T) {
 
 func TestReadinessHandlerMultipleDepsAllReported(t *testing.T) {
 	rec := httptest.NewRecorder()
-	api.ReadinessHandler(map[string]api.Pinger{
+	app.ReadinessHandler(map[string]app.Pinger{
 		"db":   fakePinger{err: errors.New("db down")},
 		"amqp": fakePinger{err: errors.New("amqp down")},
 	})(rec, httptest.NewRequest(http.MethodGet, "/ready", nil))
@@ -129,7 +129,7 @@ func TestHealthEndpointsMounted(t *testing.T) {
 	ts := httptest.NewServer(r)
 	defer ts.Close()
 
-	for _, path := range []string{api.LivenessEndpoint, api.ReadinessEndpoint} {
+	for _, path := range []string{app.LivenessEndpoint, app.ReadinessEndpoint} {
 		resp, err := http.Get(ts.URL + path)
 		if err != nil {
 			t.Fatalf("%s: %v", path, err)

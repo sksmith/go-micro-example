@@ -12,10 +12,9 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"github.com/sksmith/go-micro-example/api"
 	"github.com/sksmith/go-micro-example/config"
+	"github.com/sksmith/go-micro-example/internal/app"
 	"github.com/sksmith/go-micro-example/internal/inventory"
-	"github.com/sksmith/go-micro-example/internal/platform/messaging/amqp"
 	"github.com/sksmith/go-micro-example/internal/platform/persistence"
 	"github.com/sksmith/go-micro-example/internal/testutil"
 	"github.com/sksmith/go-micro-example/internal/user"
@@ -45,9 +44,9 @@ func TestMain(m *testing.M) {
 		log.Fatal().Err(err).Msg("failed to connect to db")
 	}
 
-	iq := queue.NewInventoryQueue(ctx, cfg)
+	iq := inventory.NewInventoryQueue(ctx, cfg)
 
-	ir := invrepo.NewPostgresRepo(dbPool)
+	ir := inventory.NewPostgresRepo(dbPool)
 
 	invService := inventory.NewService(ir, iq)
 
@@ -55,9 +54,9 @@ func TestMain(m *testing.M) {
 
 	userService := user.NewService(ur)
 
-	r := api.ConfigureRouter(cfg, invService, invService, userService, nil, map[string]api.Pinger{"db": dbPool}, nil, nil, nil)
+	r := app.ConfigureRouter(cfg, invService, invService, userService, nil, map[string]app.Pinger{"db": dbPool}, nil, nil, nil)
 
-	_ = queue.NewProductQueue(ctx, cfg, invService)
+	_ = inventory.NewProductQueue(ctx, cfg, invService)
 
 	go func() {
 		log.Fatal().Err(http.ListenAndServe(":"+cfg.Port.Value, r))
@@ -117,14 +116,14 @@ func TestCreateProduct(t *testing.T) {
 
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
-			request := api.CreateProductRequest{Product: test.product}
+			request := inventory.CreateProductRequest{Product: test.product}
 			res := testutil.Put(host()+"/api/v1/inventory", request, t)
 
 			if res.StatusCode != test.wantStatusCode {
 				t.Errorf("unexpected status got=%d want=%d", res.StatusCode, test.wantStatusCode)
 			}
 
-			body := &api.ProductResponse{}
+			body := &inventory.ProductResponse{}
 			testutil.Unmarshal(res, body, t)
 			if test.wantSku != "" && body.Sku != test.wantSku {
 				t.Errorf("unexpected response sku got=%s want=%s", body.Sku, test.wantSku)
