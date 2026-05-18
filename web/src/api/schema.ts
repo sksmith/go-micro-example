@@ -852,6 +852,9 @@ export interface components {
             authBurst?: components["schemas"]["config.IntConfig"];
             authRatePerSecond?: components["schemas"]["config.FloatConfig"];
             description?: string;
+            globalBurst?: components["schemas"]["config.IntConfig"];
+            globalRatePerSecond?: components["schemas"]["config.FloatConfig"];
+            maxRequestBodyBytes?: components["schemas"]["config.IntConfig"];
         };
         "config.RedisConfig": {
             cacheTtlMinutes?: components["schemas"]["config.IntConfig"];

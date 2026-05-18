@@ -216,38 +216,60 @@ Plaintext responses get no header.
 See [docs/deployment.md](docs/deployment.md) for the full deployment
 posture and production checklist.
 
-### Rate limiting (auth-token)
+### Rate limiting & request-size caps
 
-`/auth/token` is throttled by a distributed token-bucket rate
-limiter ([internal/platform/ratelimit](internal/platform/ratelimit/limiter.go), DSN-021b)
-backed by Redis. The bucket math runs inside a Lua script so the
-read-refill-subtract-write sequence is atomic against concurrent
-callers across replicas. Buckets are keyed per source IP
-(`X-Forwarded-For` is honoured when present, with `RemoteAddr` as
-the fallback).
+Two layers of throttling protect the API, both backed by the same
+distributed token-bucket limiter
+([internal/platform/ratelimit](internal/platform/ratelimit/limiter.go),
+DSN-021b) running a Redis Lua script for atomic
+read-refill-subtract-write. Each layer uses its own Redis-key prefix
+and its own metric scope label so the two buckets are independent —
+a brute-force attacker exhausting their auth budget does not
+consume the global budget.
 
-Behaviour:
+| Layer | Routes covered | Default | Redis prefix / scope |
+| --- | --- | --- | --- |
+| `/auth/token` (SEC-002b / DSN-021b) | `POST /auth/token` only | 1 req/s, burst 5 | `rl:auth:` / `auth` |
+| Global per-IP (SEC-007) | Every user-facing route under `/auth` and `/api/v1` | 50 req/s, burst 100 | `rl:global:` / `global` |
+
+Probe and metrics endpoints (`/live`, `/ready`, `/metrics`) sit
+outside both groups so Kubernetes and Prometheus scrapes are never
+throttled. Buckets are keyed per source IP (`X-Forwarded-For` is
+honoured when present, with `RemoteAddr` as the fallback) — a
+production deployment behind a real load balancer should configure
+the LB to write a trusted forwarded header.
+
+Behaviour on every protected route:
 
 | Scenario | Response |
 | --- | --- |
 | Under rate | Request forwarded. `X-RateLimit-Remaining` set on the response. |
 | Over rate | 429 `application/problem+json`. `Retry-After` (seconds, minimum 1) and `X-RateLimit-Remaining` set. |
 | Redis unreachable | Limiter degrades open — request forwarded with a `ratelimit_errors_total` increment. The alternative (deny-on-error) turns a Redis blip into an outage. |
-| `GME_REDIS_URL` empty | Middleware not installed; `/auth/token` runs un-throttled. |
+| `GME_REDIS_URL` empty | Limiters not installed; all routes run un-throttled. The 1-MiB body cap still applies (it doesn't need Redis). |
+
+Request body sizes are capped by an HTTP middleware in
+[internal/platform/httpx/maxbytes.go](internal/platform/httpx/maxbytes.go).
+Requests whose `Content-Length` exceeds the configured limit are
+rejected upfront with 413 `application/problem+json`; chunked or
+unknown-length bodies are truncated by `http.MaxBytesReader` and
+surface as decode errors to the handler. The cap is always on —
+it does not depend on Redis.
 
 Config (env vars):
 
 | env var | default | meaning |
 | --- | --- | --- |
-| `GME_RATELIMIT_AUTHRATEPERSECOND` | `1.0` | Token refill rate (per second). |
-| `GME_RATELIMIT_AUTHBURST` | `5` | Bucket capacity. |
+| `GME_RATELIMIT_AUTHRATEPERSECOND` | `1.0` | Token refill rate for `/auth/token`, per second. |
+| `GME_RATELIMIT_AUTHBURST` | `5` | Bucket capacity for `/auth/token`. |
+| `GME_RATELIMIT_GLOBALRATEPERSECOND` | `50.0` | Token refill rate for the global per-IP throttle. |
+| `GME_RATELIMIT_GLOBALBURST` | `100` | Bucket capacity for the global per-IP throttle. |
+| `GME_RATELIMIT_MAXREQUESTBODYBYTES` | `1048576` | Maximum request body size in bytes. `0` or negative disables the cap. |
 
 Prometheus metrics: `ratelimit_allowed_total{scope}`,
 `ratelimit_denied_total{scope}`, `ratelimit_errors_total`,
-`ratelimit_eval_duration_ms`.
-
-Other routes (`PUT /api/v1/...`, etc.) are not throttled today —
-SEC-007 will tune per-route policy.
+`ratelimit_eval_duration_ms`. `scope` is `auth` or `global`, so
+dashboards can split the two layers without joining on Redis keys.
 
 ### Redis user cache
 

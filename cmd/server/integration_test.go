@@ -54,7 +54,7 @@ func TestMain(m *testing.M) {
 
 	userService := user.NewService(ur)
 
-	r := app.ConfigureRouter(cfg, invService, invService, userService, nil, map[string]app.Pinger{"db": dbPool}, nil, nil, nil)
+	r := app.ConfigureRouter(cfg, invService, invService, userService, nil, map[string]app.Pinger{"db": dbPool}, nil, nil, nil, nil, nil)
 
 	_ = inventory.NewProductQueue(ctx, cfg, invService)
 

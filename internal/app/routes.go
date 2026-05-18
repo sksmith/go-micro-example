@@ -53,7 +53,13 @@ const (
 //
 // authRateLimitMw is the optional DSN-021b rate-limit middleware
 // applied to /auth/token. nil leaves the route un-throttled.
-func ConfigureRouter(cfg *config.Config, invSvc inventory.InventoryService, resSvc inventory.ReservationService, userService user.UserService, signer *auth.Signer, readinessDeps map[string]Pinger, catalogClient catalog.Client, idempotencyMw func(http.Handler) http.Handler, authRateLimitMw func(http.Handler) http.Handler) chi.Router {
+//
+// globalRateLimitMw is the optional SEC-007 per-IP rate-limit
+// applied to every protected route (everything except the probe and
+// metrics endpoints). nil leaves the routes un-throttled.
+// bodyLimitMw is the optional SEC-007 request-body cap (defaults to
+// 1 MiB). nil disables the cap.
+func ConfigureRouter(cfg *config.Config, invSvc inventory.InventoryService, resSvc inventory.ReservationService, userService user.UserService, signer *auth.Signer, readinessDeps map[string]Pinger, catalogClient catalog.Client, idempotencyMw func(http.Handler) http.Handler, authRateLimitMw func(http.Handler) http.Handler, globalRateLimitMw func(http.Handler) http.Handler, bodyLimitMw func(http.Handler) http.Handler) chi.Router {
 	log.Info().Msg("configuring router...")
 	r := chi.NewRouter()
 
@@ -95,6 +101,11 @@ func ConfigureRouter(cfg *config.Config, invSvc inventory.InventoryService, resS
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 	r.Use(httpx.Logging)
 
+	// Probe and metrics endpoints stay outside the rate-limit + body
+	// cap group so that Kubernetes liveness/readiness checks and
+	// Prometheus scrapes never trip the throttle or get a 413 on a
+	// stray Content-Length. They still pick up the upper middleware
+	// chain (CORS, RequestID, tracing, logging) above.
 	r.Handle(LivenessEndpoint, LivenessHandler())
 	r.Handle(ReadinessEndpoint, ReadinessHandler(readinessDeps))
 	r.Handle(MetricsEndpoint, promhttp.Handler())
@@ -104,23 +115,36 @@ func ConfigureRouter(cfg *config.Config, invSvc inventory.InventoryService, resS
 		r.Mount(DocsEndpoint, SwaggerUIHandler(cfg.AppName.Value))
 	}
 
-	if signer != nil {
-		authApi := auth.NewAuthApi(userService, signer)
-		authApi.SetRateLimit(authRateLimitMw)
-		r.Route(AuthPath, authApi.ConfigureRouter)
-	}
+	// SEC-007: everything user-facing — auth and the API tree — sits
+	// inside a Group that applies the global per-IP rate limit and
+	// the request-body cap. Each is nil-safe; nil middleware is a
+	// pass-through so tests and minimal compositions stay easy.
+	r.Group(func(r chi.Router) {
+		if globalRateLimitMw != nil {
+			r.Use(globalRateLimitMw)
+		}
+		if bodyLimitMw != nil {
+			r.Use(bodyLimitMw)
+		}
 
-	r.With(auth.Authenticate(signer)).Route(ApiPath, func(r chi.Router) {
-		invApi := inventory.NewInventoryApi(invSvc)
-		invApi.SetCatalog(catalogClient)
-		invApi.SetIdempotency(idempotencyMw)
-		r.Route(InventoryPath, invApi.ConfigureRouter)
-		resApi := inventory.NewReservationApi(resSvc)
-		resApi.SetIdempotency(idempotencyMw)
-		r.Route(ReservationPath, resApi.ConfigureRouter)
-		r.With(auth.AdminOnly).Route(UserPath, user.NewUserApi(userService).ConfigureRouter)
-		r.With(auth.AdminOnly).Route(AdminPath, func(r chi.Router) {
-			r.Route(EnvPath, NewEnvApi(cfg).ConfigureRouter)
+		if signer != nil {
+			authApi := auth.NewAuthApi(userService, signer)
+			authApi.SetRateLimit(authRateLimitMw)
+			r.Route(AuthPath, authApi.ConfigureRouter)
+		}
+
+		r.With(auth.Authenticate(signer)).Route(ApiPath, func(r chi.Router) {
+			invApi := inventory.NewInventoryApi(invSvc)
+			invApi.SetCatalog(catalogClient)
+			invApi.SetIdempotency(idempotencyMw)
+			r.Route(InventoryPath, invApi.ConfigureRouter)
+			resApi := inventory.NewReservationApi(resSvc)
+			resApi.SetIdempotency(idempotencyMw)
+			r.Route(ReservationPath, resApi.ConfigureRouter)
+			r.With(auth.AdminOnly).Route(UserPath, user.NewUserApi(userService).ConfigureRouter)
+			r.With(auth.AdminOnly).Route(AdminPath, func(r chi.Router) {
+				r.Route(EnvPath, NewEnvApi(cfg).ConfigureRouter)
+			})
 		})
 	})
 
