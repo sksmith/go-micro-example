@@ -495,6 +495,24 @@ is recording — onto a child logger attached to the request context. Downstream
 queue boundaries via the `x-request-id` header. See [docs/observability.md](docs/observability.md)
 for the full picture.
 
+#### Sensitive-value redaction (SEC-010)
+
+The request logger emits the URI to give operators a useful trace, but the URI
+sometimes carries credentials in query parameters (`?token=…`, `?code=…`, OAuth
+callbacks, etc.). The `Logging` middleware runs every URI through
+[`httpx.RedactURI`](internal/platform/httpx/redact.go) before logging it,
+replacing the values for keys in `httpx.SensitiveQueryParams` with `[REDACTED]`.
+The set is documented in `redact.go` and covers OAuth/OIDC parameters
+(`token`, `access_token`, `refresh_token`, `id_token`, `code`, `state`),
+explicit credentials (`password`, `secret`, `api_key`), and session
+identifiers — case-insensitive. Non-sensitive query keys round-trip unchanged
+so log lines stay diffable.
+
+Authorization headers and cookies are not logged anywhere in this service —
+the request logger only emits the URI and the `Origin` header. If a future
+change starts logging additional headers, route them through the same
+redaction helper.
+
 ### Configuration
 
 This project uses [viper](https://github.com/spf13/viper) for handling externalized configurations. At the moment it

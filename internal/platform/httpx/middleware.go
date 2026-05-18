@@ -44,10 +44,14 @@ func Logging(next http.Handler) http.Handler {
 		defer func() {
 			dur := fmt.Sprintf("%dms", time.Duration(time.Since(start).Milliseconds()))
 
+			// SEC-010: redact the query string before logging so a
+			// `?token=…` (or any other key in SensitiveQueryParams)
+			// cannot leak into application logs. Path and non-sensitive
+			// query keys are preserved.
 			log.Ctx(r.Context()).Trace().
 				Str("method", r.Method).
 				Str("host", r.Host).
-				Str("uri", r.RequestURI).
+				Str("uri", RedactURI(r.URL)).
 				Str("proto", r.Proto).
 				Str("origin", r.Header.Get("Origin")).
 				Int("status", ww.Status()).
