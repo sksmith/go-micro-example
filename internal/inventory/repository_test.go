@@ -255,6 +255,41 @@ func TestRepositoryGetProductionEventByRequestID(t *testing.T) {
 	}
 }
 
+// TestRepositoryGetProductionEventByRequestID_ForUpdate is the
+// SEC-015 regression: GetProductionEventByRequestID used to
+// concatenate `forUpdate` twice — once after `FROM production_events`
+// and once after the `WHERE` clause — which rendered an invalid
+// PostgreSQL statement the moment any caller asked for FOR UPDATE
+// semantics. The anchored regex below would fail to match either
+// the pre-fix double-clause form or any positioning other than
+// "exactly once, at the end".
+func TestRepositoryGetProductionEventByRequestID_ForUpdate(t *testing.T) {
+	repo, mock := newRepo(t)
+	mock.ExpectBegin()
+	created := time.Unix(0, 0).UTC()
+	pattern := `^SELECT id, request_id, sku, quantity, created FROM production_events WHERE request_id = \$1 FOR UPDATE\s*$`
+	mock.ExpectQuery(pattern).
+		WithArgs("req1").
+		WillReturnRows(pgxmock.NewRows([]string{"id", "request_id", "sku", "quantity", "created"}).
+			AddRow(uint64(7), "req1", "sku1", int64(3), created))
+
+	tx, err := repo.BeginTransaction(context.Background())
+	if err != nil {
+		t.Fatalf("BeginTransaction: %v", err)
+	}
+	got, err := repo.GetProductionEventByRequestID(context.Background(), "req1",
+		persistence.QueryOptions{Tx: tx, ForUpdate: true})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.ID != 7 {
+		t.Errorf("ID got=%d want=7", got.ID)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("unmet expectations: %v", err)
+	}
+}
+
 func TestRepositorySaveReservation(t *testing.T) {
 	repo, mock := newRepo(t)
 	r := &inventory.Reservation{

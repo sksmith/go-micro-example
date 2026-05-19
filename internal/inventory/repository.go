@@ -151,7 +151,7 @@ func (d *dbRepo) GetProductionEventByRequestID(ctx context.Context, requestID st
 	tx, forUpdate := persistence.GetQueryOptions(d.conn, options...)
 
 	pe = ProductionEvent{}
-	err = tx.QueryRow(ctx, `SELECT id, request_id, sku, quantity, created FROM production_events `+forUpdate+` WHERE request_id = $1 `+forUpdate, requestID).
+	err = tx.QueryRow(ctx, `SELECT id, request_id, sku, quantity, created FROM production_events WHERE request_id = $1 `+forUpdate, requestID).
 		Scan(&pe.ID, &pe.RequestID, &pe.Sku, &pe.Quantity, &pe.Created)
 	if err != nil {
 		m.Complete(err)
