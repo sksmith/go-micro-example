@@ -32,7 +32,7 @@ func restPut(ctx context.Context, cfg Config, tok, url string, body any) error {
 	if err != nil {
 		return err
 	}
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 	if res.StatusCode != http.StatusCreated {
 		respBody, _ := io.ReadAll(res.Body)
 		return fmt.Errorf("PUT %s: status %d body=%s", url, res.StatusCode, respBody)

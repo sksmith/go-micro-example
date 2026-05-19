@@ -198,7 +198,7 @@ func TestReservationGetBadID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 
 	if res.StatusCode != http.StatusBadRequest {
 		t.Errorf("status code got=%d want=%d", res.StatusCode, http.StatusBadRequest)

@@ -32,20 +32,20 @@ type Consumer struct {
 	dltTopic string
 	group    string
 
-	maxRetries  int
-	retryBaseMs time.Duration
+	maxRetries int
+	retryBase  time.Duration
 }
 
 // ConsumerConfig collects the wiring options. Producer/Handler/etc.
 // are all required; the retry knobs default to 3 retries / 200ms base.
 type ConsumerConfig struct {
-	Brokers     []string
-	Topic       string
-	DLTTopic    string
-	Group       string
-	Handler     Handler
-	MaxRetries  int
-	RetryBaseMs time.Duration
+	Brokers    []string
+	Topic      string
+	DLTTopic   string
+	Group      string
+	Handler    Handler
+	MaxRetries int
+	RetryBase  time.Duration
 }
 
 // NewConsumer builds the consumer client and a small dedicated DLT
@@ -87,20 +87,20 @@ func NewConsumer(cfg ConsumerConfig) (*Consumer, error) {
 	if max <= 0 {
 		max = 3
 	}
-	base := cfg.RetryBaseMs
+	base := cfg.RetryBase
 	if base <= 0 {
 		base = 200 * time.Millisecond
 	}
 
 	return &Consumer{
-		client:      client,
-		dltProd:     dltProd,
-		handler:     cfg.Handler,
-		topic:       cfg.Topic,
-		dltTopic:    cfg.DLTTopic,
-		group:       cfg.Group,
-		maxRetries:  max,
-		retryBaseMs: base,
+		client:     client,
+		dltProd:    dltProd,
+		handler:    cfg.Handler,
+		topic:      cfg.Topic,
+		dltTopic:   cfg.DLTTopic,
+		group:      cfg.Group,
+		maxRetries: max,
+		retryBase:  base,
 	}, nil
 }
 
@@ -172,7 +172,7 @@ func (c *Consumer) dispatch(parent context.Context, rec *kgo.Record) {
 			c.toDLT(parent, rec, err.Error())
 			return
 		}
-		backoff := c.retryBaseMs * time.Duration(1<<attempt)
+		backoff := c.retryBase * time.Duration(1<<attempt)
 		select {
 		case <-parent.Done():
 			return

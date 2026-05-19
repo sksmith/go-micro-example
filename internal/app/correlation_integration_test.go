@@ -33,7 +33,7 @@ func TestCorrelationLogger_PropagatesXRequestID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	res.Body.Close()
+	_ = res.Body.Close()
 
 	got := buf.String()
 	if !strings.Contains(got, "test-123") {
@@ -58,7 +58,7 @@ func TestCorrelationLogger_GeneratesIDWhenAbsent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	res.Body.Close()
+	_ = res.Body.Close()
 
 	got := buf.String()
 	if !strings.Contains(got, `"request_id"`) {

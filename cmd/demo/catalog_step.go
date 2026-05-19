@@ -64,7 +64,7 @@ func getInventory(ctx context.Context, cfg Config, tok, sku string) (string, []b
 	if err != nil {
 		return "", nil, err
 	}
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 	traceID := traceFromHeader(res)
 	body, err := io.ReadAll(res.Body)
 	if err != nil {

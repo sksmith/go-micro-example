@@ -35,7 +35,7 @@ func TestTokenEndpointIssuesJWTForValidCredentials(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 	if res.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(res.Body)
 		t.Fatalf("status=%d body=%s", res.StatusCode, body)
@@ -73,7 +73,7 @@ func TestTokenEndpointRejectsBadCredentials(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	res.Body.Close()
+	_ = res.Body.Close()
 	if res.StatusCode != http.StatusUnauthorized {
 		t.Errorf("status got=%d want=401", res.StatusCode)
 	}
@@ -88,7 +88,7 @@ func TestTokenEndpointRejectsMissingCredentials(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	res.Body.Close()
+	_ = res.Body.Close()
 	if res.StatusCode != http.StatusUnauthorized {
 		t.Errorf("status got=%d want=401", res.StatusCode)
 	}
@@ -118,7 +118,7 @@ func TestProtectedRouteAcceptsBearerJWT(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	res.Body.Close()
+	_ = res.Body.Close()
 	if res.StatusCode == http.StatusUnauthorized {
 		t.Errorf("expected non-401 with valid bearer, got %d", res.StatusCode)
 	}
@@ -151,7 +151,7 @@ func TestProtectedRouteRejectsTamperedBearer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	res.Body.Close()
+	_ = res.Body.Close()
 	if res.StatusCode != http.StatusUnauthorized {
 		t.Errorf("expected 401 on tampered bearer, got %d", res.StatusCode)
 	}
@@ -175,7 +175,7 @@ func TestProtectedRouteRejectsBasicAuth(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	res.Body.Close()
+	_ = res.Body.Close()
 	if res.StatusCode != http.StatusUnauthorized {
 		t.Errorf("expected 401 for Basic-Auth attempt, got %d", res.StatusCode)
 	}
@@ -199,7 +199,7 @@ func TestAdminRouteHonorsRolesClaim(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		res.Body.Close()
+		_ = res.Body.Close()
 		if res.StatusCode == http.StatusUnauthorized {
 			t.Errorf("admin should reach env, got 401")
 		}
@@ -213,7 +213,7 @@ func TestAdminRouteHonorsRolesClaim(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		res.Body.Close()
+		_ = res.Body.Close()
 		if res.StatusCode != http.StatusUnauthorized {
 			t.Errorf("non-admin should get 401, got %d", res.StatusCode)
 		}

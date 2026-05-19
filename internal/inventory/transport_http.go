@@ -103,7 +103,7 @@ func (a *InventoryApi) Subscribe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	go func() {
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		streamInventoryToClient(a.service, wsTextWriter{conn: conn})
 	}()
 }

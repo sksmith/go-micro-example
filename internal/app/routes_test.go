@@ -148,7 +148,7 @@ func TestApiRoutesRequireAuthentication(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer res.Body.Close()
+			defer func() { _ = res.Body.Close() }()
 			if res.StatusCode != http.StatusUnauthorized {
 				t.Errorf("expected 401 for unauthenticated %s, got %d", test.path, res.StatusCode)
 			}
@@ -165,7 +165,7 @@ func TestApiRoutesRequireAuthentication(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer res.Body.Close()
+			defer func() { _ = res.Body.Close() }()
 			if res.StatusCode != http.StatusUnauthorized {
 				t.Errorf("expected 401 for Basic-Auth attempt on %s, got %d", test.path, res.StatusCode)
 			}
@@ -187,7 +187,7 @@ func TestUnauthenticatedEndpointsRemainOpen(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GET %s: %v", p, err)
 		}
-		res.Body.Close()
+		_ = res.Body.Close()
 		if res.StatusCode == http.StatusUnauthorized {
 			t.Errorf("expected %s to be reachable without auth, got 401", p)
 		}

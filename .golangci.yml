@@ -1,7 +1,10 @@
 version: "2"
-# OPS-003: gofumpt enforced as a formatter so the bundled
-# `golangci-lint fmt` and CI lint both flag drift. The full linter
-# surface stays narrow on purpose; widening it is OPS-010's job.
+# OPS-003: gofumpt enforced as a formatter so `golangci-lint fmt`
+# and CI lint both flag drift.
+# OPS-010: full linter surface — no staticcheck check filters, no
+# errcheck function excludes. Every finding is fixed in code; the
+# only suppressions live in `linters.settings.<name>` blocks below
+# with a comment explaining why.
 formatters:
   enable:
     - gofumpt
@@ -15,19 +18,3 @@ linters:
     # ERR-001: enforce ErrXxx for sentinel error vars and
     # XxxError for error types.
     - errname
-  settings:
-    staticcheck:
-      # Match the golangci-lint v1 default surface: keep SA*
-      # (correctness) and S* (simplifications) but drop ST* (style)
-      # and QF* (quickfix refactors). Those drift away from the
-      # checks v1 ran and would expand DEP-003 scope into a rename
-      # pass, which is exactly what this ticket isn't.
-      checks:
-        - "SA*"
-        - "S1*"
-    errcheck:
-      exclude-functions:
-        - (net.Conn).Close
-        - (io.Closer).Close
-        - (*net/http.Response).Body.Close
-        - os.Unsetenv

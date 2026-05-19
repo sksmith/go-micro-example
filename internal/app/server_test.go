@@ -60,7 +60,7 @@ func TestNewWithDepsConstructibleInTest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("/live got status %d, want 200", res.StatusCode)
