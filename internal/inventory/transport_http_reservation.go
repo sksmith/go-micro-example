@@ -75,7 +75,7 @@ func (a *ReservationApi) Subscribe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	go func() {
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		streamReservationsToClient(a.service, wsTextWriter{conn: conn})
 	}()
 }

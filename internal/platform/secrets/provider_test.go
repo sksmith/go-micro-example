@@ -21,7 +21,7 @@ func TestEnvProviderPasses(t *testing.T) {
 func TestEnvProviderReportsMissing(t *testing.T) {
 	// Prefix unlikely to exist in CI
 	const v = "GME_TEST_DOES_NOT_EXIST"
-	os.Unsetenv(v)
+	_ = os.Unsetenv(v)
 	err := (secrets.EnvProvider{}).Load([]secrets.EnvVar{secrets.EnvVar(v)})
 	if err == nil {
 		t.Fatal("expected error, got nil")
@@ -39,8 +39,8 @@ func TestFileProviderReadsAndExports(t *testing.T) {
 	}
 
 	t.Setenv(v, "") // ensure unset before
-	os.Unsetenv(v)
-	t.Cleanup(func() { os.Unsetenv(v) })
+	_ = os.Unsetenv(v)
+	t.Cleanup(func() { _ = os.Unsetenv(v) })
 
 	if err := (secrets.FileProvider{Dir: dir}).Load([]secrets.EnvVar{secrets.EnvVar(v)}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -58,7 +58,7 @@ func TestFileProviderPreservesInternalWhitespace(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "gme_test_internal_ws"), []byte("a b\nc\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { os.Unsetenv(v) })
+	t.Cleanup(func() { _ = os.Unsetenv(v) })
 	if err := (secrets.FileProvider{Dir: dir}).Load([]secrets.EnvVar{secrets.EnvVar(v)}); err != nil {
 		t.Fatal(err)
 	}

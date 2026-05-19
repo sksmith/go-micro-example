@@ -98,7 +98,7 @@ func runRESTRoundTrip(ctx context.Context, cfg Config) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("PUT inventory: %w", err)
 	}
-	defer createRes.Body.Close()
+	defer func() { _ = createRes.Body.Close() }()
 	traceID := traceFromHeader(createRes)
 	if createRes.StatusCode != http.StatusCreated {
 		return traceID, unexpectedStatus("PUT /api/v1/inventory", createRes)
@@ -108,7 +108,7 @@ func runRESTRoundTrip(ctx context.Context, cfg Config) (string, error) {
 	if err != nil {
 		return traceID, fmt.Errorf("GET inventory/{sku}: %w", err)
 	}
-	defer getRes.Body.Close()
+	defer func() { _ = getRes.Body.Close() }()
 	if getRes.StatusCode != http.StatusOK {
 		return traceID, unexpectedStatus("GET /api/v1/inventory/{sku}", getRes)
 	}
@@ -129,7 +129,7 @@ func fetchToken(ctx context.Context, cfg Config) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 	if res.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(res.Body)
 		return "", fmt.Errorf("token endpoint status %d: %s", res.StatusCode, body)

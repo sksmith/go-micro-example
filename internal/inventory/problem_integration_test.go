@@ -31,7 +31,7 @@ func TestProblemResponseConformsToRFC7807(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 
 	if res.StatusCode != http.StatusInternalServerError {
 		t.Fatalf("status got=%d want=500", res.StatusCode)

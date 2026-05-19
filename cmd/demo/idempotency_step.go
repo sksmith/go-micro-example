@@ -111,7 +111,7 @@ func getAvailable(ctx context.Context, cfg Config, tok, sku string) (int64, erro
 	if err != nil {
 		return 0, err
 	}
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 	if res.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(res.Body)
 		return 0, fmt.Errorf("GET inventory/%s: status %d body=%s", sku, res.StatusCode, body)

@@ -79,7 +79,7 @@ func readCacheCounters(ctx context.Context, cfg Config) (hits, misses float64, e
 	if err != nil {
 		return 0, 0, err
 	}
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 	if res.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(res.Body)
 		return 0, 0, fmt.Errorf("GET /metrics: status %d body=%s", res.StatusCode, body)

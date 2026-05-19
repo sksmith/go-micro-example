@@ -75,7 +75,7 @@ func TestEnvEndpointRedactsSensitiveValues(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	res.Body.Close()
+	_ = res.Body.Close()
 
 	leaks := []string{dbPass, rabbitPass, dbHost, rabbitHost, dbUser, rabbitUser, springUrl, springUser, springPass}
 	for _, leak := range leaks {
@@ -105,7 +105,7 @@ func TestEnvEndpointRequiresAdmin(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	res.Body.Close()
+	_ = res.Body.Close()
 	if res.StatusCode != http.StatusUnauthorized {
 		t.Errorf("expected 401 for non-admin user, got %d", res.StatusCode)
 	}
@@ -120,7 +120,7 @@ func TestOldEnvPathIsGone(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	res.Body.Close()
+	_ = res.Body.Close()
 	if res.StatusCode != http.StatusNotFound {
 		t.Errorf("expected 404 at unauthenticated /env, got %d", res.StatusCode)
 	}

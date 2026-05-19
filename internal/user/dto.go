@@ -15,7 +15,7 @@ func (p *CreateUserRequestDto) Bind(_ *http.Request) error {
 		return errors.New("missing required field(s)")
 	}
 
-	p.CreateUserRequest.PlainTextPassword = p.Password
+	p.PlainTextPassword = p.Password
 
 	return nil
 }

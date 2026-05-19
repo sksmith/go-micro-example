@@ -61,7 +61,7 @@ func TestGlobalRateLimitAppliesToProtectedRoutesNotProbes(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer res.Body.Close()
+		defer func() { _ = res.Body.Close() }()
 		if res.StatusCode != http.StatusTooManyRequests {
 			t.Errorf("api status=%d, want 429", res.StatusCode)
 		}
@@ -77,7 +77,7 @@ func TestGlobalRateLimitAppliesToProtectedRoutesNotProbes(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			res.Body.Close()
+			_ = res.Body.Close()
 			if res.StatusCode == http.StatusTooManyRequests {
 				t.Errorf("%s returned 429; probes must bypass the limiter", path)
 			}
@@ -121,7 +121,7 @@ func TestBodyLimitMiddlewareRejectsOversizePost(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 
 	if res.StatusCode != http.StatusRequestEntityTooLarge {
 		t.Errorf("status=%d, want 413 (body cap fires before auth)", res.StatusCode)
@@ -156,7 +156,7 @@ func TestBodyLimitDoesNotApplyToProbes(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		res.Body.Close()
+		_ = res.Body.Close()
 		if res.StatusCode == http.StatusRequestEntityTooLarge {
 			t.Errorf("%s returned 413; probes must bypass the body cap", path)
 		}

@@ -47,7 +47,7 @@ func TestPaginationRejectsInvalidInput(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer res.Body.Close()
+			defer func() { _ = res.Body.Close() }()
 			if res.StatusCode != http.StatusBadRequest {
 				t.Fatalf("status got=%d want=400", res.StatusCode)
 			}
@@ -90,7 +90,7 @@ func TestPaginationDefaultsAndClamp(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	res.Body.Close()
+	_ = res.Body.Close()
 	if gotLimit != httpx.DefaultPageLimit {
 		t.Errorf("default limit got=%d want=%d", gotLimit, httpx.DefaultPageLimit)
 	}
@@ -103,7 +103,7 @@ func TestPaginationDefaultsAndClamp(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	res.Body.Close()
+	_ = res.Body.Close()
 	if gotLimit != httpx.MaxPageLimit {
 		t.Errorf("boundary limit got=%d want=%d", gotLimit, httpx.MaxPageLimit)
 	}
@@ -121,7 +121,7 @@ func TestPaginationLinkHeader(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		res.Body.Close()
+		_ = res.Body.Close()
 		link := res.Header.Get("Link")
 		if !strings.Contains(link, `rel="next"`) {
 			t.Errorf("expected next rel in Link header, got %q", link)
@@ -142,7 +142,7 @@ func TestPaginationLinkHeader(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		res.Body.Close()
+		_ = res.Body.Close()
 		link := res.Header.Get("Link")
 		if !strings.Contains(link, `rel="next"`) || !strings.Contains(link, `rel="prev"`) {
 			t.Errorf("expected both next and prev, got %q", link)
@@ -163,7 +163,7 @@ func TestPaginationLinkHeader(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		res.Body.Close()
+		_ = res.Body.Close()
 		link := res.Header.Get("Link")
 		if strings.Contains(link, `rel="next"`) {
 			t.Errorf("did not expect next on partial page, got %q", link)

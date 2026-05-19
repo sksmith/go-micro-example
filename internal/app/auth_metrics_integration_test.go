@@ -21,7 +21,7 @@ func readCounter(t *testing.T, ts *httptest.Server, name string) float64 {
 	if err != nil {
 		t.Fatalf("scrape /metrics: %v", err)
 	}
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		t.Fatalf("read /metrics: %v", err)
@@ -62,7 +62,7 @@ func TestAuthCountersMoveOnSuccessOnly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	res.Body.Close()
+	_ = res.Body.Close()
 	if res.StatusCode != http.StatusUnauthorized {
 		t.Errorf("Basic Auth attempt should be 401, got %d", res.StatusCode)
 	}
@@ -75,7 +75,7 @@ func TestAuthCountersMoveOnSuccessOnly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	res2.Body.Close()
+	_ = res2.Body.Close()
 
 	// Failed Bearer → no counter movement.
 	req3, _ := http.NewRequest(http.MethodGet, ts.URL+app.ApiPath+app.InventoryPath, nil)
@@ -84,7 +84,7 @@ func TestAuthCountersMoveOnSuccessOnly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	res3.Body.Close()
+	_ = res3.Body.Close()
 
 	basicAfter := readCounter(t, ts, "auth_basic_requests_total")
 	jwtAfter := readCounter(t, ts, "auth_jwt_requests_total")
