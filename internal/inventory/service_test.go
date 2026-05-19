@@ -14,7 +14,45 @@ import (
 	"github.com/sksmith/go-micro-example/internal/platform/cache"
 	"github.com/sksmith/go-micro-example/internal/platform/persistence"
 	"github.com/sksmith/go-micro-example/internal/testutil"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
+
+// withRecordingTracer swaps the global TracerProvider for the
+// duration of one test. Mirrors the helper in the user package
+// (see user/service_test.go) and the amqp package (DSN-004a) —
+// the same shape works everywhere because Tracer/SetTracerProvider
+// are package-level globals.
+func withRecordingTracer(t *testing.T) *tracetest.SpanRecorder {
+	t.Helper()
+
+	recorder := tracetest.NewSpanRecorder()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+
+	prevTP := otel.GetTracerProvider()
+	prevProp := otel.GetTextMapPropagator()
+	otel.SetTracerProvider(tp)
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
+		propagation.TraceContext{},
+		propagation.Baggage{},
+	))
+	t.Cleanup(func() {
+		otel.SetTracerProvider(prevTP)
+		otel.SetTextMapPropagator(prevProp)
+	})
+	return recorder
+}
+
+func hasStringAttr(span sdktrace.ReadOnlySpan, key, val string) bool {
+	for _, kv := range span.Attributes() {
+		if string(kv.Key) == key && kv.Value.AsString() == val {
+			return true
+		}
+	}
+	return false
+}
 
 func TestMain(m *testing.M) {
 	testutil.ConfigLogging()
@@ -1393,4 +1431,83 @@ func TestProduceInvalidatesCache(t *testing.T) {
 	if c.Size() != 0 {
 		t.Errorf("cache size=%d after Produce; want 0 (invalidation should have dropped sku3)", c.Size())
 	}
+}
+
+// TestInventoryService_SpansHappyAndError pins DSN-004b's contract on
+// the inventory side: every exported method produces a span named
+// after the method with the sku attribute populated, and errors are
+// recorded on the span via RecordError + SetStatus(Error).
+func TestInventoryService_SpansHappyAndError(t *testing.T) {
+	t.Run("happy path: GetProductInventory records span without error", func(t *testing.T) {
+		recorder := withRecordingTracer(t)
+
+		mockRepo := inventory.NewMockRepo()
+		mockRepo.GetProductInventoryFunc = func(_ context.Context, _ string, _ ...persistence.QueryOptions) (inventory.ProductInventory, error) {
+			return inventory.ProductInventory{Product: inventory.Product{Sku: "sku-1"}, Available: 3}, nil
+		}
+		mockQ := &inventoryPublisherStub{}
+		svc := inventory.NewService(mockRepo, mockQ)
+
+		if _, err := svc.GetProductInventory(context.Background(), "sku-1"); err != nil {
+			t.Fatalf("unexpected err: %v", err)
+		}
+
+		spans := recorder.Ended()
+		if len(spans) != 1 {
+			t.Fatalf("recorded %d spans, want 1", len(spans))
+		}
+		got := spans[0]
+		if got.Name() != "GetProductInventory" {
+			t.Errorf("span name = %q, want GetProductInventory", got.Name())
+		}
+		if got.Status().Code.String() == "Error" {
+			t.Errorf("happy path should not be Error: %q (%q)",
+				got.Status().Code.String(), got.Status().Description)
+		}
+		if !hasStringAttr(got, "inventory.sku", "sku-1") {
+			t.Errorf("missing inventory.sku=sku-1; got %+v", got.Attributes())
+		}
+	})
+
+	t.Run("error path: Reserve validation failure records error", func(t *testing.T) {
+		recorder := withRecordingTracer(t)
+
+		svc := inventory.NewService(inventory.NewMockRepo(), &inventoryPublisherStub{})
+
+		// Empty RequestID → validateReservationRequest returns
+		// ErrInvalidInput before any repo call, exercising the
+		// error path without needing a mock to fail.
+		_, err := svc.Reserve(context.Background(), inventory.ReservationRequest{Sku: "sku-1", Requester: "r", Quantity: 1})
+		if !errors.Is(err, inventory.ErrInvalidInput) {
+			t.Fatalf("expected ErrInvalidInput, got %v", err)
+		}
+
+		spans := recorder.Ended()
+		if len(spans) != 1 {
+			t.Fatalf("recorded %d spans, want 1", len(spans))
+		}
+		got := spans[0]
+		if got.Name() != "Reserve" {
+			t.Errorf("span name = %q, want Reserve", got.Name())
+		}
+		if got.Status().Code.String() != "Error" {
+			t.Errorf("error path should set status Error, got %q",
+				got.Status().Code.String())
+		}
+		if len(got.Events()) == 0 {
+			t.Errorf("RecordError should have added an event; got none")
+		}
+	})
+}
+
+// inventoryPublisherStub satisfies inventory.InventoryPublisher with
+// no-op methods so service span tests don't need to stand up AMQP.
+type inventoryPublisherStub struct{}
+
+func (inventoryPublisherStub) PublishInventory(_ context.Context, _ inventory.ProductInventory) error {
+	return nil
+}
+
+func (inventoryPublisherStub) PublishReservation(_ context.Context, _ inventory.Reservation) error {
+	return nil
 }

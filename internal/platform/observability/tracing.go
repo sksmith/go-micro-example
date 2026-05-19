@@ -14,6 +14,8 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
@@ -137,6 +139,34 @@ func ResolveSamplingRatio(defaultRatio float64) float64 {
 // imports.
 func Tracer(name string) trace.Tracer {
 	return otel.Tracer(name)
+}
+
+// StartServiceSpan opens a span on the named tracer with the given
+// span name and attributes and returns the new ctx plus a finisher
+// closure. Callers deferred-invoke the closure with their named
+// error return — non-nil error records the error on the span and
+// flips its status to Error before End. This is the boilerplate
+// every internal service method runs through for DSN-004b's
+// business-operation tracing.
+//
+// Pattern:
+//
+//	func (s *service) Reserve(ctx context.Context, rr ReservationRequest) (res Reservation, err error) {
+//	    ctx, end := observability.StartServiceSpan(ctx, "inventory.Service", "Reserve",
+//	        attribute.String("sku", rr.Sku),
+//	    )
+//	    defer func() { end(err) }()
+//	    // ... body ...
+//	}
+func StartServiceSpan(ctx context.Context, tracerName, spanName string, attrs ...attribute.KeyValue) (context.Context, func(error)) {
+	ctx, span := Tracer(tracerName).Start(ctx, spanName, trace.WithAttributes(attrs...))
+	return ctx, func(err error) {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		}
+		span.End()
+	}
 }
 
 // flushTimeout caps how long shutdown will wait for the batch

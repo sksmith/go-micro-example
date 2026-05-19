@@ -7,9 +7,15 @@ import (
 	"time"
 
 	"github.com/rs/zerolog/log"
+	"github.com/sksmith/go-micro-example/internal/platform/observability"
 	"github.com/sksmith/go-micro-example/internal/platform/persistence"
+	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/crypto/bcrypt"
 )
+
+// tracerName is the instrumentation name reported on every service
+// span in this package (DSN-004b).
+const tracerName = "user.Service"
 
 // ErrInvalidCredentials is returned by Login when the username does
 // not exist or the supplied password does not match. The two cases
@@ -33,11 +39,19 @@ type service struct {
 	repo Repository
 }
 
-func (s *service) Get(ctx context.Context, username string) (User, error) {
+func (s *service) Get(ctx context.Context, username string) (u User, err error) {
+	ctx, end := observability.StartServiceSpan(ctx, tracerName, "Get",
+		attribute.String("user.username", username),
+	)
+	defer func() { end(err) }()
 	return s.repo.Get(ctx, username)
 }
 
-func (s *service) Create(ctx context.Context, req CreateUserRequest) (User, error) {
+func (s *service) Create(ctx context.Context, req CreateUserRequest) (u User, err error) {
+	ctx, end := observability.StartServiceSpan(ctx, tracerName, "Create",
+		attribute.String("user.username", req.Username),
+	)
+	defer func() { end(err) }()
 	if !usernameIsValid(req.Username) {
 		return User{}, fmt.Errorf("invalid username: %w", ErrInvalidInput)
 	}
@@ -68,12 +82,20 @@ func passwordIsValid(password string) bool {
 	return true
 }
 
-func (s *service) Delete(ctx context.Context, username string) error {
+func (s *service) Delete(ctx context.Context, username string) (err error) {
+	ctx, end := observability.StartServiceSpan(ctx, tracerName, "Delete",
+		attribute.String("user.username", username),
+	)
+	defer func() { end(err) }()
 	return s.repo.Delete(ctx, username)
 }
 
-func (s *service) Login(ctx context.Context, username, password string) (User, error) {
-	u, err := s.repo.Get(ctx, username)
+func (s *service) Login(ctx context.Context, username, password string) (u User, err error) {
+	ctx, end := observability.StartServiceSpan(ctx, tracerName, "Login",
+		attribute.String("user.username", username),
+	)
+	defer func() { end(err) }()
+	u, err = s.repo.Get(ctx, username)
 	if err != nil {
 		if errors.Is(err, persistence.ErrNotFound) {
 			return User{}, ErrInvalidCredentials
