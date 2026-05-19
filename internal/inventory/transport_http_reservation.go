@@ -10,7 +10,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/gobwas/ws"
-	"github.com/gobwas/ws/wsutil"
 	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/internal/platform/httpx"
 	"github.com/sksmith/go-micro-example/internal/platform/persistence"
@@ -77,31 +76,32 @@ func (a *ReservationApi) Subscribe(w http.ResponseWriter, r *http.Request) {
 	}
 	go func() {
 		defer conn.Close()
-
-		ch := make(chan Reservation, 1)
-
-		id := a.service.SubscribeReservations(ch)
-		defer func() {
-			a.service.UnsubscribeReservations(id)
-		}()
-
-		for res := range ch {
-			resp := &ReservationResponse{Reservation: res}
-
-			body, err := json.Marshal(resp)
-			if err != nil {
-				log.Error().Err(err).Interface("clientId", id).Msg("failed to marshal reservation response")
-				continue
-			}
-
-			log.Debug().Interface("clientId", id).Interface("reservationResponse", resp).Msg("sending reservation update to client")
-			err = wsutil.WriteServerText(conn, body)
-			if err != nil {
-				log.Error().Err(err).Interface("clientId", id).Msg("failed to write server message, disconnecting client")
-				return
-			}
-		}
+		streamReservationsToClient(a.service, wsTextWriter{conn: conn})
 	}()
+}
+
+// streamReservationsToClient mirrors streamInventoryToClient on the
+// reservation side. Both helpers exist for the same reason — see the
+// comment on streamInventoryToClient for the OPS-009 context.
+func streamReservationsToClient(svc ReservationService, writer textWriter) {
+	ch := make(chan Reservation, 1)
+	id := svc.SubscribeReservations(ch)
+	defer svc.UnsubscribeReservations(id)
+
+	for res := range ch {
+		resp := &ReservationResponse{Reservation: res}
+		body, err := json.Marshal(resp)
+		if err != nil {
+			log.Error().Err(err).Interface("clientId", id).Msg("failed to marshal reservation response")
+			continue
+		}
+
+		log.Debug().Interface("clientId", id).Interface("reservationResponse", resp).Msg("sending reservation update to client")
+		if err := writer.WriteText(body); err != nil {
+			log.Error().Err(err).Interface("clientId", id).Msg("failed to write server message, disconnecting client")
+			return
+		}
+	}
 }
 
 // Get returns a single reservation by ID.

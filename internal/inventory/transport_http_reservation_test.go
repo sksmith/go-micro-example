@@ -2,86 +2,108 @@ package inventory_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
-	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/gobwas/ws"
 	"github.com/sksmith/go-micro-example/internal/inventory"
 	"github.com/sksmith/go-micro-example/internal/platform/httpx"
 	"github.com/sksmith/go-micro-example/internal/platform/persistence"
 	"github.com/sksmith/go-micro-example/internal/testutil"
 )
 
-func TestReservationSubscribe(t *testing.T) {
-	// See TestInventorySubscribe — same flake, same skip reason.
-	t.Skip("WS subscribe test is flaky on Linux/macOS under Go 1.24 — see OPS-009")
+// TestReservationSubscribe_StreamsThenUnsubscribes is the OPS-009
+// replacement for the prior in-process WS round-trip. Same shape as
+// TestInventorySubscribe_StreamsThenUnsubscribes; see that test for
+// the rationale.
+func TestReservationSubscribe_StreamsThenUnsubscribes(t *testing.T) {
 	mockSvc := inventory.NewMockReservationService()
+	expectedSubID := inventory.ReservationsSubID("subid1")
+	items := getTestReservations()
 
-	subscribed := make(chan struct{}, 1)
-	unsubscribed := make(chan struct{}, 1)
-	releaseSubscribe := make(chan struct{})
-	expectedSubId := inventory.ReservationsSubID("subid1")
-
-	mockSvc.SubscribeReservationsFunc = func(ch chan<- inventory.Reservation) (id inventory.ReservationsSubID) {
-		subscribed <- struct{}{}
+	mockSvc.SubscribeReservationsFunc = func(ch chan<- inventory.Reservation) inventory.ReservationsSubID {
 		go func() {
-			res := getTestReservations()
-			for i := 0; i < 3; i++ {
-				ch <- res[i]
+			for _, item := range items {
+				ch <- item
 			}
-			// Hold the channel open until the test has read all
-			// items off the websocket; otherwise the handler's
-			// defer conn.Close() can race ahead and the client
-			// sees EOF mid-read.
-			<-releaseSubscribe
 			close(ch)
 		}()
-
-		return expectedSubId
+		return expectedSubID
 	}
 
+	var (
+		unsubMu sync.Mutex
+		unsubID inventory.ReservationsSubID
+	)
 	mockSvc.UnsubscribeReservationsFunc = func(id inventory.ReservationsSubID) {
-		unsubscribed <- struct{}{}
+		unsubMu.Lock()
+		defer unsubMu.Unlock()
+		unsubID = id
 	}
 
-	resApi := inventory.NewReservationApi(mockSvc)
-	r := chi.NewRouter()
-	resApi.ConfigureRouter(r)
-	ts := httptest.NewServer(r)
-	defer ts.Close()
+	w := &recordingTextWriter{}
+	inventory.StreamReservationsToClientForTest(mockSvc, w)
 
-	url := strings.Replace(ts.URL, "http", "ws", 1) + "/subscribe"
-
-	conn, _, _, err := ws.DefaultDialer.Dial(context.Background(), url)
-	if err != nil {
-		t.Fatal(err)
+	frames := w.snapshot()
+	if len(frames) != len(items) {
+		t.Fatalf("frames written = %d, want %d", len(frames), len(items))
+	}
+	for i, frame := range frames {
+		var got inventory.ReservationResponse
+		if err := json.Unmarshal(frame, &got); err != nil {
+			t.Fatalf("frame[%d] not JSON: %v\nbody=%s", i, err, frame)
+		}
+		if !reflect.DeepEqual(got.Reservation, items[i]) {
+			t.Errorf("frame[%d] = %+v, want %+v", i, got.Reservation, items[i])
+		}
 	}
 
-	curRes := getTestReservations()
-	for i := 0; i < 3; i++ {
-		got := &inventory.Reservation{}
-		testutil.ReadWs(conn, got, t)
-
-		reflect.DeepEqual(got, curRes[i])
+	unsubMu.Lock()
+	defer unsubMu.Unlock()
+	if unsubID != expectedSubID {
+		t.Errorf("Unsubscribe got id=%q, want %q", unsubID, expectedSubID)
 	}
-	close(releaseSubscribe)
+}
 
-	select {
-	case <-subscribed:
-	case <-time.After(time.Second):
-		t.Errorf("subscribe never called")
+// TestReservationSubscribe_StopsOnWriteError mirrors the
+// disconnect-branch test on the inventory side.
+func TestReservationSubscribe_StopsOnWriteError(t *testing.T) {
+	mockSvc := inventory.NewMockReservationService()
+	expectedSubID := inventory.ReservationsSubID("subid-disconnect")
+	items := getTestReservations()
+
+	mockSvc.SubscribeReservationsFunc = func(ch chan<- inventory.Reservation) inventory.ReservationsSubID {
+		go func() {
+			defer close(ch)
+			for _, item := range items {
+				ch <- item
+			}
+		}()
+		return expectedSubID
 	}
 
-	select {
-	case <-unsubscribed:
-	case <-time.After(time.Second):
-		t.Errorf("unsubscribe never called")
+	var unsubCalled bool
+	mockSvc.UnsubscribeReservationsFunc = func(id inventory.ReservationsSubID) {
+		if id != expectedSubID {
+			t.Errorf("Unsubscribe id=%q want %q", id, expectedSubID)
+		}
+		unsubCalled = true
+	}
+
+	w := &recordingTextWriter{err: errors.New("client disconnected")}
+	inventory.StreamReservationsToClientForTest(mockSvc, w)
+
+	if got := w.snapshot(); len(got) != 0 {
+		t.Errorf("write-error path should never record a frame, got %d", len(got))
+	}
+	if !unsubCalled {
+		t.Error("Unsubscribe must run on write-error exit (defer)")
 	}
 }
 

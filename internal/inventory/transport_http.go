@@ -9,7 +9,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/gobwas/ws"
-	"github.com/gobwas/ws/wsutil"
 	"github.com/rs/zerolog/log"
 	"github.com/sksmith/go-micro-example/internal/catalog"
 	"github.com/sksmith/go-micro-example/internal/platform/httpx"
@@ -105,30 +104,37 @@ func (a *InventoryApi) Subscribe(w http.ResponseWriter, r *http.Request) {
 	}
 	go func() {
 		defer conn.Close()
-
-		ch := make(chan ProductInventory, 1)
-
-		id := a.service.SubscribeInventory(ch)
-		defer func() {
-			a.service.UnsubscribeInventory(id)
-		}()
-
-		for inv := range ch {
-			resp := &ProductResponse{ProductInventory: inv}
-			body, err := json.Marshal(resp)
-			if err != nil {
-				log.Error().Err(err).Interface("clientId", id).Msg("failed to marshal product response")
-				continue
-			}
-
-			log.Debug().Interface("clientId", id).Interface("productResponse", resp).Msg("sending inventory update to client")
-			err = wsutil.WriteServerText(conn, body)
-			if err != nil {
-				log.Error().Err(err).Interface("clientId", id).Msg("failed to write server message, disconnecting client")
-				return
-			}
-		}
+		streamInventoryToClient(a.service, wsTextWriter{conn: conn})
 	}()
+}
+
+// streamInventoryToClient is the WS-independent half of Subscribe: it
+// subscribes via the service, marshals every ProductInventory off the
+// channel into a ProductResponse JSON frame, and writes each frame
+// through writer until the channel closes or a write fails. Pulled
+// out of the handler so it can be unit-tested against a recording
+// writer (OPS-009) — the pre-refactor in-process WS round-trip flaked
+// under the Go 1.24 scheduler on Linux/macOS GitHub runners and the
+// test ended up t.Skip'd.
+func streamInventoryToClient(svc InventoryService, writer textWriter) {
+	ch := make(chan ProductInventory, 1)
+	id := svc.SubscribeInventory(ch)
+	defer svc.UnsubscribeInventory(id)
+
+	for inv := range ch {
+		resp := &ProductResponse{ProductInventory: inv}
+		body, err := json.Marshal(resp)
+		if err != nil {
+			log.Error().Err(err).Interface("clientId", id).Msg("failed to marshal product response")
+			continue
+		}
+
+		log.Debug().Interface("clientId", id).Interface("productResponse", resp).Msg("sending inventory update to client")
+		if err := writer.WriteText(body); err != nil {
+			log.Error().Err(err).Interface("clientId", id).Msg("failed to write server message, disconnecting client")
+			return
+		}
+	}
 }
 
 // List returns a page of product inventory.

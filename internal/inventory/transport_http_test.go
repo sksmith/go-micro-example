@@ -2,16 +2,15 @@ package inventory_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
-	"strings"
+	"sync"
 	"testing"
-	"time"
 
-	"github.com/gobwas/ws"
 	"github.com/sksmith/go-micro-example/internal/catalog"
 	"github.com/sksmith/go-micro-example/internal/inventory"
 	"github.com/sksmith/go-micro-example/internal/platform/httpx"
@@ -21,76 +20,133 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-func TestInventorySubscribe(t *testing.T) {
-	// Flaky under Go 1.24 on Linux/macOS CI runners: the handler reports
-	// 3 frames written via wsutil.WriteServerText but the dialer's
-	// ReadHeader times out waiting for any bytes. Passes locally and on
-	// Windows. Tracked in OPS-007 — re-enable once the WS test harness
-	// is rewritten without an in-process httptest WS round-trip.
-	t.Skip("WS subscribe test is flaky on Linux/macOS under Go 1.24 — see OPS-009")
+// recordingTextWriter is the test-side implementation of the
+// (unexported) textWriter interface in the inventory package. It
+// captures every frame written so tests can assert payload shape
+// and order without an in-process WS dialer (OPS-009).
+//
+// Setting err non-nil makes WriteText fail without recording — used
+// to drive the "stop streaming on write error" branch of the
+// handler.
+type recordingTextWriter struct {
+	mu     sync.Mutex
+	frames [][]byte
+	err    error
+}
+
+func (r *recordingTextWriter) WriteText(b []byte) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.err != nil {
+		return r.err
+	}
+	r.frames = append(r.frames, append([]byte(nil), b...))
+	return nil
+}
+
+func (r *recordingTextWriter) snapshot() [][]byte {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([][]byte, len(r.frames))
+	for i, f := range r.frames {
+		out[i] = append([]byte(nil), f...)
+	}
+	return out
+}
+
+// TestInventorySubscribe_StreamsThenUnsubscribes is the OPS-009
+// replacement for the old in-process WS round-trip test. It exercises
+// the same contract — subscribe to the service, marshal each inventory
+// item as a ProductResponse-shaped JSON frame, write it, unsubscribe
+// when the channel closes — but drives the loop through the textWriter
+// seam instead of dialing a real websocket. Deterministic on every
+// platform; no time.Sleep, no released-signal channel.
+func TestInventorySubscribe_StreamsThenUnsubscribes(t *testing.T) {
 	mockSvc := inventory.NewMockInventoryService()
+	expectedSubID := inventory.InventorySubID("subid1")
+	items := getTestProductInventory()
 
-	subscribed := make(chan struct{}, 1)
-	unsubscribed := make(chan struct{}, 1)
-	releaseSubscribe := make(chan struct{})
-	expectedSubId := inventory.InventorySubID("subid1")
-
-	mockSvc.SubscribeInventoryFunc = func(ch chan<- inventory.ProductInventory) (id inventory.InventorySubID) {
-		subscribed <- struct{}{}
+	mockSvc.SubscribeInventoryFunc = func(ch chan<- inventory.ProductInventory) inventory.InventorySubID {
+		// Push all three items then close ch. The receiving streamer
+		// will drain in order and return on close — deterministic
+		// without any external synchronisation.
 		go func() {
-			inv := getTestProductInventory()
-			for i := 0; i < 3; i++ {
-				ch <- inv[i]
+			for _, item := range items {
+				ch <- item
 			}
-			// Hold the channel open until the test has read all
-			// items off the websocket; otherwise the handler's
-			// defer conn.Close() can race ahead and the client
-			// sees EOF mid-read.
-			<-releaseSubscribe
 			close(ch)
 		}()
-
-		return expectedSubId
+		return expectedSubID
 	}
 
+	var (
+		unsubMu sync.Mutex
+		unsubID inventory.InventorySubID
+	)
 	mockSvc.UnsubscribeInventoryFunc = func(id inventory.InventorySubID) {
-		unsubscribed <- struct{}{}
+		unsubMu.Lock()
+		defer unsubMu.Unlock()
+		unsubID = id
 	}
 
-	invApi := inventory.NewInventoryApi(mockSvc)
-	r := chi.NewRouter()
-	invApi.ConfigureRouter(r)
-	ts := httptest.NewServer(r)
-	defer ts.Close()
+	w := &recordingTextWriter{}
+	inventory.StreamInventoryToClientForTest(mockSvc, w)
 
-	url := strings.Replace(ts.URL, "http", "ws", 1) + "/subscribe"
-
-	conn, _, _, err := ws.DefaultDialer.Dial(context.Background(), url)
-	if err != nil {
-		t.Fatal(err)
+	frames := w.snapshot()
+	if len(frames) != len(items) {
+		t.Fatalf("frames written = %d, want %d", len(frames), len(items))
 	}
-
-	curInv := getTestProductInventory()
-	for i := 0; i < 3; i++ {
-		got := &inventory.ProductInventory{}
-		testutil.ReadWs(conn, got, t)
-
-		if got.Name != curInv[i].Name {
-			t.Errorf("unexpected ws response[%d] got=[%s] want=[%s]", i, got.Name, curInv[i].Name)
+	for i, frame := range frames {
+		var got inventory.ProductResponse
+		if err := json.Unmarshal(frame, &got); err != nil {
+			t.Fatalf("frame[%d] not JSON: %v\nbody=%s", i, err, frame)
+		}
+		if got.Name != items[i].Name {
+			t.Errorf("frame[%d].Name = %q, want %q", i, got.Name, items[i].Name)
 		}
 	}
-	close(releaseSubscribe)
 
-	select {
-	case <-subscribed:
-	case <-time.After(time.Second):
-		t.Errorf("subscribe never called")
+	unsubMu.Lock()
+	defer unsubMu.Unlock()
+	if unsubID != expectedSubID {
+		t.Errorf("Unsubscribe got id=%q, want %q", unsubID, expectedSubID)
+	}
+}
+
+// TestInventorySubscribe_StopsOnWriteError pins the disconnect branch:
+// a failing WriteText must short-circuit the streaming loop *and*
+// still fire Unsubscribe (the defer in the handler).
+func TestInventorySubscribe_StopsOnWriteError(t *testing.T) {
+	mockSvc := inventory.NewMockInventoryService()
+	expectedSubID := inventory.InventorySubID("subid-disconnect")
+	items := getTestProductInventory()
+
+	mockSvc.SubscribeInventoryFunc = func(ch chan<- inventory.ProductInventory) inventory.InventorySubID {
+		go func() {
+			defer close(ch)
+			for _, item := range items {
+				ch <- item
+			}
+		}()
+		return expectedSubID
 	}
 
-	select {
-	case <-unsubscribed:
-	case <-time.After(time.Second):
-		t.Errorf("unsubscribe never called")
+	var unsubCalled bool
+	mockSvc.UnsubscribeInventoryFunc = func(id inventory.InventorySubID) {
+		if id != expectedSubID {
+			t.Errorf("Unsubscribe id=%q want %q", id, expectedSubID)
+		}
+		unsubCalled = true
+	}
+
+	w := &recordingTextWriter{err: errors.New("client disconnected")}
+	inventory.StreamInventoryToClientForTest(mockSvc, w)
+
+	if got := w.snapshot(); len(got) != 0 {
+		t.Errorf("write-error path should never record a frame, got %d", len(got))
+	}
+	if !unsubCalled {
+		t.Error("Unsubscribe must run on write-error exit (defer)")
 	}
 }
 

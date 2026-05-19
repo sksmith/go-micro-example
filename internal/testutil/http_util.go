@@ -4,11 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
-	"net"
 	"net/http"
 	"testing"
-
-	"github.com/gobwas/ws/wsutil"
 )
 
 func Unmarshal(res *http.Response, v interface{}, t *testing.T) {
@@ -56,16 +53,4 @@ func SendRequest(method, url string, request interface{}, t *testing.T, op ...Re
 	}
 
 	return res
-}
-
-func ReadWs(conn net.Conn, v interface{}, t *testing.T) {
-	msg, _, err := wsutil.ReadServerData(conn)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	err = json.Unmarshal(msg, v)
-	if err != nil {
-		t.Fatal(err)
-	}
 }
