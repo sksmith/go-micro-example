@@ -30,13 +30,22 @@ focuses.
   TraceContext propagation, so future outbound HTTP calls or
   gRPC clients pick up the active span automatically.
 
-### What's not yet instrumented
+### Service-layer spans (DSN-004b)
 
-- **Service-layer custom spans** (e.g. `inventory.Service.Reserve`).
-  The chi+pgx auto-instrumentation already covers ~80% of the
-  signal a typical request needs; explicit business-operation
-  spans are a follow-up. File a follow-up ticket if traces
-  surface a gap that the auto-instrumentation can't fill.
+Every exported method on `inventory.Service` and `user.Service`
+opens an `INTERNAL`-kind span named after the method
+(`inventory.Service.Reserve`, `user.Service.Login`, etc.) with the
+relevant business identifiers as attributes: `inventory.sku`,
+`request_id`, `inventory.reservation_id`, `user.username`. Errors
+returned by the method are recorded via `span.RecordError` and the
+span status flips to `Error`. The plumbing lives in
+`observability.StartServiceSpan`, a helper that returns a finisher
+closure callers `defer` with their named-error return.
+
+These spans sit between otelchi's HTTP root and otelpgx's per-query
+spans, so traces of a fanout request (one HTTP call → many DB
+calls) make it obvious which DB spans came from which service
+operation.
 
 ### Configuration
 

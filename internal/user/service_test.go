@@ -9,7 +9,36 @@ import (
 
 	"github.com/sksmith/go-micro-example/internal/platform/persistence"
 	"github.com/sksmith/go-micro-example/internal/user"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	"go.opentelemetry.io/otel/trace"
 )
+
+// withRecordingTracer swaps the global TracerProvider for the
+// duration of one test and returns a SpanRecorder so DSN-004b's
+// service-layer span assertions can read what the methods produced.
+// Restores prior globals on cleanup so tests stay independent.
+func withRecordingTracer(t *testing.T) *tracetest.SpanRecorder {
+	t.Helper()
+
+	recorder := tracetest.NewSpanRecorder()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+
+	prevTP := otel.GetTracerProvider()
+	prevProp := otel.GetTextMapPropagator()
+	otel.SetTracerProvider(tp)
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
+		propagation.TraceContext{},
+		propagation.Baggage{},
+	))
+	t.Cleanup(func() {
+		otel.SetTracerProvider(prevTP)
+		otel.SetTextMapPropagator(prevProp)
+	})
+	return recorder
+}
 
 func TestGet(t *testing.T) {
 	usr := user.User{Username: "someuser", HashedPassword: "somehashedpassword", IsAdmin: false, Created: time.Now()}
@@ -253,4 +282,87 @@ func TestLogin(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestUserService_SpansHappyAndError pins DSN-004b's contract on the
+// user side: every exported service method records exactly one span
+// per call, named after the method, with the username attribute set;
+// methods that returned an error mark the span Error and record the
+// error message via RecordError.
+func TestUserService_SpansHappyAndError(t *testing.T) {
+	t.Run("happy path: Get records span without error", func(t *testing.T) {
+		recorder := withRecordingTracer(t)
+
+		mockRepo := user.NewMockRepo()
+		mockRepo.GetFunc = func(_ context.Context, _ string, _ ...persistence.QueryOptions) (user.User, error) {
+			return user.User{Username: "alice"}, nil
+		}
+		svc := user.NewService(mockRepo)
+
+		if _, err := svc.Get(context.Background(), "alice"); err != nil {
+			t.Fatalf("unexpected err: %v", err)
+		}
+
+		spans := recorder.Ended()
+		if len(spans) != 1 {
+			t.Fatalf("recorded %d spans, want 1", len(spans))
+		}
+		got := spans[0]
+		if got.Name() != "Get" {
+			t.Errorf("span name = %q, want %q", got.Name(), "Get")
+		}
+		if got.SpanKind() != trace.SpanKindInternal {
+			t.Errorf("kind = %v, want internal", got.SpanKind())
+		}
+		if got.Status().Code.String() == "Error" {
+			t.Errorf("happy path should not set status Error, got %q (%q)",
+				got.Status().Code.String(), got.Status().Description)
+		}
+		if !hasStringAttr(got, "user.username", "alice") {
+			t.Errorf("missing user.username=alice attr; got %+v", got.Attributes())
+		}
+	})
+
+	t.Run("error path: Login records error on span", func(t *testing.T) {
+		recorder := withRecordingTracer(t)
+
+		mockRepo := user.NewMockRepo()
+		mockRepo.GetFunc = func(_ context.Context, _ string, _ ...persistence.QueryOptions) (user.User, error) {
+			return user.User{}, persistence.ErrNotFound
+		}
+		svc := user.NewService(mockRepo)
+
+		_, err := svc.Login(context.Background(), "ghost", "pw")
+		if !errors.Is(err, user.ErrInvalidCredentials) {
+			t.Fatalf("expected ErrInvalidCredentials, got %v", err)
+		}
+
+		spans := recorder.Ended()
+		if len(spans) != 1 {
+			t.Fatalf("recorded %d spans, want 1", len(spans))
+		}
+		got := spans[0]
+		if got.Name() != "Login" {
+			t.Errorf("span name = %q, want %q", got.Name(), "Login")
+		}
+		if got.Status().Code.String() != "Error" {
+			t.Errorf("error path should set status Error, got %q",
+				got.Status().Code.String())
+		}
+		if len(got.Events()) == 0 {
+			t.Errorf("RecordError should have added an event; got none")
+		}
+	})
+}
+
+// hasStringAttr returns whether the span carries the given string
+// attribute key=val pair. Avoids pulling attribute.KeyValue equality
+// into every assertion.
+func hasStringAttr(span sdktrace.ReadOnlySpan, key, val string) bool {
+	for _, kv := range span.Attributes() {
+		if string(kv.Key) == key && kv.Value.AsString() == val {
+			return true
+		}
+	}
+	return false
 }
