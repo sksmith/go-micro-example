@@ -58,10 +58,12 @@ images:
 # The `$patch: delete` block removes the base ExternalSecret. The
 # external-secrets.io CRDs are not installed in the K8S-001 cluster
 # (K8S-005's territory), and applying the resource would fail with
-# "no matches for kind ExternalSecret". K8S-003 will land an
-# in-cluster plain Secret with the same envFrom keys; until then
-# the pod stays in CreateContainerConfigError because no
-# `go-micro-example-secrets` Secret exists.
+# "no matches for kind ExternalSecret". K8S-003 ships an in-cluster
+# plain Secret (secret.yaml) with the same envFrom keys.
+#
+# The NetworkPolicy patch lets the K8S-004 load-test pod
+# (`hack/k8s-loadtest.sh`) reach the app on :8080 — the base policy
+# only allows ingress from `ingress-nginx` and `prometheus` labels.
 patches:
   - target:
       group: apps
@@ -83,3 +85,15 @@ patches:
       kind: ExternalSecret
       metadata:
         name: go-micro-example-secrets
+  - target:
+      group: networking.k8s.io
+      version: v1
+      kind: NetworkPolicy
+      name: go-micro-example
+    patch: |-
+      - op: add
+        path: /spec/ingress/0/from/-
+        value:
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/component: loadtest

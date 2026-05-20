@@ -18,11 +18,12 @@ deploy/
 │   └── hpa.yaml             # CPU-based autoscaler
 ├── overlays/
 │   └── local/
-│       ├── kustomization.yaml  # K8S-002/003 overlay (image + deps)
-│       ├── namespace.yaml      # K8S-003 self-contained namespace
-│       ├── secret.yaml         # K8S-003 plain dev Secret
-│       ├── postgres.yaml       # K8S-003 in-cluster Postgres
-│       └── rabbitmq.yaml       # K8S-003 in-cluster RabbitMQ
+│       ├── kustomization.yaml   # K8S-002/003/004 overlay
+│       ├── namespace.yaml       # K8S-003 self-contained namespace
+│       ├── secret.yaml          # K8S-003 plain dev Secret
+│       ├── postgres.yaml        # K8S-003 in-cluster Postgres
+│       ├── rabbitmq.yaml        # K8S-003 in-cluster RabbitMQ
+│       └── metrics-server.yaml  # K8S-004 vendored metrics-server
 └── kind/
     └── cluster.yaml         # K8S-001 local Tier 1 validation gate
 ```
@@ -251,15 +252,37 @@ The pod image is also distroless (no shell), so the conventional
 `kubectl exec … sh -c '…'` connectivity probe doesn't apply here —
 the log evidence above is the substitute.
 
-> **TST-005 caveat.** After the first ~10 s, `/ready` flips to 503
-> because the AMQP staleness check at
-> `internal/inventory/transport_queue.go` doesn't refresh on a
-> healthy long-lived session — `sessionOK()` only fires on
-> (re)connect. The pod still serves traffic; readiness probes will
-> mark it NotReady and Service rotation will drop it. Track in
-> [TST-005](../plan/TST-005-amqp-readiness-stable-session.md);
-> until it's fixed, `make k8s-local-up`'s `kubectl rollout status`
-> succeeds on the initial roll but the pod won't *stay* Ready.
+### HPA scale validation (K8S-004)
+
+`make k8s-local-up` also installs
+[`metrics-server`](https://github.com/kubernetes-sigs/metrics-server)
+into `kube-system` so `kubectl top pods` returns real numbers and the
+`HorizontalPodAutoscaler` from the OPS-004 base has a metrics source.
+The manifest is vendored from the upstream `v0.8.1` release with one
+change: `--kubelet-insecure-tls` is added to the controller's args so
+metrics-server accepts kind's self-signed kubelet certs.
+
+Drive a scale-up event with the bundled load script:
+
+```sh
+# Terminal 1 — watch the HPA
+kubectl -n go-micro-example get hpa -w
+
+# Terminal 2 — drive load for 3 minutes
+make k8s-local-loadtest
+# (override defaults with LOADTEST_DURATION / LOADTEST_PARALLEL)
+```
+
+The script spawns a single in-cluster busybox pod that fires
+concurrent wgets at `http://go-micro-example/live`. The pod carries
+`app.kubernetes.io/component: loadtest` — the overlay's
+NetworkPolicy patch admits that label so the load traffic can reach
+the app on :8080. Within ~30 s the HPA target should cross 70 % and
+`REPLICAS` climbs from 2 toward `maxReplicas: 10`.
+
+Scale-down is intentionally slow — the OPS-004 HPA sets
+`scaleDown.stabilizationWindowSeconds: 300`, so replicas hold their
+peak for five minutes after load stops before stepping back down.
 
 `make k8s-validate-local` runs the dry-run-apply against the overlay
 without needing the image — useful in CI and for sanity-checking

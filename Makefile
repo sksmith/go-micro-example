@@ -200,11 +200,27 @@ docker-load: docker
 # succeeded. The 300 s timeout covers the 150 s startup-probe budget
 # from DSN-002 plus a margin for image-pull and DB init on a cold
 # kind cluster.
-.PHONY: k8s-local-up k8s-local-down
+.PHONY: k8s-local-up k8s-local-down k8s-local-loadtest
 k8s-local-up: k8s-up docker-load
+	# K8S-004: metrics-server lands first (in kube-system) so the HPA
+	# has a metrics source by the time the app rollout completes. The
+	# file lives outside the overlay's kustomization because the
+	# overlay's `namespace:` directive would clobber kube-system.
+	kubectl apply -f deploy/overlays/local/metrics-server.yaml
 	kubectl kustomize --load-restrictor=LoadRestrictionsNone deploy/overlays/local | kubectl apply -f -
 	kubectl -n go-micro-example rollout status deploy/go-micro-example --timeout=300s
+	kubectl -n kube-system rollout status deploy/metrics-server --timeout=180s
 
 k8s-local-down:
 	-kubectl kustomize --load-restrictor=LoadRestrictionsNone deploy/overlays/local | kubectl delete --ignore-not-found -f -
+	-kubectl delete --ignore-not-found -f deploy/overlays/local/metrics-server.yaml
 	$(MAKE) k8s-down
+
+# K8S-004: drive the app's CPU above the HPA's 70 % target so a
+# scale-up event is visible. Defaults to 180 s of load; pass
+# different values via:
+#     make k8s-local-loadtest LOADTEST_DURATION=120 LOADTEST_PARALLEL=8
+LOADTEST_DURATION ?= 180
+LOADTEST_PARALLEL ?= 12
+k8s-local-loadtest:
+	./hack/k8s-loadtest.sh $(LOADTEST_DURATION) $(LOADTEST_PARALLEL)
