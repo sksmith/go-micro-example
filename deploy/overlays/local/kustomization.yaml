@@ -29,6 +29,10 @@ resources:
   - secret.yaml
   - postgres.yaml
   - rabbitmq.yaml
+  # K8S-006: OTel collector. Receives the app's OTLP/gRPC spans and
+  # prints them via the debug exporter — see otel-collector.yaml +
+  # the OTEL_EXPORTER_OTLP_ENDPOINT patch in this file.
+  - otel-collector.yaml
 
 # RabbitMQ loads its exchanges/queues/bindings from
 # scripts/rabbitmq/definitions.json on boot (DSN-015). Mounting the
@@ -97,3 +101,19 @@ patches:
           podSelector:
             matchLabels:
               app.kubernetes.io/component: loadtest
+  # K8S-006: point the app at the in-cluster collector and crank
+  # sampling to 100% for smoke-test reproducibility. The base
+  # ConfigMap keeps the production-friendly defaults (empty endpoint
+  # → no-op exporter, 10% sampling) so a real overlay can re-patch
+  # to its own collector address.
+  - target:
+      version: v1
+      kind: ConfigMap
+      name: go-micro-example-config
+    patch: |-
+      - op: replace
+        path: /data/OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://otel-collector:4317
+      - op: replace
+        path: /data/OTEL_TRACES_SAMPLER_ARG
+        value: "1.0"

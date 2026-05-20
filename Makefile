@@ -202,18 +202,22 @@ docker-load: docker
 # kind cluster.
 .PHONY: k8s-local-up k8s-local-down k8s-local-loadtest
 k8s-local-up: k8s-up docker-load
-	# K8S-004: metrics-server lands first (in kube-system) so the HPA
-	# has a metrics source by the time the app rollout completes. The
-	# file lives outside the overlay's kustomization because the
-	# overlay's `namespace:` directive would clobber kube-system.
+	# K8S-004 metrics-server and the kube-network-policies enforcer
+	# land first in kube-system — outside the overlay's kustomization
+	# so the overlay's `namespace:` directive doesn't rewrite them.
+	# The enforcer makes the OPS-004 NetworkPolicy actually drop
+	# disallowed traffic on kind (kindnet does not enforce on its own).
 	kubectl apply -f deploy/overlays/local/metrics-server.yaml
+	kubectl apply -f deploy/overlays/local/kube-network-policies.yaml
 	kubectl kustomize --load-restrictor=LoadRestrictionsNone deploy/overlays/local | kubectl apply -f -
 	kubectl -n go-micro-example rollout status deploy/go-micro-example --timeout=300s
 	kubectl -n kube-system rollout status deploy/metrics-server --timeout=180s
+	kubectl -n kube-system rollout status ds/kube-network-policies --timeout=120s
 
 k8s-local-down:
 	-kubectl kustomize --load-restrictor=LoadRestrictionsNone deploy/overlays/local | kubectl delete --ignore-not-found -f -
 	-kubectl delete --ignore-not-found -f deploy/overlays/local/metrics-server.yaml
+	-kubectl delete --ignore-not-found -f deploy/overlays/local/kube-network-policies.yaml
 	$(MAKE) k8s-down
 
 # K8S-004: drive the app's CPU above the HPA's 70 % target so a
@@ -250,3 +254,17 @@ k8s-eso-down:
 	-kubectl kustomize --load-restrictor=LoadRestrictionsNone deploy/overlays/local-eso | kubectl delete --ignore-not-found -f -
 	-kubectl delete --ignore-not-found -f deploy/overlays/local-eso/external-secrets-operator.yaml
 	$(MAKE) k8s-down
+
+# K8S-005 follow-up: Vault runs in dev mode (in-memory storage), so
+# every Vault restart drops the kv state and ESO flips to
+# SecretSyncedError. Re-seed by deleting the completed bootstrap
+# Job and reapplying the manifest — Job names are static so kubectl
+# can't just re-run the existing one. Use after `kubectl scale
+# deploy/vault --replicas=0; …=1` or after the Vault pod gets
+# evicted.
+.PHONY: k8s-eso-reseed
+k8s-eso-reseed:
+	kubectl -n go-micro-example delete job vault-bootstrap --ignore-not-found
+	kubectl kustomize --load-restrictor=LoadRestrictionsNone deploy/overlays/local-eso | kubectl apply -f - >/dev/null
+	kubectl -n go-micro-example wait --for=condition=complete job/vault-bootstrap --timeout=60s
+	kubectl -n go-micro-example annotate externalsecret go-micro-example-secrets force-sync=$$(date +%s) --overwrite
