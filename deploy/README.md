@@ -17,7 +17,7 @@ deploy/
 │   ├── networkpolicy.yaml   # default-deny + per-dependency allows
 │   └── hpa.yaml             # CPU-based autoscaler
 ├── overlays/
-│   ├── local/                   # K8S-002/003/004/006/009 (plain Secret)
+│   ├── local/                   # K8S-002/003/004/006/009/010 (plain Secret)
 │   │   ├── kustomization.yaml
 │   │   ├── namespace.yaml
 │   │   ├── secret.yaml          # plain dev Secret
@@ -26,7 +26,8 @@ deploy/
 │   │   ├── pgadmin.yaml         # K8S-009 pgAdmin UI for Postgres
 │   │   ├── metrics-server.yaml
 │   │   ├── kube-network-policies.yaml  # NetworkPolicy enforcer
-│   │   └── otel-collector.yaml  # K8S-006 OTel collector
+│   │   ├── otel-collector.yaml  # K8S-006 OTel collector
+│   │   └── jaeger.yaml          # K8S-010 Jaeger UI backend
 │   └── local-eso/               # K8S-005 (ESO + dev Vault)
 │       ├── kustomization.yaml
 │       ├── external-secrets-operator.yaml
@@ -467,6 +468,51 @@ that happen during the same window. The K8S-004 load test driving
 emitted in parallel. For trace verification, run the smoke test
 above when no load driver is active, or lower
 `OTEL_TRACES_SAMPLER_ARG` in the overlay.
+
+#### Browsing traces in Jaeger (K8S-010)
+
+The collector's `debug` exporter is great for "do spans arrive?"
+but useless for navigation. The local overlay also runs a
+[Jaeger](https://www.jaegertracing.io/) all-in-one with in-memory
+storage, hooked into the same collector pipeline as a second
+exporter target. The same smoke test now produces a clickable
+trace.
+
+```sh
+make k8s-local-ui-jaeger
+# Jaeger UI: http://localhost:16686
+```
+
+The target port-forwards `svc/jaeger 16686:16686` in the foreground;
+Ctrl-C tears the forward down. On macOS it also `open`s a browser
+tab.
+
+Once the curls above have run, open Jaeger and set:
+
+- **Service:** `go-micro-example`
+- **Operation:** `(All)` or the specific HTTP route
+
+Hit *Find Traces*. The list shows the recent traces; clicking one
+opens the Gantt view with the same span hierarchy that prints in
+the collector log:
+
+- **SERVER** `/api/v1/inventory/{sku}` — `otelchi`
+- **INTERNAL** `GetProductInventory` — `inventory.Service`
+- **CLIENT** `query …` — `otelpgx`
+- **PRODUCER** `amqp.publish inventory.exchange` — `otelamqp`
+  (only on the `productionEvent` path)
+
+The OTel collector keeps the `debug` exporter alongside the new
+`otlp/jaeger` exporter, so the K8S-006 grep-on-stdout workflow still
+works for log-only verification.
+
+**Persistence.** Jaeger all-in-one stores traces in memory — they
+survive page reloads, browser refreshes, and the lifetime of the
+Jaeger pod, but vanish when the pod restarts. A real deployment
+would pair Jaeger with Cassandra / OpenSearch storage, or migrate
+to Grafana Tempo if the team standardises on a single Grafana
+stack for logs / metrics / traces (a possible K8S-011/012
+consolidation).
 
 ### Real ExternalSecret flow against in-cluster Vault (K8S-005)
 

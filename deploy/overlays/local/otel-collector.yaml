@@ -30,12 +30,22 @@ data:
     exporters:
       debug:
         verbosity: detailed
+      # K8S-010: forward traces to the in-cluster Jaeger all-in-one
+      # for a navigable Gantt view. `insecure: true` skips TLS — both
+      # Services are cluster-internal and the local overlay is dev-only.
+      otlp/jaeger:
+        endpoint: jaeger:4317
+        tls:
+          insecure: true
 
     service:
       pipelines:
         traces:
           receivers: [otlp]
-          exporters: [debug]
+          # Keep `debug` alongside the Jaeger exporter so the K8S-006
+          # grep-on-stdout workflow still works; K8S-010 only adds the
+          # Jaeger path, it doesn't replace the legacy one.
+          exporters: [otlp/jaeger, debug]
 ---
 apiVersion: v1
 kind: Service

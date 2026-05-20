@@ -1,0 +1,84 @@
+# K8S-010: in-cluster Jaeger all-in-one as a Tier 2 backend for the
+# K8S-006 OTel collector. The collector's `debug` exporter prints
+# spans to stdout (great for "do spans arrive?"); Jaeger gives them a
+# clickable Gantt-chart home so the smoke test produces something the
+# operator can actually navigate.
+#
+# `COLLECTOR_OTLP_ENABLED=true` enables Jaeger's built-in OTLP/gRPC
+# receiver on :4317. The OTel collector's `otlp/jaeger` exporter
+# (see otel-collector.yaml) forwards traces here. Port 4317 collides
+# with the OTel collector's own listener on the same port number, but
+# the two Services have distinct cluster-IPs / DNS names so the wire
+# routes by Service, not by port.
+#
+# Storage is in-memory — the all-in-one process loses everything on
+# restart. Fine for local dev; a real deployment would pair Jaeger
+# with Cassandra / Elasticsearch / OpenSearch and split the
+# collector / query / agent components into separate Deployments.
+apiVersion: v1
+kind: Service
+metadata:
+  name: jaeger
+spec:
+  selector:
+    app.kubernetes.io/name: jaeger
+  ports:
+    - name: ui
+      port: 16686
+      targetPort: 16686
+      protocol: TCP
+    # OTLP/gRPC receiver. The OTel collector's `otlp/jaeger` exporter
+    # dials `jaeger:4317`. Plain HTTP/2 (no TLS) in the local overlay.
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jaeger
+  labels:
+    app.kubernetes.io/name: jaeger
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: jaeger
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: jaeger
+    spec:
+      containers:
+        - name: jaeger
+          # 1.71 — current stable all-in-one. Pinning keeps the smoke
+          # test reproducible. The v2 line (`jaegertracing/jaeger`)
+          # is collector-first and supports OTLP natively, but the v1
+          # all-in-one ships everything in one binary which is the
+          # right trade-off for a throwaway dev cluster.
+          image: jaegertracing/all-in-one:1.71.0
+          env:
+            - name: COLLECTOR_OTLP_ENABLED
+              value: "true"
+          ports:
+            - name: ui
+              containerPort: 16686
+              protocol: TCP
+            - name: otlp-grpc
+              containerPort: 4317
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /
+              port: ui
+            initialDelaySeconds: 2
+            periodSeconds: 2
+            failureThreshold: 30
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
