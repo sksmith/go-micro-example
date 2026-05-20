@@ -181,7 +181,7 @@ queue subsystem:
   publisher-confirm; the producer span ends with `codes.Ok` on Ack,
   `codes.Error` on Nack, publish error, or confirm-channel close.
   `onSession` fires each time a fresh session is acquired (powers
-  the `/readyz` AMQP pinger from TST-004).
+  the `/ready` AMQP pinger from TST-004).
 - `Subscribe(sessions, queue, messages, onSession)` consumes
   deliveries from `queue` and forwards them onto `messages`. Each
   delivery is Ack'd individually; an Ack failure is logged but the

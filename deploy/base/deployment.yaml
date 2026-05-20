@@ -3,11 +3,11 @@
 # no shell) so a Kyverno / OPA admission policy asserting `runAsNonRoot`
 # accepts this pod without the image needing to be re-inspected.
 #
-# Probes are wired to DSN-002's /livez (liveness) and /readyz
+# Probes are wired to DSN-002's /live (liveness) and /ready
 # (readiness + startup). The startup probe gives migrations and the
 # initial AMQP redial up to ~2.5 min before the kubelet starts
 # poking liveness — TST-004's `errAMQPNeverConnected` will keep
-# /readyz at 503 during that window.
+# /ready at 503 during that window.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -100,7 +100,7 @@ spec:
               memory: 512Mi
           livenessProbe:
             httpGet:
-              path: /livez
+              path: /live
               port: http
             initialDelaySeconds: 5
             periodSeconds: 10
@@ -108,7 +108,7 @@ spec:
             failureThreshold: 3
           readinessProbe:
             httpGet:
-              path: /readyz
+              path: /ready
               port: http
             initialDelaySeconds: 5
             periodSeconds: 5
@@ -120,7 +120,7 @@ spec:
           # starts judging.
           startupProbe:
             httpGet:
-              path: /readyz
+              path: /ready
               port: http
             periodSeconds: 5
             failureThreshold: 30

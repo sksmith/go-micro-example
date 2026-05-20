@@ -239,7 +239,7 @@ OCI labels (`org.opencontainers.image.source`, `revision`, `version`,
 `make docker` build args so registry UIs and provenance tools can
 trace any image back to its commit. `HEALTHCHECK` is intentionally
 omitted — distroless has nothing to exec — and liveness/readiness
-are wired to the `/livez` and `/readyz` endpoints (DSN-002) via the
+are wired to the `/live` and `/ready` endpoints (DSN-002) via the
 Kubernetes pod spec instead.
 
 ### Rate limiting & request-size caps

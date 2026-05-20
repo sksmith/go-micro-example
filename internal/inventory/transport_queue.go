@@ -25,7 +25,7 @@ const amqpSessionStaleAfter = 10 * time.Second
 
 // errAMQPNeverConnected signals the publish/subscribe loops have not
 // yet obtained a session since process start. Surfaced via Ping so
-// /readyz returns 503 during startup before AMQP comes up.
+// /ready returns 503 during startup before AMQP comes up.
 var errAMQPNeverConnected = errors.New("amqp: no session yet")
 
 // InventoryQueue publishes inventory and reservation events onto
@@ -34,7 +34,7 @@ var errAMQPNeverConnected = errors.New("amqp: no session yet")
 //
 // lastSessionAt records the most-recent unix-nano timestamp at which
 // any of its publish loops obtained a fresh AMQP session, used by
-// Ping for /readyz (TST-004).
+// Ping for /ready (TST-004).
 type InventoryQueue struct {
 	cfg           *config.Config
 	inventory     chan<- amqp.Message

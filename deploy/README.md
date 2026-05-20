@@ -66,12 +66,12 @@ namespace-selectors) so it's portable across cluster layouts.
 
 ### Probes (DSN-002 + TST-004)
 
-- **Liveness** on `/livez`: simple liveness signal — the process
+- **Liveness** on `/live`: simple liveness signal — the process
   is running and the HTTP server is responsive.
-- **Readiness** on `/readyz`: aggregates the per-dependency
+- **Readiness** on `/ready`: aggregates the per-dependency
   pingers (Postgres, Redis, AMQP via TST-004). 503 keeps the pod
   out of Service rotation until every dep is healthy.
-- **Startup** probe on `/readyz` with a 150 s budget so DB
+- **Startup** probe on `/ready` with a 150 s budget so DB
   migrations and the initial AMQP redial have time to finish
   before liveness starts judging.
 
