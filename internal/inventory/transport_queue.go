@@ -16,11 +16,17 @@ import (
 	"go.opentelemetry.io/otel/codes"
 )
 
-// amqpSessionStaleAfter bounds how long a publish/subscribe loop may
-// go without obtaining a fresh AMQP session before the queue reports
-// unready. Aligns with the DSN-002 readiness budget (DEFAULT 2s
-// per-dep) — anything beyond ~10s means redial has stalled and the
-// pod should not receive new work (TST-004).
+// amqpSessionStaleAfter bounds how long a publish/subscribe loop
+// may go between sessionOK ticks before the queue reports unready.
+// amqp.Publish / amqp.Subscribe call sessionOK on (re)connect *and*
+// periodically (every amqp.sessionHeartbeatInterval) while a session
+// stays open — so on a healthy long-lived session the timestamp is
+// continually refreshed and Ping returns nil. The clock only ages
+// out when the inner loop exits because the broker dropped the
+// channel and Redial hasn't produced a fresh session yet. Aligned
+// with the DSN-002 readiness budget (DEFAULT 2s per-dep); anything
+// beyond ~10s means redial has stalled and the pod should not
+// receive new work (TST-004 / TST-005).
 const amqpSessionStaleAfter = 10 * time.Second
 
 // errAMQPNeverConnected signals the publish/subscribe loops have not
@@ -69,8 +75,11 @@ func NewInventoryQueue(ctx context.Context, cfg *config.Config) *InventoryQueue 
 	return iq
 }
 
-// sessionOK is invoked by the AMQP publish loops each time they
-// successfully open a fresh (connection, channel) pair.
+// sessionOK is invoked by the AMQP publish loops on each fresh
+// (connection, channel) pair *and* periodically thereafter while
+// that session stays open (TST-005). The timestamp moves on every
+// call, so a healthy idle session keeps Ping ready and a stuck
+// redial (no fresh session, no heartbeat) ages out cleanly.
 func (i *InventoryQueue) sessionOK() {
 	i.lastSessionAt.Store(time.Now().UnixNano())
 }
@@ -148,8 +157,10 @@ func NewProductQueue(ctx context.Context, cfg *config.Config, handler ProductHan
 	return pq
 }
 
-// sessionOK is invoked by the AMQP subscribe + DLT publish loops each
-// time a fresh session is established.
+// sessionOK is invoked by the AMQP subscribe + DLT publish loops on
+// each fresh session and periodically thereafter while the session
+// stays open (TST-005). See InventoryQueue.sessionOK for the full
+// rationale.
 func (p *ProductQueue) sessionOK() {
 	p.lastSessionAt.Store(time.Now().UnixNano())
 }
