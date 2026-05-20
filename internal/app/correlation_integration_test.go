@@ -44,6 +44,28 @@ func TestCorrelationLogger_PropagatesXRequestID(t *testing.T) {
 	}
 }
 
+func TestCorrelationLogger_EchoesXRequestIDHeader(t *testing.T) {
+	r, _ := newTestRouter()
+	ts := httptest.NewServer(r)
+	t.Cleanup(ts.Close)
+
+	req, err := http.NewRequest(http.MethodGet, ts.URL+app.LivenessEndpoint, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("X-Request-Id", "trace-echo-1")
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = res.Body.Close()
+
+	if got := res.Header.Get("X-Request-Id"); got != "trace-echo-1" {
+		t.Errorf("X-Request-Id response header = %q, want %q", got, "trace-echo-1")
+	}
+}
+
 func TestCorrelationLogger_GeneratesIDWhenAbsent(t *testing.T) {
 	var buf bytes.Buffer
 	original := log.Logger

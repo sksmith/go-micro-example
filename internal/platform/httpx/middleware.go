@@ -19,17 +19,30 @@ import (
 // request_id (and trace_id/span_id when an OTel span is recording)
 // without threading those values manually. Mount AFTER chi's RequestID
 // and otelchi middleware so both IDs are available.
+//
+// It also echoes the request and trace IDs back to the caller as
+// X-Request-Id / X-Trace-Id response headers so external observers
+// (the DSN-027 operator-console UI, retry middleware, support
+// scripts, curl debugging) can correlate the response to the same
+// span the server logged. Headers are written before the handler
+// runs so they survive even when the handler returns an error and
+// flushes its own status code immediately.
 func CorrelationLogger(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		reqID := middleware.GetReqID(ctx)
 		ctx = observability.ContextWithRequestID(ctx, reqID)
 
+		if reqID != "" {
+			w.Header().Set("X-Request-Id", reqID)
+		}
+
 		zctx := log.With().Str("request_id", reqID)
 		if sc := trace.SpanContextFromContext(ctx); sc.IsValid() {
 			zctx = zctx.
 				Str("trace_id", sc.TraceID().String()).
 				Str("span_id", sc.SpanID().String())
+			w.Header().Set("X-Trace-Id", sc.TraceID().String())
 		}
 		logger := zctx.Logger()
 		next.ServeHTTP(w, r.WithContext(logger.WithContext(ctx)))
