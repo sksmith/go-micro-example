@@ -71,12 +71,16 @@ kind: Service
 metadata:
   name: headlamp
 spec:
+  # NodePort so kind's extraPortMappings can publish the UI on
+  # http://localhost:8001.
+  type: NodePort
   selector:
     app.kubernetes.io/name: headlamp
   ports:
     - name: http
       port: 80
       targetPort: 4466
+      nodePort: 30001
       protocol: TCP
 ---
 apiVersion: apps/v1

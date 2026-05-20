@@ -12,6 +12,10 @@ kind: Service
 metadata:
   name: rabbitmq
 spec:
+  # NodePort for the Management UI; the AMQP port stays
+  # cluster-internal (kube assigns a random nodePort to it but the
+  # kind extraPortMappings only publish 15672/30672).
+  type: NodePort
   selector:
     app.kubernetes.io/name: rabbitmq
   ports:
@@ -22,6 +26,7 @@ spec:
     - name: management
       port: 15672
       targetPort: 15672
+      nodePort: 30672
       protocol: TCP
 ---
 apiVersion: apps/v1

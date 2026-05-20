@@ -104,12 +104,16 @@ kind: Service
 metadata:
   name: prometheus
 spec:
+  # NodePort so kind's extraPortMappings can publish the expression
+  # browser on http://localhost:9090.
+  type: NodePort
   selector:
     app.kubernetes.io/name: prometheus
   ports:
     - name: http
       port: 9090
       targetPort: 9090
+      nodePort: 30090
       protocol: TCP
 ---
 apiVersion: apps/v1

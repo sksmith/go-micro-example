@@ -111,6 +111,39 @@ patches:
           podSelector:
             matchLabels:
               app.kubernetes.io/component: loadtest
+      # Allow ingress on :8080 from any source. The kind cluster
+      # publishes the app's NodePort (30080) on the host via the
+      # extraPortMappings in deploy/kind/cluster.yaml; browser
+      # traffic enters the pod with the node's IP as the source,
+      # which doesn't match any podSelector. A wide-open ipBlock-less
+      # rule is correct for the dev-only local overlay.
+      - op: add
+        path: /spec/ingress/-
+        value:
+          ports:
+            - protocol: TCP
+              port: 8080
+  # Promote the base ClusterIP app Service to NodePort so kind's
+  # extraPortMappings can publish http://localhost:8080. The base
+  # Service stays ClusterIP-shaped for real deployments (the overlay
+  # only flips this for the local dev cluster).
+  - target:
+      version: v1
+      kind: Service
+      name: go-micro-example
+    patch: |-
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: go-micro-example
+      spec:
+        type: NodePort
+        ports:
+          - name: http
+            port: 80
+            targetPort: http
+            nodePort: 30080
+            protocol: TCP
   - target:
       version: v1
       kind: ConfigMap

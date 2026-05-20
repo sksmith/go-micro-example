@@ -200,12 +200,16 @@ kind: Service
 metadata:
   name: grafana
 spec:
+  # NodePort so kind's extraPortMappings can publish the UI on
+  # http://localhost:3000.
+  type: NodePort
   selector:
     app.kubernetes.io/name: grafana
   ports:
     - name: http
       port: 3000
       targetPort: 3000
+      nodePort: 30030
       protocol: TCP
 ---
 apiVersion: apps/v1

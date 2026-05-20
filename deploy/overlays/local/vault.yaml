@@ -17,12 +17,19 @@ kind: Service
 metadata:
   name: vault
 spec:
+  # NodePort so the kind cluster's extraPortMappings can publish the
+  # UI on the host (http://localhost:8200/ui). Cluster-internal
+  # consumers (the ESO ClusterSecretStore, the bootstrap Job) still
+  # reach Vault via its cluster-DNS name — NodePort keeps the
+  # ClusterIP.
+  type: NodePort
   selector:
     app.kubernetes.io/name: vault
   ports:
     - name: http
       port: 8200
       targetPort: 8200
+      nodePort: 30200
       protocol: TCP
 ---
 apiVersion: apps/v1
