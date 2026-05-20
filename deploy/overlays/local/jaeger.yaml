@@ -20,12 +20,19 @@ kind: Service
 metadata:
   name: jaeger
 spec:
+  # NodePort for the UI port. The OTLP/gRPC receiver below remains
+  # cluster-internal — the OTel collector dials it via the
+  # cluster-DNS name `jaeger:4317`, and kube assigns it a random
+  # nodePort that the kind extraPortMappings deliberately don't
+  # publish to the host.
+  type: NodePort
   selector:
     app.kubernetes.io/name: jaeger
   ports:
     - name: ui
       port: 16686
       targetPort: 16686
+      nodePort: 30686
       protocol: TCP
     # OTLP/gRPC receiver. The OTel collector's `otlp/jaeger` exporter
     # dials `jaeger:4317`. Plain HTTP/2 (no TLS) in the local overlay.

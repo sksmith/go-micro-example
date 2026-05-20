@@ -43,12 +43,17 @@ kind: Service
 metadata:
   name: pgadmin
 spec:
+  # NodePort so kind's extraPortMappings can publish the UI on
+  # http://localhost:5050. 5050 (instead of the docker-compose
+  # default 9090) avoids a host-side collision with Prometheus.
+  type: NodePort
   selector:
     app.kubernetes.io/name: pgadmin
   ports:
     - name: http
       port: 80
       targetPort: 80
+      nodePort: 30050
       protocol: TCP
 ---
 apiVersion: apps/v1

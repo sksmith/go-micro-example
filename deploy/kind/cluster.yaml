@@ -14,3 +14,33 @@ name: go-micro-example
 nodes:
   - role: control-plane
     image: kindest/node:v1.31.14@sha256:6f86cf509dbb42767b6e79debc3f2c32e4ee01386f0489b3b2be24b0a55aac2b
+    # extraPortMappings publish each NodePort Service from the kind
+    # node onto the host so the URLs in deploy/README.md work without
+    # any `kubectl port-forward` ceremony. host_port → containerPort
+    # (the NodePort assigned to the matching Service); see each
+    # Service manifest for the matching nodePort.
+    extraPortMappings:
+      - containerPort: 30080   # App           (deploy/base/service.yaml)
+        hostPort: 8080
+        protocol: TCP
+      - containerPort: 30200   # Vault         (vault.yaml)
+        hostPort: 8200
+        protocol: TCP
+      - containerPort: 30672   # RabbitMQ mgmt (rabbitmq.yaml)
+        hostPort: 15672
+        protocol: TCP
+      - containerPort: 30050   # pgAdmin       (pgadmin.yaml)
+        hostPort: 5050
+        protocol: TCP
+      - containerPort: 30686   # Jaeger        (jaeger.yaml)
+        hostPort: 16686
+        protocol: TCP
+      - containerPort: 30030   # Grafana       (grafana.yaml)
+        hostPort: 3000
+        protocol: TCP
+      - containerPort: 30090   # Prometheus    (prometheus.yaml)
+        hostPort: 9090
+        protocol: TCP
+      - containerPort: 30001   # Headlamp      (headlamp.yaml)
+        hostPort: 8001
+        protocol: TCP
