@@ -1,0 +1,31 @@
+# K8S-001: Tier 1 dry-run validation gate. Stands a kind cluster up
+# and runs `make k8s-validate` so admission/RBAC/label issues in the
+# OPS-004 base (and any future overlay) are caught before merge.
+#
+# Path-filtered to `deploy/**` plus this workflow so it doesn't run
+# on PRs that don't touch the manifests.
+name: k8s-validate
+on:
+  pull_request:
+    branches:
+      - master
+    paths:
+      - 'deploy/**'
+      - '.github/workflows/k8s-validate.yml'
+permissions:
+  contents: read
+jobs:
+  validate:
+    name: kind dry-run apply
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Create kind cluster
+        # helm/kind-action v1.14.0 — pinned by commit SHA so a tag
+        # repoint can't silently change what runs in CI.
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc
+        with:
+          cluster_name: go-micro-example
+          config: deploy/kind/cluster.yaml
+      - name: Dry-run apply
+        run: make k8s-validate

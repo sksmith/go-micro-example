@@ -130,3 +130,37 @@ demo:
 
 demo-down:
 	docker compose down -v
+
+# K8S-001: Local kind cluster + dry-run validation gate.
+#
+# `k8s-up` stands up a single-node kind cluster pinned to the kube
+# version the OPS-004 base targets. `k8s-validate` renders the
+# Kustomize base and dry-run-applies it against the live apiserver,
+# catching admission/RBAC/label bugs that offline schema validation
+# (kubeconform) cannot. `k8s-down` tears the cluster back down.
+#
+# `ExternalSecret` is filtered before the dry-run because the
+# external-secrets.io CRDs are not installed in this Tier 1 cluster
+# (the operator install is K8S-005's territory). When K8S-005 lands,
+# drop the yq filter so the dry-run covers the full base.
+#
+# Prereqs (local): kind, kubectl, yq. See deploy/README.md for
+# install hints. CI installs them via helm/kind-action and the
+# default ubuntu-latest tooling.
+.PHONY: k8s-up k8s-down k8s-validate
+KIND_CLUSTER ?= go-micro-example
+KIND_CONFIG  ?= deploy/kind/cluster.yaml
+
+k8s-up:
+	@command -v kind >/dev/null 2>&1 || { echo "kind not found. Install via 'brew install kind' (macOS) or see https://kind.sigs.k8s.io/docs/user/quick-start/#installation."; exit 1; }
+	kind create cluster --name $(KIND_CLUSTER) --config $(KIND_CONFIG)
+
+k8s-down:
+	@command -v kind >/dev/null 2>&1 || { echo "kind not found."; exit 1; }
+	kind delete cluster --name $(KIND_CLUSTER)
+
+k8s-validate:
+	@command -v kubectl >/dev/null 2>&1 || { echo "kubectl not found."; exit 1; }
+	@command -v yq >/dev/null 2>&1 || { echo "yq not found. Install via 'brew install yq' (macOS) or see https://github.com/mikefarah/yq#install."; exit 1; }
+	@kubectl get namespace go-micro-example >/dev/null 2>&1 || kubectl create namespace go-micro-example
+	kubectl kustomize deploy/base | yq 'select(.kind != "ExternalSecret")' | kubectl apply --dry-run=server -f -
