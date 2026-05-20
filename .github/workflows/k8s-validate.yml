@@ -28,17 +28,18 @@ jobs:
           cluster_name: go-micro-example
           config: deploy/kind/cluster.yaml
       - name: Install yq
-        # yq strips the ExternalSecret resource from the render before
-        # dry-run-apply — the external-secrets.io CRDs aren't installed
-        # in this Tier 1 cluster (the operator install is part of the
-        # real `make k8s-up` flow), so applying it would 404.
+        # yq strips external-secrets.io/v1 resources (ExternalSecret +
+        # ClusterSecretStore) from the render before dry-run-apply —
+        # the ESO CRDs aren't installed in this Tier 1 cluster (the
+        # operator install is part of the real `make k8s-up` flow), so
+        # applying them would 404.
         run: sudo snap install yq
       - name: Ensure target namespace exists
         run: kubectl get namespace go-micro-example >/dev/null 2>&1 || kubectl create namespace go-micro-example
       - name: Dry-run apply (base)
         run: |
           kubectl kustomize --load-restrictor=LoadRestrictionsNone deploy/base \
-            | yq 'select(.kind != "ExternalSecret")' \
+            | yq 'select(.apiVersion != "external-secrets.io/v1")' \
             | kubectl apply --dry-run=server -f -
       - name: Dry-run apply (local overlay)
         # K8S-002: validate the local overlay's image rewrite + patches
@@ -46,5 +47,5 @@ jobs:
         # only exercises kustomize rendering and admission.
         run: |
           kubectl kustomize --load-restrictor=LoadRestrictionsNone deploy/overlays/local \
-            | yq 'select(.kind != "ExternalSecret")' \
+            | yq 'select(.apiVersion != "external-secrets.io/v1")' \
             | kubectl apply --dry-run=server -f -
