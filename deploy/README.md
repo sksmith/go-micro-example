@@ -16,6 +16,9 @@ deploy/
 │   ├── externalsecret.yaml  # ESO → Vault → in-cluster Secret
 │   ├── networkpolicy.yaml   # default-deny + per-dependency allows
 │   └── hpa.yaml             # CPU-based autoscaler
+├── overlays/
+│   └── local/
+│       └── kustomization.yaml  # K8S-002 dev image + Never pull policy
 └── kind/
     └── cluster.yaml         # K8S-001 local Tier 1 validation gate
 ```
@@ -180,5 +183,49 @@ print an install hint if any of them is missing.
 CI runs the same gate via `.github/workflows/k8s-validate.yml`,
 path-filtered to PRs that touch `deploy/**`. It uses
 [`helm/kind-action`](https://github.com/helm/kind-action) (pinned
-by commit SHA) to provision the cluster, then invokes
-`make k8s-validate`.
+by commit SHA) to provision the cluster, then invokes both
+`make k8s-validate` (base) and `make k8s-validate-local` (overlay).
+
+### Run a real pod locally (K8S-002)
+
+The base manifest references `ghcr.io/sksmith/go-micro-example:latest`,
+an image that won't exist until OPS-007 wires goreleaser. To exercise
+the manifest against the kind cluster *now*, the local overlay swaps
+the reference for a locally-built `go-micro-example:dev` tag and sets
+`imagePullPolicy: Never` so the kubelet uses kind's containerd store
+directly.
+
+```sh
+make k8s-up         # K8S-001 cluster
+make docker-load    # `make docker IMG_TAG=dev` + `kind load docker-image`
+kubectl apply -k deploy/overlays/local
+```
+
+The pod will reach the kubelet, pull the local image cleanly (no
+`ErrImagePull`), and then stall in `CreateContainerConfigError` —
+the base Deployment's `envFrom` references a Secret named
+`go-micro-example-secrets` that the overlay does not yet provide
+(K8S-003 lands the plain Secret + in-cluster Postgres / RabbitMQ in
+the same overlay). What this proves at the K8S-002 step is that the
+image makes it onto the node, the `imagePullPolicy: Never` patch
+applied, and the manifest is otherwise sound. The overlay also
+deletes the base `ExternalSecret` via `$patch: delete`, so the apply
+doesn't trip over the external-secrets.io CRDs being absent
+(K8S-005's territory).
+
+Verify the image rewrite landed and the kubelet did not try to pull
+from a registry:
+
+```sh
+kubectl -n go-micro-example describe pod -l app.kubernetes.io/name=go-micro-example \
+  | grep -E 'Image:|Pull Policy:'
+# Image:           go-micro-example:dev
+# Pull Policy:     Never
+
+kubectl -n go-micro-example get events --field-selector=type=Warning \
+  | grep -E 'ErrImagePull|ImagePullBackOff' || echo 'no image-pull errors'
+```
+
+`make k8s-validate-local` runs the dry-run-apply against the overlay
+without needing the image — useful in CI and for sanity-checking
+overlay edits.

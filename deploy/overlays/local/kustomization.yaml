@@ -1,0 +1,57 @@
+# K8S-002: Local overlay. Swaps the GHCR image reference for a
+# locally-built `go-micro-example:dev` tag and tells the kubelet
+# to use whatever's already in the node's container store instead
+# of trying to pull from a registry (the image lives in kind's
+# containerd, loaded by `make docker-load`).
+#
+# K8S-003 will extend this same overlay with in-cluster Postgres /
+# RabbitMQ and a plain Secret that replaces the base ExternalSecret;
+# until that lands, applying this overlay produces a pod that pulls
+# its image cleanly but CrashLoopBackOffs because no DB / AMQP exist.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+# The base pod references `ghcr.io/sksmith/go-micro-example:latest`.
+# Kustomize matches on the original name and rewrites both the
+# repository and tag here.
+images:
+  - name: ghcr.io/sksmith/go-micro-example
+    newName: go-micro-example
+    newTag: dev
+
+# `imagePullPolicy: Never` forces the kubelet to use the image that
+# `kind load docker-image` placed in the node's containerd store.
+# Without this override the kubelet would still try to pull from
+# the (non-existent) registry and the pod would ErrImagePull.
+#
+# The `$patch: delete` block removes the base ExternalSecret. The
+# external-secrets.io CRDs are not installed in the K8S-001 cluster
+# (K8S-005's territory), and applying the resource would fail with
+# "no matches for kind ExternalSecret". K8S-003 will land an
+# in-cluster plain Secret with the same envFrom keys; until then
+# the pod stays in CreateContainerConfigError because no
+# `go-micro-example-secrets` Secret exists.
+patches:
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: go-micro-example
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Never
+  - target:
+      group: external-secrets.io
+      version: v1
+      kind: ExternalSecret
+      name: go-micro-example-secrets
+    patch: |-
+      $patch: delete
+      apiVersion: external-secrets.io/v1
+      kind: ExternalSecret
+      metadata:
+        name: go-micro-example-secrets
