@@ -1,0 +1,49 @@
+# OPS-004: non-secret runtime config. Every var follows the GME_ /
+# OTEL_ env-binding pattern config/config.go's setupEnvBindings
+# expects — viper maps dotted YAML keys (`db.host`) to underscored
+# env vars (`GME_DB_HOST`). Secrets live in externalsecret.yaml.
+#
+# Overlay environments swap these values via a kustomize patch rather
+# than editing the base; the values here are sensible defaults for a
+# cluster that runs Postgres/RabbitMQ/Redis/OTEL collector at the
+# named in-cluster services.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: go-micro-example-config
+data:
+  GME_PROFILE: "prod"
+
+  # Postgres (DB user / pass come from externalsecret.yaml).
+  GME_DB_HOST: "postgres"
+  GME_DB_PORT: "5432"
+  GME_DB_NAME: "go-micro-example-db"
+  GME_DB_MIGRATE: "true"
+  GME_DB_LOGLEVEL: "warn"
+
+  # RabbitMQ (user / pass from externalsecret.yaml).
+  GME_RABBITMQ_HOST: "rabbitmq"
+  GME_RABBITMQ_PORT: "5672"
+
+  # Redis: empty disables the cache + idempotency store + rate
+  # limiter cleanly. Set to redis://... in an overlay to enable.
+  GME_REDIS_URL: ""
+
+  # TLS terminated upstream (ingress controller / service mesh
+  # sidecar). HSTS middleware honours X-Forwarded-Proto when the
+  # terminator sets it (SEC-005).
+  GME_TLS_ENABLED: "false"
+
+  # CORS — overlays should set this to the real front-end origin(s).
+  # Empty disables CORS entirely.
+  GME_CORS_ALLOWEDORIGINS: ""
+
+  # Docs UI disabled in prod (per the SEC-013 / SEC-014 posture).
+  GME_DOCS_ENABLED: "false"
+
+  # OpenTelemetry. Empty endpoint installs a no-op provider so the
+  # app starts cleanly even without a collector; set in the overlay
+  # to point at your in-cluster collector.
+  OTEL_EXPORTER_OTLP_ENDPOINT: ""
+  OTEL_TRACES_SAMPLER_ARG: "0.10"
+  OTEL_RESOURCE_ATTRIBUTES: "deployment.environment=base,service.name=go-micro-example"

@@ -54,7 +54,7 @@ LABEL org.opencontainers.image.source="https://github.com/sksmith/go-micro-examp
 
 # HEALTHCHECK intentionally omitted. distroless ships no shell, curl,
 # or wget, so the canonical `HEALTHCHECK CMD ...` form has nothing to
-# exec. In Kubernetes the app is probed against /livez and /readyz on
+# exec. In Kubernetes the app is probed against /live and /ready on
 # :8080 via the pod spec (DSN-002 endpoints) — that's the supported
 # liveness/readiness path. For ad-hoc `docker run`, `curl` from the
 # host against the published port serves the same role.

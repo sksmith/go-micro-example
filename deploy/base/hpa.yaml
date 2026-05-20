@@ -1,0 +1,55 @@
+# OPS-004: horizontal autoscaler. CPU is the only metric that
+# works out-of-the-box (metrics-server is a near-universal
+# install); the custom HTTP-request-rate metric below requires
+# the Prometheus Adapter and is commented out by default so the
+# manifest applies cleanly on a vanilla cluster. Enable in an
+# overlay once the adapter is wired up.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: go-micro-example
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: go-micro-example
+  minReplicas: 2
+  maxReplicas: 10
+
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+
+    # Custom metric: scale on the per-pod HTTP request rate
+    # exported by the chi middleware. Requires the Prometheus
+    # Adapter to expose `http_requests_per_second` against the
+    # external.metrics.k8s.io API. Uncomment after wiring the
+    # adapter.
+    #
+    # - type: Pods
+    #   pods:
+    #     metric:
+    #       name: http_requests_per_second
+    #     target:
+    #       type: AverageValue
+    #       averageValue: "100"
+
+  behavior:
+    # Scale up promptly under load; scale down conservatively to
+    # avoid flapping after traffic spikes.
+    scaleUp:
+      stabilizationWindowSeconds: 30
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 30
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 50
+          periodSeconds: 60

@@ -1,0 +1,16 @@
+# OPS-004: ClusterIP service in front of the Deployment. The pod's
+# 8080 plaintext port is exposed; TLS is terminated upstream by the
+# ingress controller per SEC-005's "TLS termination" design.
+apiVersion: v1
+kind: Service
+metadata:
+  name: go-micro-example
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: go-micro-example
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP

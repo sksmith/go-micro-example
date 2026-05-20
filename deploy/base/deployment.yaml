@@ -1,0 +1,130 @@
+# OPS-004: workload manifest. The security context matches what
+# SEC-011 baked into the container image (UID 65532, distroless,
+# no shell) so a Kyverno / OPA admission policy asserting `runAsNonRoot`
+# accepts this pod without the image needing to be re-inspected.
+#
+# Probes are wired to DSN-002's /live (liveness) and /ready
+# (readiness + startup). The startup probe gives migrations and the
+# initial AMQP redial up to ~2.5 min before the kubelet starts
+# poking liveness — TST-004's `errAMQPNeverConnected` will keep
+# /ready at 503 during that window.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: go-micro-example
+spec:
+  # Replica count is the floor; the HPA in hpa.yaml scales beyond
+  # this on CPU pressure.
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      # Allow one extra pod during rollouts but never drop below
+      # the replica count — keeps capacity steady during deploys.
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: go-micro-example
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: go-micro-example
+      annotations:
+        # Prometheus scrape (the /metrics endpoint is exempt from
+        # the SEC-007 rate limiter per DSN-002). Real operators
+        # likely use a ServiceMonitor instead; the annotation form
+        # is the lowest-common-denominator that works without the
+        # Prometheus Operator installed.
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/metrics"
+        prometheus.io/port: "8080"
+    spec:
+      # Pod-level security context. runAsNonRoot is also declared
+      # at the container level — the admission controller checks
+      # both, and stating it twice keeps a buggy overlay from
+      # accidentally relaxing one without the other.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      # 30 s graceful-shutdown window (matches DSN-001's
+      # http.Server.Shutdown plus the AMQP/Kafka drain budget).
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: app
+          image: ghcr.io/sksmith/go-micro-example:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65532
+            capabilities:
+              drop:
+                - ALL
+          envFrom:
+            # Non-secret config (host names, profile, sampler
+            # ratios). Sourced from configmap.yaml.
+            - configMapRef:
+                name: go-micro-example-config
+            # Secrets (DB / RabbitMQ credentials, optional JWT
+            # signing key). Materialised by the ExternalSecret in
+            # externalsecret.yaml.
+            - secretRef:
+                name: go-micro-example-secrets
+          # readOnlyRootFilesystem=true makes /tmp unwritable. The
+          # app doesn't currently write to disk in the request
+          # path, but Go's runtime occasionally spills profile data
+          # under TMPDIR — give it an emptyDir to keep the
+          # read-only root invariant intact.
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          resources:
+            # Tuned for the demo workload (a few RPS, ~20 MiB
+            # working set). Override in the prod overlay with
+            # numbers from your own load test (OPS-005).
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /live
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+          # Startup probe holds liveness off until the app has
+          # had a chance to migrate the DB and obtain its first
+          # AMQP session. 30 × 5s = 150 s budget before liveness
+          # starts judging.
+          startupProbe:
+            httpGet:
+              path: /ready
+              port: http
+            periodSeconds: 5
+            failureThreshold: 30
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
