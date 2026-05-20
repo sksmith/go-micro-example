@@ -15,7 +15,7 @@
 #
 # This file is applied outside the overlay's kustomize render (the
 # overlay's `namespace:` directive would clobber `kube-system`);
-# `make k8s-local-up` applies it via a separate `kubectl apply -f`.
+# `make k8s-up` applies it via a separate `kubectl apply -f`.
 # Bump intentionally: re-download at the new tag, commit.
 ---
 kind: ClusterRole

@@ -10,9 +10,10 @@
 # Role for `pods/exec` and `pods/log` so the in-UI logs / shell
 # panes work without elevating to cluster-admin.
 #
-# Token retrieval is a `kubectl create token` call against this SA —
-# see `make k8s-local-ui-headlamp`. There's no static token mounted
-# in the pod, so a leaked image doesn't leak credentials.
+# Token retrieval is a `kubectl -n go-micro-example create token
+# headlamp` call against this SA — see deploy/README.md. There's no
+# static token mounted in the pod, so a leaked image doesn't leak
+# credentials.
 apiVersion: v1
 kind: ServiceAccount
 metadata:

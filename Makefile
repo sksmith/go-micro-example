@@ -141,207 +141,61 @@ demo:
 demo-down:
 	docker compose down -v
 
-# K8S-001: Local kind cluster + dry-run validation gate.
+# Local Kubernetes workflow: two commands, all-or-nothing.
 #
-# `k8s-up` stands up a single-node kind cluster pinned to the kube
-# version the OPS-004 base targets. `k8s-validate` renders the
-# Kustomize base and dry-run-applies it against the live apiserver,
-# catching admission/RBAC/label bugs that offline schema validation
-# (kubeconform) cannot. `k8s-down` tears the cluster back down.
+# `make k8s-up` stands up a single-node kind cluster and applies
+# every K8S-* manifest in one shot — kind + image load + ESO +
+# Vault + dependencies (Postgres, RabbitMQ, OTel collector) +
+# every UI pod (pgAdmin, Jaeger, Loki + Promtail + Grafana,
+# Prometheus, Headlamp). When `kubectl rollout status` returns
+# the whole stack is Ready and the base ExternalSecret has
+# resolved through ESO + Vault. Cold bring-up is ~3-5 min.
 #
-# `ExternalSecret` is filtered before the dry-run because the
-# external-secrets.io CRDs are not installed in this Tier 1 cluster
-# (the operator install is K8S-005's territory). When K8S-005 lands,
-# drop the yq filter so the dry-run covers the full base.
+# `make k8s-down` deletes the kind cluster; everything in it
+# goes with it. There are no half-up states.
 #
-# Prereqs (local): kind, kubectl, yq. See deploy/README.md for
-# install hints. CI installs them via helm/kind-action and the
-# default ubuntu-latest tooling.
-.PHONY: k8s-up k8s-down k8s-validate k8s-validate-local docker-load
-KIND_CLUSTER  ?= go-micro-example
-KIND_CONFIG   ?= deploy/kind/cluster.yaml
-# KUSTOMIZE_DIR selects which directory `k8s-validate` renders. The
-# default is the OPS-004 base; `k8s-validate-local` re-invokes the
-# same target against the K8S-002 local overlay.
-KUSTOMIZE_DIR ?= deploy/base
+# To reach a UI pod, port-forward its Service directly:
+#   kubectl -n go-micro-example port-forward svc/<name> <local>:<svc>
+# See deploy/README.md for the Service-name / port table.
+#
+# Prereqs (local): kind, kubectl, docker. See deploy/README.md
+# for install hints. CI installs them via helm/kind-action and
+# the default ubuntu-latest tooling.
+.PHONY: k8s-up k8s-down
+KIND_CLUSTER ?= go-micro-example
+KIND_CONFIG  ?= deploy/kind/cluster.yaml
 
-k8s-up:
+k8s-up: docker
 	@command -v kind >/dev/null 2>&1 || { echo "kind not found. Install via 'brew install kind' (macOS) or see https://kind.sigs.k8s.io/docs/user/quick-start/#installation."; exit 1; }
 	kind create cluster --name $(KIND_CLUSTER) --config $(KIND_CONFIG)
-
-k8s-down:
-	@command -v kind >/dev/null 2>&1 || { echo "kind not found."; exit 1; }
-	kind delete cluster --name $(KIND_CLUSTER)
-
-k8s-validate:
-	@command -v kubectl >/dev/null 2>&1 || { echo "kubectl not found."; exit 1; }
-	@command -v yq >/dev/null 2>&1 || { echo "yq not found. Install via 'brew install yq' (macOS) or see https://github.com/mikefarah/yq#install."; exit 1; }
-	@kubectl get namespace go-micro-example >/dev/null 2>&1 || kubectl create namespace go-micro-example
-	# --load-restrictor=LoadRestrictionsNone: the K8S-003 overlay's
-	# configMapGenerator reads scripts/rabbitmq/* from outside its
-	# own directory (shared source of truth with docker-compose).
-	# Harmless for base (which stays inside deploy/base/).
-	kubectl kustomize --load-restrictor=LoadRestrictionsNone $(KUSTOMIZE_DIR) | yq 'select(.kind != "ExternalSecret")' | kubectl apply --dry-run=server -f -
-
-k8s-validate-local:
-	$(MAKE) k8s-validate KUSTOMIZE_DIR=deploy/overlays/local
-
-# K8S-002: build the app image with the dev tag and load it into the
-# kind node's containerd store. The overlay's `imagePullPolicy: Never`
-# tells the kubelet to use this image directly — no registry round-trip.
-docker-load: docker
-	@command -v kind >/dev/null 2>&1 || { echo "kind not found."; exit 1; }
+	# K8S-002: load the locally-built image into kind's containerd so
+	# the overlay's `imagePullPolicy: Never` resolves.
 	kind load docker-image $(IMG_NAME):$(IMG_TAG) --name $(KIND_CLUSTER)
-
-# K8S-003: full local stack — kind cluster + image load + the local
-# overlay (in-cluster Postgres / RabbitMQ + dev Secret). `rollout
-# status` blocks until the app Deployment is Available, which (via
-# the readiness probe) means migrations completed and AMQP redial
-# succeeded. The 300 s timeout covers the 150 s startup-probe budget
-# from DSN-002 plus a margin for image-pull and DB init on a cold
-# kind cluster.
-.PHONY: k8s-local-up k8s-local-down k8s-local-loadtest
-k8s-local-up: k8s-up docker-load
-	# K8S-004 metrics-server and the kube-network-policies enforcer
-	# land first in kube-system — outside the overlay's kustomization
-	# so the overlay's `namespace:` directive doesn't rewrite them.
-	# The enforcer makes the OPS-004 NetworkPolicy actually drop
-	# disallowed traffic on kind (kindnet does not enforce on its own).
+	# kube-system add-ons land outside the overlay so the overlay's
+	# `namespace:` directive doesn't rewrite them. metrics-server
+	# (K8S-004) powers the HPA + `kubectl top`; kube-network-policies
+	# (K8S-003) makes the OPS-004 NetworkPolicy actually drop traffic
+	# on kind (kindnet has no enforcement of its own).
 	kubectl apply -f deploy/overlays/local/metrics-server.yaml
 	kubectl apply -f deploy/overlays/local/kube-network-policies.yaml
+	# External Secrets Operator. Server-side apply because the CRD
+	# bundle exceeds kubectl's 256 KiB last-applied annotation; the
+	# controller + webhook rollouts must finish before the
+	# kustomize render below creates the ClusterSecretStore (the
+	# webhook would reject it otherwise).
+	kubectl apply --server-side -f deploy/overlays/local/external-secrets-operator.yaml
+	kubectl -n default rollout status deploy/external-secrets --timeout=180s
+	kubectl -n default rollout status deploy/external-secrets-webhook --timeout=180s
+	# The single overlay. --load-restrictor=LoadRestrictionsNone is
+	# needed for the configMapGenerator that reads scripts/rabbitmq/*
+	# from outside the overlay directory.
 	kubectl kustomize --load-restrictor=LoadRestrictionsNone deploy/overlays/local | kubectl apply -f -
+	kubectl -n go-micro-example rollout status deploy/vault --timeout=120s
+	kubectl -n go-micro-example wait --for=condition=complete job/vault-bootstrap --timeout=120s
 	kubectl -n go-micro-example rollout status deploy/go-micro-example --timeout=300s
 	kubectl -n kube-system rollout status deploy/metrics-server --timeout=180s
 	kubectl -n kube-system rollout status ds/kube-network-policies --timeout=120s
 
-k8s-local-down:
-	-kubectl kustomize --load-restrictor=LoadRestrictionsNone deploy/overlays/local | kubectl delete --ignore-not-found -f -
-	-kubectl delete --ignore-not-found -f deploy/overlays/local/metrics-server.yaml
-	-kubectl delete --ignore-not-found -f deploy/overlays/local/kube-network-policies.yaml
-	$(MAKE) k8s-down
-
-# K8S-004: drive the app's CPU above the HPA's 70 % target so a
-# scale-up event is visible. Defaults to 180 s of load; pass
-# different values via:
-#     make k8s-local-loadtest LOADTEST_DURATION=120 LOADTEST_PARALLEL=8
-LOADTEST_DURATION ?= 180
-LOADTEST_PARALLEL ?= 12
-k8s-local-loadtest:
-	./hack/k8s-loadtest.sh $(LOADTEST_DURATION) $(LOADTEST_PARALLEL)
-
-# K8S-008: open the RabbitMQ Management UI shipped in the
-# `rabbitmq:4.0-management-alpine` image used by the local overlay.
-# Port-forwards svc/rabbitmq 15672:15672 in the foreground; Ctrl-C
-# tears the forward down. On macOS, `open` launches a browser tab.
-# Credentials are the same guest/guest dev pair docker-compose uses.
-.PHONY: k8s-local-ui-rabbitmq
-k8s-local-ui-rabbitmq:
-	@echo "RabbitMQ Management UI: http://localhost:15672  (guest / guest)"
-	@command -v open >/dev/null 2>&1 && (sleep 1 && open http://localhost:15672) &
-	kubectl -n go-micro-example port-forward svc/rabbitmq 15672:15672
-
-# K8S-009: open pgAdmin for the in-cluster postgres Service. The pod
-# ships a preconfigured server entry pointing at `postgres:5432`, so
-# the `go-micro-example` tree unfolds without manual setup; the
-# operator types the password on first connect.
-.PHONY: k8s-local-ui-pgadmin
-k8s-local-ui-pgadmin:
-	@echo "pgAdmin: http://localhost:9090  (admin@example.com / admin)"
-	@echo "Postgres password (when prompted for the 'go-micro-example' server): postgres"
-	@command -v open >/dev/null 2>&1 && (sleep 1 && open http://localhost:9090) &
-	kubectl -n go-micro-example port-forward svc/pgadmin 9090:80
-
-# K8S-010: open the Jaeger UI for the in-cluster all-in-one backend.
-# The OTel collector's traces pipeline forwards spans here in addition
-# to the K8S-006 `debug` stdout exporter, so the same smoke test
-# produces a browsable Gantt view.
-.PHONY: k8s-local-ui-jaeger
-k8s-local-ui-jaeger:
-	@echo "Jaeger UI: http://localhost:16686  (Service=go-micro-example)"
-	@command -v open >/dev/null 2>&1 && (sleep 1 && open http://localhost:16686) &
-	kubectl -n go-micro-example port-forward svc/jaeger 16686:16686
-
-# K8S-011 / K8S-012: open the in-cluster Grafana. Shared by both
-# tickets — K8S-011 provisions a Loki datasource, K8S-012 appends a
-# Prometheus datasource, but the entry point is one URL.
-.PHONY: k8s-local-ui-grafana
-k8s-local-ui-grafana:
-	@echo "Grafana: http://localhost:3000  (admin / admin)"
-	@command -v open >/dev/null 2>&1 && (sleep 1 && open http://localhost:3000) &
-	kubectl -n go-micro-example port-forward svc/grafana 3000:3000
-
-# K8S-012: open the Prometheus expression browser. Useful for
-# /targets (annotation-discovered scrape targets) and ad-hoc PromQL
-# without the Grafana dashboard wrapper.
-.PHONY: k8s-local-ui-prometheus
-k8s-local-ui-prometheus:
-	@echo "Prometheus: http://localhost:9090  (/targets, /graph)"
-	@command -v open >/dev/null 2>&1 && (sleep 1 && open http://localhost:9090) &
-	kubectl -n go-micro-example port-forward svc/prometheus 9090:9090
-
-# K8S-013: open the Headlamp Kubernetes UI. Mints a fresh 24h
-# ServiceAccount token (no static creds baked into the image) and
-# echoes it for paste into the UI login screen, then port-forwards
-# svc/headlamp 8001:80. Ctrl-C tears the forward down.
-.PHONY: k8s-local-ui-headlamp
-k8s-local-ui-headlamp:
-	@echo "Headlamp: http://localhost:8001"
-	@echo ""
-	@echo "Token (paste into the Headlamp login screen):"
-	@kubectl -n go-micro-example create token headlamp --duration=24h
-	@echo ""
-	@command -v open >/dev/null 2>&1 && (sleep 1 && open http://localhost:8001) &
-	kubectl -n go-micro-example port-forward svc/headlamp 8001:80
-
-# K8S-005: ESO-flavoured local stack — installs External Secrets
-# Operator, brings up an in-cluster dev Vault, seeds the secret
-# paths the base ExternalSecret references, and rolls out the app
-# pulling its creds through ESO instead of the K8S-003 plain Secret.
-.PHONY: k8s-eso-up k8s-eso-down
-k8s-eso-up: k8s-up docker-load
-	# ESO bundle lands in `default` ns (helm-chart default) — outside
-	# the overlay's kustomization so the `namespace:` directive doesn't
-	# rewrite it. Server-side apply because two CRDs in the bundle
-	# exceed kubectl's 256 KiB last-applied-configuration annotation
-	# limit. The controller and webhook rollouts must finish before
-	# the kustomize render below tries to create the ClusterSecretStore
-	# (the webhook would reject the request otherwise).
-	kubectl apply --server-side -f deploy/overlays/local-eso/external-secrets-operator.yaml
-	kubectl -n default rollout status deploy/external-secrets --timeout=180s
-	kubectl -n default rollout status deploy/external-secrets-webhook --timeout=180s
-	kubectl kustomize --load-restrictor=LoadRestrictionsNone deploy/overlays/local-eso | kubectl apply -f -
-	kubectl -n go-micro-example rollout status deploy/vault --timeout=120s
-	kubectl -n go-micro-example wait --for=condition=complete job/vault-bootstrap --timeout=120s
-	kubectl -n go-micro-example rollout status deploy/go-micro-example --timeout=300s
-
-k8s-eso-down:
-	-kubectl kustomize --load-restrictor=LoadRestrictionsNone deploy/overlays/local-eso | kubectl delete --ignore-not-found -f -
-	-kubectl delete --ignore-not-found -f deploy/overlays/local-eso/external-secrets-operator.yaml
-	$(MAKE) k8s-down
-
-# K8S-005 follow-up: Vault runs in dev mode (in-memory storage), so
-# every Vault restart drops the kv state and ESO flips to
-# SecretSyncedError. Re-seed by deleting the completed bootstrap
-# Job and reapplying the manifest — Job names are static so kubectl
-# can't just re-run the existing one. Use after `kubectl scale
-# deploy/vault --replicas=0; …=1` or after the Vault pod gets
-# evicted.
-.PHONY: k8s-eso-reseed
-k8s-eso-reseed:
-	kubectl -n go-micro-example delete job vault-bootstrap --ignore-not-found
-	kubectl kustomize --load-restrictor=LoadRestrictionsNone deploy/overlays/local-eso | kubectl apply -f - >/dev/null
-	kubectl -n go-micro-example wait --for=condition=complete job/vault-bootstrap --timeout=60s
-	kubectl -n go-micro-example annotate externalsecret go-micro-example-secrets force-sync=$$(date +%s) --overwrite
-
-# K8S-007: open the built-in Vault UI for the K8S-005 in-cluster dev
-# Vault. Port-forwards svc/vault 8200:8200 in the foreground; Ctrl-C
-# tears the forward down. On macOS, `open` launches a browser at the
-# UI URL pre-loaded with the dev root token. The token is hard-coded
-# to `root` because vault.yaml runs in dev mode — never copy this
-# workflow to a real cluster.
-.PHONY: k8s-eso-ui-vault
-k8s-eso-ui-vault:
-	@echo "Vault UI:    http://localhost:8200/ui"
-	@echo "Root token:  root  (dev-mode only — do not reuse outside the local-eso overlay)"
-	@command -v open >/dev/null 2>&1 && (sleep 1 && open http://localhost:8200/ui) &
-	kubectl -n go-micro-example port-forward svc/vault 8200:8200
+k8s-down:
+	@command -v kind >/dev/null 2>&1 || { echo "kind not found."; exit 1; }
+	kind delete cluster --name $(KIND_CLUSTER)

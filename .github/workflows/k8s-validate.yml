@@ -1,6 +1,6 @@
 # K8S-001: Tier 1 dry-run validation gate. Stands a kind cluster up
-# and runs `make k8s-validate` so admission/RBAC/label issues in the
-# OPS-004 base (and any future overlay) are caught before merge.
+# and dry-run-applies the base + local overlay so admission / RBAC /
+# label issues are caught before merge.
 #
 # Path-filtered to `deploy/**` plus this workflow so it doesn't run
 # on PRs that don't touch the manifests.
@@ -27,11 +27,25 @@ jobs:
         with:
           cluster_name: go-micro-example
           config: deploy/kind/cluster.yaml
+      - name: Install yq
+        # yq strips external-secrets.io/v1 resources (ExternalSecret +
+        # ClusterSecretStore) from the render before dry-run-apply —
+        # the ESO CRDs aren't installed in this Tier 1 cluster (the
+        # operator install is part of the real `make k8s-up` flow), so
+        # applying them would 404.
+        run: sudo snap install yq
+      - name: Ensure target namespace exists
+        run: kubectl get namespace go-micro-example >/dev/null 2>&1 || kubectl create namespace go-micro-example
       - name: Dry-run apply (base)
-        run: make k8s-validate
+        run: |
+          kubectl kustomize --load-restrictor=LoadRestrictionsNone deploy/base \
+            | yq 'select(.apiVersion != "external-secrets.io/v1")' \
+            | kubectl apply --dry-run=server -f -
       - name: Dry-run apply (local overlay)
-        # K8S-002: validate the local overlay's image rewrite and
-        # imagePullPolicy patch against the same apiserver. No image
-        # is loaded — `--dry-run=server` only exercises kustomize
-        # rendering and admission.
-        run: make k8s-validate-local
+        # K8S-002: validate the local overlay's image rewrite + patches
+        # against the same apiserver. No image is loaded — dry-run=server
+        # only exercises kustomize rendering and admission.
+        run: |
+          kubectl kustomize --load-restrictor=LoadRestrictionsNone deploy/overlays/local \
+            | yq 'select(.apiVersion != "external-secrets.io/v1")' \
+            | kubectl apply --dry-run=server -f -

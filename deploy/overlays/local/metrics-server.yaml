@@ -7,11 +7,11 @@
 # upstream file at the new tag, re-add the one flag, commit.
 #
 # Resources here live in `kube-system`, so this file is applied
-# *outside* the deploy/overlays/local kustomization (`make
-# k8s-local-up` calls `kubectl apply -f` on it before the kustomize
-# render) — otherwise the overlay's `namespace: go-micro-example`
-# directive would inject the wrong namespace on the ServiceAccount /
-# Service / Deployment.
+# *outside* the deploy/overlays/local kustomization (`make k8s-up`
+# calls `kubectl apply -f` on it before the kustomize render) —
+# otherwise the overlay's `namespace: go-micro-example` directive
+# would inject the wrong namespace on the ServiceAccount / Service /
+# Deployment.
 ---
 apiVersion: v1
 kind: ServiceAccount
