@@ -258,6 +258,44 @@ The pod image is also distroless (no shell), so the conventional
 `kubectl exec … sh -c '…'` connectivity probe doesn't apply here —
 the log evidence above is the substitute.
 
+#### RabbitMQ Management UI (K8S-008)
+
+The local overlay uses the `rabbitmq:4.0-management-alpine` image,
+which ships the
+[Management Plugin](https://www.rabbitmq.com/management.html) on
+port 15672. The Service already exposes it — reach the UI with:
+
+```sh
+make k8s-local-ui-rabbitmq
+# RabbitMQ Management UI: http://localhost:15672  (guest / guest)
+```
+
+The target port-forwards `svc/rabbitmq 15672:15672` in the
+foreground; Ctrl-C tears the forward down. On macOS it also `open`s
+a browser tab.
+
+What to expect on the Overview page after `make k8s-local-up`:
+
+- **Exchanges** → four DSN-015 exchanges (`inventory.exchange`,
+  `reservation.exchange`, `product.exchange`, `product.dlt.exchange`)
+  plus the AMQP-default exchanges. These come from
+  `scripts/rabbitmq/definitions.json` via the `load_definitions`
+  directive (same source of truth the docker-compose stack reads),
+  so seeing all four is proof the ConfigMap mount worked.
+- **Queues** → `inventory.queue`, `reservation.queue`,
+  `product.queue`, `product.dlt.queue`.
+- **Connections** → ≥ 1 connection from the app pod, with channels
+  open for publishing (`inventory`/`reservation`/`product` exchanges)
+  and consuming (`product.queue`). The chi handler and the
+  `ProductQueue` consumer each open their own channel — expect the
+  per-connection channel count to climb past one as the app warms.
+
+**Dev-only posture.** The management plugin is enabled in the local
+image for browsing convenience; the OPS-004 base does not pull this
+tag. Real deployments either disable the plugin (`rabbitmq-plugins
+disable rabbitmq_management`) or restrict it to a management
+network — exposing :15672 publicly is a security incident.
+
 #### NetworkPolicy enforcement on kind
 
 The default kind CNI (kindnet) **does not enforce NetworkPolicy on

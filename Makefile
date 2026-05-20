@@ -229,6 +229,17 @@ LOADTEST_PARALLEL ?= 12
 k8s-local-loadtest:
 	./hack/k8s-loadtest.sh $(LOADTEST_DURATION) $(LOADTEST_PARALLEL)
 
+# K8S-008: open the RabbitMQ Management UI shipped in the
+# `rabbitmq:4.0-management-alpine` image used by the local overlay.
+# Port-forwards svc/rabbitmq 15672:15672 in the foreground; Ctrl-C
+# tears the forward down. On macOS, `open` launches a browser tab.
+# Credentials are the same guest/guest dev pair docker-compose uses.
+.PHONY: k8s-local-ui-rabbitmq
+k8s-local-ui-rabbitmq:
+	@echo "RabbitMQ Management UI: http://localhost:15672  (guest / guest)"
+	@command -v open >/dev/null 2>&1 && (sleep 1 && open http://localhost:15672) &
+	kubectl -n go-micro-example port-forward svc/rabbitmq 15672:15672
+
 # K8S-005: ESO-flavoured local stack — installs External Secrets
 # Operator, brings up an in-cluster dev Vault, seeds the secret
 # paths the base ExternalSecret references, and rolls out the app
