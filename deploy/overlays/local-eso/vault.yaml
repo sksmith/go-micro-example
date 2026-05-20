@@ -1,0 +1,85 @@
+# K8S-005: in-cluster Vault running in dev mode for the local-eso
+# overlay. Dev mode keeps the entire KV store in memory, so the
+# secret paths the bootstrap Job seeds (kv/go-micro-example/db,
+# .../rabbitmq, .../jwt) vanish on pod restart — that's the whole
+# point. The bootstrap Job re-seeds them after Vault becomes Ready.
+#
+# Service name `vault` is what the ClusterSecretStore in
+# secretstore.yaml dials. Pod label `app.kubernetes.io/name: vault`
+# is purely informational here — the base NetworkPolicy only
+# constrains the app pod's traffic, and ESO (which lives in `default`
+# namespace) is unconstrained.
+#
+# Dev-only. Never apply this file to a real cluster — the root token
+# is hard-coded, TLS is off, and the storage is non-durable.
+apiVersion: v1
+kind: Service
+metadata:
+  name: vault
+spec:
+  selector:
+    app.kubernetes.io/name: vault
+  ports:
+    - name: http
+      port: 8200
+      targetPort: 8200
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vault
+  labels:
+    app.kubernetes.io/name: vault
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vault
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: vault
+    spec:
+      containers:
+        - name: vault
+          # hashicorp/vault:2.0.1 — the current stable image. The
+          # legacy `library/vault` repo is deprecated upstream.
+          image: hashicorp/vault:2.0.1
+          ports:
+            - name: http
+              containerPort: 8200
+              protocol: TCP
+          env:
+            # Dev mode + hard-coded root token. Documented in the
+            # ticket as the trade-off for not needing Vault initial-
+            # isation / unseal in a throwaway cluster.
+            - name: VAULT_DEV_ROOT_TOKEN_ID
+              value: root
+            - name: VAULT_DEV_LISTEN_ADDRESS
+              value: 0.0.0.0:8200
+            # Pointing the CLI at the local listener lets the
+            # bootstrap Job `vault kv put ...` without -address flags.
+            - name: VAULT_ADDR
+              value: http://127.0.0.1:8200
+          # Vault 2.x refuses to start without IPC_LOCK (the binary
+          # calls mlockall and exits hard if the cap is missing).
+          # Drop everything else and add it back explicitly so the
+          # pod still satisfies the "no privilege escalation, no
+          # unnecessary capabilities" posture the base Deployment
+          # follows. Dev-only — a real Vault would use a chart that
+          # handles this and run on its own dedicated nodes.
+          securityContext:
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - IPC_LOCK
+            allowPrivilegeEscalation: false
+          readinessProbe:
+            httpGet:
+              path: /v1/sys/health
+              port: http
+            periodSeconds: 2
+            timeoutSeconds: 2
+            failureThreshold: 15

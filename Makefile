@@ -224,3 +224,29 @@ LOADTEST_DURATION ?= 180
 LOADTEST_PARALLEL ?= 12
 k8s-local-loadtest:
 	./hack/k8s-loadtest.sh $(LOADTEST_DURATION) $(LOADTEST_PARALLEL)
+
+# K8S-005: ESO-flavoured local stack — installs External Secrets
+# Operator, brings up an in-cluster dev Vault, seeds the secret
+# paths the base ExternalSecret references, and rolls out the app
+# pulling its creds through ESO instead of the K8S-003 plain Secret.
+.PHONY: k8s-eso-up k8s-eso-down
+k8s-eso-up: k8s-up docker-load
+	# ESO bundle lands in `default` ns (helm-chart default) — outside
+	# the overlay's kustomization so the `namespace:` directive doesn't
+	# rewrite it. Server-side apply because two CRDs in the bundle
+	# exceed kubectl's 256 KiB last-applied-configuration annotation
+	# limit. The controller and webhook rollouts must finish before
+	# the kustomize render below tries to create the ClusterSecretStore
+	# (the webhook would reject the request otherwise).
+	kubectl apply --server-side -f deploy/overlays/local-eso/external-secrets-operator.yaml
+	kubectl -n default rollout status deploy/external-secrets --timeout=180s
+	kubectl -n default rollout status deploy/external-secrets-webhook --timeout=180s
+	kubectl kustomize --load-restrictor=LoadRestrictionsNone deploy/overlays/local-eso | kubectl apply -f -
+	kubectl -n go-micro-example rollout status deploy/vault --timeout=120s
+	kubectl -n go-micro-example wait --for=condition=complete job/vault-bootstrap --timeout=120s
+	kubectl -n go-micro-example rollout status deploy/go-micro-example --timeout=300s
+
+k8s-eso-down:
+	-kubectl kustomize --load-restrictor=LoadRestrictionsNone deploy/overlays/local-eso | kubectl delete --ignore-not-found -f -
+	-kubectl delete --ignore-not-found -f deploy/overlays/local-eso/external-secrets-operator.yaml
+	$(MAKE) k8s-down
