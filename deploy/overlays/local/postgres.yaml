@@ -1,0 +1,89 @@
+# K8S-003: in-cluster Postgres for the local overlay. The base
+# Deployment connects to host `postgres:5432` (from the base
+# ConfigMap), so this Service name must stay `postgres` for the
+# label/host wiring to match without an additional patch. The pod's
+# `app.kubernetes.io/name: postgresql` label matches the base
+# NetworkPolicy egress allow-list.
+#
+# Single replica is fine for local; the PVC binds to kind's
+# `standard` (rancher.io/local-path) storage class, so the data dies
+# with the cluster — desired for hermetic test loops.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: standard
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+spec:
+  selector:
+    app.kubernetes.io/name: postgresql
+  ports:
+    - port: 5432
+      targetPort: 5432
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  labels:
+    app.kubernetes.io/name: postgresql
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: postgresql
+  strategy:
+    # Recreate avoids two Postgres pods racing for the same PVC
+    # during a rollout (RWO volume can only attach to one node).
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: postgresql
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - name: postgres
+              containerPort: 5432
+              protocol: TCP
+          env:
+            # Match docker-compose.yml's defaults (and the overlay
+            # Secret) so the app can authenticate with the same
+            # values it uses against the compose stack.
+            - name: POSTGRES_USER
+              value: postgres
+            - name: POSTGRES_PASSWORD
+              value: postgres
+            - name: POSTGRES_DB
+              value: go-micro-example-db
+            # PGDATA inside a subdirectory of the mount lets the
+            # initialiser write to the volume cleanly (the postgres
+            # image refuses to init in a non-empty volume root).
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "postgres"]
+            periodSeconds: 2
+            timeoutSeconds: 2
+            failureThreshold: 30
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: postgres-data
