@@ -27,3 +27,4 @@ plan/
 .env.local
 config.local.yml
 
+.DS_Store

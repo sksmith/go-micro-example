@@ -1,0 +1,20 @@
+{{define "trace_pane.gohtml"}}<section class="scope-view__pane scope-view__pane--trace" id="trace-pane">
+  <header>
+    span tree
+    {{if .Note}}<span class="scope-view__note">· {{.Note}}</span>{{end}}
+    {{if .TraceID}}
+      <button class="scope-view__refresh"
+              type="button"
+              hx-get="/ui/trace/{{.TraceID}}"
+              hx-target="#trace-pane"
+              hx-swap="outerHTML"
+              hx-indicator="#trace-pane"
+              title="re-query Jaeger for this trace id">refresh</button>
+    {{end}}
+  </header>
+  {{if .SpanTree}}
+    <pre class="scope-view__tree"><code>{{.SpanTree}}</code></pre>
+  {{else}}
+    <pre class="scope-view__tree scope-view__tree--empty"><code>(no span tree)</code></pre>
+  {{end}}
+</section>{{end}}

@@ -42,12 +42,5 @@
     <pre class="scope-view__code scope-view__code--reveal"><code>{{if .ResponseBody}}{{.ResponseBody}}{{else}}(empty){{end}}</code></pre>
   </section>
 
-  <section class="scope-view__pane scope-view__pane--trace">
-    <header>span tree {{if .SpanTreeNote}}<span class="scope-view__note">· {{.SpanTreeNote}}</span>{{end}}</header>
-    {{if .SpanTree}}
-      <pre class="scope-view__tree"><code>{{.SpanTree}}</code></pre>
-    {{else}}
-      <pre class="scope-view__tree scope-view__tree--empty"><code>(no span tree)</code></pre>
-    {{end}}
-  </section>
+  {{template "trace_pane.gohtml" (tracePane .TraceID .SpanTree .SpanTreeNote)}}
 </article>{{end}}

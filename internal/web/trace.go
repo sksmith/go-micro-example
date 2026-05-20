@@ -46,12 +46,18 @@ func (t *traceRenderer) Render(ctx context.Context, traceID string) (string, str
 		return "", "no trace id on response"
 	}
 
+	// baseURL is operator-configured (ui.jaegerQueryUrl). The trace
+	// ID comes from either the response X-Trace-Id header (server-
+	// generated) or the /ui/trace/{traceID} chi param, which the
+	// handler gates with isHexID — so the only chars that ever
+	// reach this URL are [0-9a-f]. gosec G704 fires on the dynamic
+	// URL regardless; the bounded character set keeps it safe.
 	url := t.baseURL + "/api/traces/" + traceID
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil) //#nosec G107,G704 -- baseURL operator-configured, traceID validated via isHexID
 	if err != nil {
 		return "", fmt.Sprintf("trace lookup error: %v", err)
 	}
-	resp, err := t.hc.Do(req)
+	resp, err := t.hc.Do(req) //#nosec G107,G704 -- see above
 	if err != nil {
 		return "", fmt.Sprintf("trace lookup error: %v", err)
 	}

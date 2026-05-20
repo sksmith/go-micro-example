@@ -61,6 +61,16 @@ func Mount(jaegerQueryURL string, tokenIssuer TokenIssuer) http.Handler {
 
 	r.Post("/cards/{card}/try", cardTryHandler(tmpl, trace))
 
+	// Refresh just the trace pane for a previously-issued request.
+	// Jaeger's OTel-collector pipeline batches spans on a ~1s
+	// interval, so the very first scope render after a card fires
+	// often shows "trace not yet flushed to jaeger — retry shortly".
+	// Reloading the whole card would issue a new request and a new
+	// trace ID; this endpoint takes the original trace ID, re-queries
+	// Jaeger, and returns just the inner trace fragment so HTMX can
+	// swap it in place.
+	r.Get("/trace/{traceID}", traceRefreshHandler(tmpl, trace))
+
 	return r
 }
 
@@ -322,6 +332,12 @@ func mustParseTemplates() *template.Template {
 	funcMap := template.FuncMap{
 		"upper": strings.ToUpper,
 		"join":  strings.Join,
+		// tracePane wraps the three fields the trace_pane partial
+		// reads so scope.gohtml can construct one inline. html/template
+		// has no struct-literal syntax of its own.
+		"tracePane": func(traceID, spanTree, note string) TracePane {
+			return TracePane{TraceID: traceID, SpanTree: spanTree, Note: note}
+		},
 	}
 	t, err := template.New("ui").Funcs(funcMap).ParseFS(assets,
 		"templates/*.gohtml",

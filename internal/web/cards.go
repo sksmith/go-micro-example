@@ -98,6 +98,56 @@ func renderScope(w http.ResponseWriter, tmpl *template.Template, view ScopeView)
 	}
 }
 
+// TracePane is the view model for trace_pane.gohtml. The same partial
+// renders both inline inside scope.gohtml and as a standalone HTMX
+// swap target so the user can re-query Jaeger without re-firing the
+// underlying request.
+type TracePane struct {
+	TraceID  string
+	SpanTree string
+	Note     string
+}
+
+// traceRefreshHandler re-queries Jaeger for an existing trace ID and
+// returns just the trace-pane fragment so an HTMX swap can update
+// the scope view in place. The trace ID comes from the chi URL
+// param; isHexID guards the path before it reaches Jaeger.
+func traceRefreshHandler(tmpl *template.Template, trace *traceRenderer) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		traceID := chi.URLParam(req, "traceID")
+		if !isHexID(traceID) {
+			http.Error(w, "bad trace id", http.StatusBadRequest)
+			return
+		}
+		tree, note := trace.Render(req.Context(), traceID)
+		pane := TracePane{TraceID: traceID, SpanTree: tree, Note: note}
+
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		if err := tmpl.ExecuteTemplate(w, "trace_pane.gohtml", pane); err != nil {
+			http.Error(w, "trace render failed", http.StatusInternalServerError)
+		}
+	}
+}
+
+// isHexID guards the /ui/trace/{traceID} path from arbitrary input
+// before it reaches the Jaeger Query API. Jaeger accepts 16- and
+// 32-char lowercase hex; we accept 1–32 to leave room for older
+// 64-bit IDs that aren't zero-padded.
+func isHexID(s string) bool {
+	if s == "" || len(s) > 32 {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch {
+		case c >= '0' && c <= '9', c >= 'a' && c <= 'f':
+		default:
+			return false
+		}
+	}
+	return true
+}
+
 func demoBaseURL(req *http.Request) string {
 	scheme := "http"
 	if isHTTPS(req) {

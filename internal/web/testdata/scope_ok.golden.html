@@ -23,11 +23,23 @@
     <pre class="scope-view__code scope-view__code--reveal"><code>{&#34;sku&#34;:&#34;DEMO-SKU-001&#34;}</code></pre>
   </section>
 
-  <section class="scope-view__pane scope-view__pane--trace">
-    <header>span tree </header>
+  <section class="scope-view__pane scope-view__pane--trace" id="trace-pane">
+  <header>
+    span tree
     
-      <pre class="scope-view__tree"><code>  SERVER ████        12345µs  /api/v1/inventory
+    
+      <button class="scope-view__refresh"
+              type="button"
+              hx-get="/ui/trace/t-123"
+              hx-target="#trace-pane"
+              hx-swap="outerHTML"
+              hx-indicator="#trace-pane"
+              title="re-query Jaeger for this trace id">refresh</button>
+    
+  </header>
+  
+    <pre class="scope-view__tree"><code>  SERVER ████        12345µs  /api/v1/inventory
 </code></pre>
-    
-  </section>
+  
+</section>
 </article>
