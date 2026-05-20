@@ -201,6 +201,31 @@ func TestMount_RoutesAndAuthCookie(t *testing.T) {
 			t.Errorf("unknown card = %d, want 404", rec.Code)
 		}
 	})
+
+	t.Run("trace refresh returns pane with disabled note", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/trace/abc123", nil)
+		h.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("GET /trace/abc123 = %d, want 200", rec.Code)
+		}
+		body := rec.Body.String()
+		if !strings.Contains(body, `id="trace-pane"`) {
+			t.Errorf("trace refresh missing pane id:\n%s", body)
+		}
+		if !strings.Contains(body, "jaeger query disabled") {
+			t.Errorf("trace refresh missing disabled note (Mount has no jaeger url):\n%s", body)
+		}
+	})
+
+	t.Run("trace refresh rejects non-hex id", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/trace/not-hex-id", nil)
+		h.ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("bad trace id = %d, want 400", rec.Code)
+		}
+	})
 }
 
 type fakeIssuer struct {

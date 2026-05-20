@@ -505,6 +505,21 @@ input:focus-visible { outline: none; border-bottom-color: var(--fg); }
 .scope-view__kv li span:last-child  { color: var(--fg); word-break: break-all; }
 
 .scope-view__pane--trace { border-top: 1px dashed var(--rule); padding-top: var(--step-2); }
+.scope-view__pane--trace header { display: flex; align-items: center; gap: var(--step-2); }
+.scope-view__refresh {
+  margin-left: auto;
+  font-family: var(--type-display);
+  font-size: 0.65rem;
+  letter-spacing: 0.18em;
+  padding: 1px 8px;
+  border: 1px solid var(--rule);
+  background: transparent;
+  color: var(--fg-muted);
+  cursor: pointer;
+  text-transform: uppercase;
+}
+.scope-view__refresh:hover { color: var(--fg); border-color: var(--fg); }
+.htmx-request.scope-view__pane--trace .scope-view__tree { opacity: 0.5; }
 .scope-view__tree {
   margin: 0;
   padding: var(--step-2);
