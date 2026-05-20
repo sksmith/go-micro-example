@@ -17,7 +17,7 @@ deploy/
 │   ├── networkpolicy.yaml   # default-deny + per-dependency allows
 │   └── hpa.yaml             # CPU-based autoscaler
 ├── overlays/
-│   ├── local/                   # K8S-002/003/004/006 (plain Secret)
+│   ├── local/                   # K8S-002/003/004/006/011 (plain Secret)
 │   │   ├── kustomization.yaml
 │   │   ├── namespace.yaml
 │   │   ├── secret.yaml          # plain dev Secret
@@ -25,7 +25,10 @@ deploy/
 │   │   ├── rabbitmq.yaml
 │   │   ├── metrics-server.yaml
 │   │   ├── kube-network-policies.yaml  # NetworkPolicy enforcer
-│   │   └── otel-collector.yaml  # K8S-006 OTel collector
+│   │   ├── otel-collector.yaml  # K8S-006 OTel collector
+│   │   ├── loki.yaml            # K8S-011 Loki single-binary
+│   │   ├── promtail.yaml        # K8S-011 Promtail log shipper
+│   │   └── grafana.yaml         # K8S-011/012 Grafana UI
 │   └── local-eso/               # K8S-005 (ESO + dev Vault)
 │       ├── kustomization.yaml
 │       ├── external-secrets-operator.yaml
@@ -398,6 +401,56 @@ that happen during the same window. The K8S-004 load test driving
 emitted in parallel. For trace verification, run the smoke test
 above when no load driver is active, or lower
 `OTEL_TRACES_SAMPLER_ARG` in the overlay.
+
+### Logs UI: Loki + Grafana (K8S-011)
+
+`kubectl logs deploy/go-micro-example` is fine for one-pod
+debugging but doesn't scale — there's no way to follow a
+`request_id` through the inventory queue's consumer or correlate
+across pods at the same timestamp. The local overlay runs the
+canonical Grafana log stack so the DSN-005 structured-log fields
+actually pay off in a UI:
+
+- **Loki** (single-binary, in-memory filesystem storage) on
+  `svc/loki:3100`.
+- **Promtail** (DaemonSet) tails `/var/log/pods/**` on the node and
+  ships every container's logs to Loki. RBAC is read-only against
+  pods/services/endpoints.
+- **Grafana** (`svc/grafana:3000`, admin / admin) with a
+  provisioned Loki datasource and a starter dashboard.
+
+```sh
+make k8s-local-ui-grafana
+# Grafana: http://localhost:3000  (admin / admin)
+```
+
+The target port-forwards `svc/grafana 3000:3000` and (on macOS)
+opens a browser tab.
+
+What to verify on first visit:
+
+- **Dashboards → go-micro-example logs** — renders the
+  `{namespace="go-micro-example"}` panel; recent app log lines
+  appear within seconds of pod startup.
+- **Explore → Loki** — type
+  `{namespace="go-micro-example"} |= "listening"` and confirm the
+  startup-banner line appears. Add `| json` to extract
+  `request_id` / `trace_id` from a structured JSON line.
+- **Datasources → Loki → Test** — reports "Data source connected
+  and labels found".
+
+Stopping Loki (`kubectl -n go-micro-example scale deploy/loki
+--replicas=0`) and watching Grafana's Explore page raise a clean
+"datasource unreachable" banner confirms the integration is live
+and not pre-rendered.
+
+**Dev-only posture.** Single-replica Loki, in-memory ring, and
+filesystem storage on an `emptyDir` mean logs vanish on pod
+restart. Promtail mounts the host's `/var/log/pods` directly, which
+real clusters typically restrict via PodSecurity. A production
+deployment would use the Grafana Loki helm chart with object
+storage, run several replicas, and replace Promtail with Grafana
+Alloy or vector.dev.
 
 ### Real ExternalSecret flow against in-cluster Vault (K8S-005)
 

@@ -33,6 +33,14 @@ resources:
   # prints them via the debug exporter — see otel-collector.yaml +
   # the OTEL_EXPORTER_OTLP_ENDPOINT patch in this file.
   - otel-collector.yaml
+  # K8S-011: Loki + Promtail + Grafana. Promtail (DaemonSet) tails
+  # the kubelet's pod logs and ships to Loki; Grafana provides the
+  # Logs UI via a provisioned Loki datasource. Grafana's datasource
+  # ConfigMap is the shared seam K8S-012 (metrics) appends a
+  # Prometheus entry to.
+  - loki.yaml
+  - promtail.yaml
+  - grafana.yaml
 
 # RabbitMQ loads its exchanges/queues/bindings from
 # scripts/rabbitmq/definitions.json on boot (DSN-015). Mounting the

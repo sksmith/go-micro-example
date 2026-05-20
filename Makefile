@@ -229,6 +229,15 @@ LOADTEST_PARALLEL ?= 12
 k8s-local-loadtest:
 	./hack/k8s-loadtest.sh $(LOADTEST_DURATION) $(LOADTEST_PARALLEL)
 
+# K8S-011 / K8S-012: open the in-cluster Grafana. Shared by both
+# tickets — K8S-011 provisions a Loki datasource, K8S-012 appends a
+# Prometheus datasource, but the entry point is one URL.
+.PHONY: k8s-local-ui-grafana
+k8s-local-ui-grafana:
+	@echo "Grafana: http://localhost:3000  (admin / admin)"
+	@command -v open >/dev/null 2>&1 && (sleep 1 && open http://localhost:3000) &
+	kubectl -n go-micro-example port-forward svc/grafana 3000:3000
+
 # K8S-005: ESO-flavoured local stack — installs External Secrets
 # Operator, brings up an in-cluster dev Vault, seeds the secret
 # paths the base ExternalSecret references, and rolls out the app
