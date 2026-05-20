@@ -251,6 +251,16 @@ k8s-local-ui-pgadmin:
 	@command -v open >/dev/null 2>&1 && (sleep 1 && open http://localhost:9090) &
 	kubectl -n go-micro-example port-forward svc/pgadmin 9090:80
 
+# K8S-010: open the Jaeger UI for the in-cluster all-in-one backend.
+# The OTel collector's traces pipeline forwards spans here in addition
+# to the K8S-006 `debug` stdout exporter, so the same smoke test
+# produces a browsable Gantt view.
+.PHONY: k8s-local-ui-jaeger
+k8s-local-ui-jaeger:
+	@echo "Jaeger UI: http://localhost:16686  (Service=go-micro-example)"
+	@command -v open >/dev/null 2>&1 && (sleep 1 && open http://localhost:16686) &
+	kubectl -n go-micro-example port-forward svc/jaeger 16686:16686
+
 # K8S-005: ESO-flavoured local stack — installs External Secrets
 # Operator, brings up an in-cluster dev Vault, seeds the secret
 # paths the base ExternalSecret references, and rolls out the app

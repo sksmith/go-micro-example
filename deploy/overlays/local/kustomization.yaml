@@ -37,6 +37,10 @@ resources:
   # at the in-cluster postgres Service. Browsable via
   # `make k8s-local-ui-pgadmin`.
   - pgadmin.yaml
+  # K8S-010: Jaeger all-in-one. Acts as a second exporter target on
+  # the OTel collector's traces pipeline so spans show up in a
+  # browsable Gantt view at http://localhost:16686.
+  - jaeger.yaml
 
 # RabbitMQ loads its exchanges/queues/bindings from
 # scripts/rabbitmq/definitions.json on boot (DSN-015). Mounting the
