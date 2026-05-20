@@ -27,5 +27,11 @@ jobs:
         with:
           cluster_name: go-micro-example
           config: deploy/kind/cluster.yaml
-      - name: Dry-run apply
+      - name: Dry-run apply (base)
         run: make k8s-validate
+      - name: Dry-run apply (local overlay)
+        # K8S-002: validate the local overlay's image rewrite and
+        # imagePullPolicy patch against the same apiserver. No image
+        # is loaded — `--dry-run=server` only exercises kustomize
+        # rendering and admission.
+        run: make k8s-validate-local

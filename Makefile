@@ -56,12 +56,22 @@ run:
 	echo "executing the application"
 	go run ./cmd/.
 
+# IMG_NAME / IMG_TAG default to the local-overlay reference. The
+# deploy/overlays/local Kustomization rewrites ghcr.io/sksmith/go-micro-example
+# to this name+tag; `make docker-load` (K8S-002) builds with the same
+# tag and loads the result into kind's containerd so the kubelet can
+# find it under `imagePullPolicy: Never`. CI builds (e.g. goreleaser
+# in OPS-007) override these.
+IMG_NAME ?= go-micro-example
+IMG_TAG  ?= dev
+
 docker:
 	@echo Building the docker image
 	docker build \
 		--build-arg VER=$(VER) \
 		--build-arg SHA1=$(SHA1) \
-		--build-arg NOW=$(NOW) .
+		--build-arg NOW=$(NOW) \
+		-t $(IMG_NAME):$(IMG_TAG) .
 
 tools:
 	go install github.com/securego/gosec/v2/cmd/gosec@latest
@@ -147,9 +157,13 @@ demo-down:
 # Prereqs (local): kind, kubectl, yq. See deploy/README.md for
 # install hints. CI installs them via helm/kind-action and the
 # default ubuntu-latest tooling.
-.PHONY: k8s-up k8s-down k8s-validate
-KIND_CLUSTER ?= go-micro-example
-KIND_CONFIG  ?= deploy/kind/cluster.yaml
+.PHONY: k8s-up k8s-down k8s-validate k8s-validate-local docker-load
+KIND_CLUSTER  ?= go-micro-example
+KIND_CONFIG   ?= deploy/kind/cluster.yaml
+# KUSTOMIZE_DIR selects which directory `k8s-validate` renders. The
+# default is the OPS-004 base; `k8s-validate-local` re-invokes the
+# same target against the K8S-002 local overlay.
+KUSTOMIZE_DIR ?= deploy/base
 
 k8s-up:
 	@command -v kind >/dev/null 2>&1 || { echo "kind not found. Install via 'brew install kind' (macOS) or see https://kind.sigs.k8s.io/docs/user/quick-start/#installation."; exit 1; }
@@ -163,4 +177,17 @@ k8s-validate:
 	@command -v kubectl >/dev/null 2>&1 || { echo "kubectl not found."; exit 1; }
 	@command -v yq >/dev/null 2>&1 || { echo "yq not found. Install via 'brew install yq' (macOS) or see https://github.com/mikefarah/yq#install."; exit 1; }
 	@kubectl get namespace go-micro-example >/dev/null 2>&1 || kubectl create namespace go-micro-example
-	kubectl kustomize deploy/base | yq 'select(.kind != "ExternalSecret")' | kubectl apply --dry-run=server -f -
+	kubectl kustomize $(KUSTOMIZE_DIR) | yq 'select(.kind != "ExternalSecret")' | kubectl apply --dry-run=server -f -
+
+k8s-validate-local:
+	$(MAKE) k8s-validate KUSTOMIZE_DIR=deploy/overlays/local
+
+# K8S-002: build the app image with the dev tag and load it into the
+# kind node's containerd store. The overlay's `imagePullPolicy: Never`
+# tells the kubelet to use this image directly — no registry round-trip.
+# The pod will still CrashLoopBackOff until K8S-003 lands the in-cluster
+# DB / AMQP; what `docker-load` proves is that the image lands where
+# the kubelet expects it.
+docker-load: docker
+	@command -v kind >/dev/null 2>&1 || { echo "kind not found."; exit 1; }
+	kind load docker-image $(IMG_NAME):$(IMG_TAG) --name $(KIND_CLUSTER)
