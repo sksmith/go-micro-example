@@ -21,6 +21,10 @@ data:
     apiVersion: 1
     datasources:
       - name: Loki
+        # Stable UID so committed dashboards can reference this
+        # datasource by uid="Loki" without depending on Grafana's
+        # generated hash.
+        uid: Loki
         type: loki
         access: proxy
         url: http://loki:3100
@@ -30,6 +34,17 @@ data:
           # Explore doesn't pull a multi-hour range and hang the
           # single-binary Loki.
           maxLines: 1000
+      # K8S-012: Prometheus datasource. Lands here so Grafana can be
+      # the single entry point for logs (Loki) and metrics
+      # (Prometheus). The Prometheus pod scrapes pods annotated
+      # `prometheus.io/scrape: "true"` (the OPS-004 base sets this on
+      # the app), so its /targets page is the canonical place to
+      # confirm the chi metrics endpoint is reachable.
+      - name: Prometheus
+        uid: Prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus:9090
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -56,9 +71,9 @@ kind: ConfigMap
 metadata:
   name: grafana-dashboards
 data:
-  # Starter dashboard: a single LogQL panel for the app namespace
-  # plus a logs-by-pod panel. Operators can pin further dashboards
-  # via Explore once they're past the smoke check.
+  # Starter logs dashboard (K8S-011): a single LogQL panel filtered
+  # to the app namespace. Operators can pin further dashboards via
+  # Explore once they're past the smoke check.
   go-micro-example-logs.json: |
     {
       "annotations": {"list": []},
@@ -85,6 +100,98 @@ data:
       "schemaVersion": 39,
       "title": "go-micro-example logs",
       "uid": "gme-logs",
+      "version": 1
+    }
+  # Starter metrics dashboard (K8S-012): chi middleware RPS + latency
+  # and Go runtime panels. The `url_hit_count` / `url_latency` series
+  # come from internal/platform/httpx/middleware.go; the `go_*`
+  # series are the runtime metrics promhttp registers automatically.
+  go-micro-example-metrics.json: |
+    {
+      "annotations": {"list": []},
+      "editable": true,
+      "panels": [
+        {
+          "type": "timeseries",
+          "title": "HTTP RPS by route",
+          "datasource": {"type": "prometheus", "uid": "Prometheus"},
+          "targets": [
+            {
+              "expr": "sum by (url) (rate(url_hit_count{namespace=\"go-micro-example\"}[1m]))",
+              "legendFormat": "{{url}}",
+              "refId": "A"
+            }
+          ],
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+        },
+        {
+          "type": "timeseries",
+          "title": "HTTP latency p99 by route (seconds)",
+          "datasource": {"type": "prometheus", "uid": "Prometheus"},
+          "targets": [
+            {
+              "expr": "url_latency{namespace=\"go-micro-example\", quantile=\"0.99\"}",
+              "legendFormat": "{{url}}",
+              "refId": "A"
+            }
+          ],
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+        },
+        {
+          "type": "timeseries",
+          "title": "Goroutines",
+          "datasource": {"type": "prometheus", "uid": "Prometheus"},
+          "targets": [
+            {
+              "expr": "go_goroutines{namespace=\"go-micro-example\"}",
+              "legendFormat": "{{pod}}",
+              "refId": "A"
+            }
+          ],
+          "gridPos": {"h": 8, "w": 8, "x": 0, "y": 8}
+        },
+        {
+          "type": "timeseries",
+          "title": "Heap in use (bytes)",
+          "datasource": {"type": "prometheus", "uid": "Prometheus"},
+          "targets": [
+            {
+              "expr": "go_memstats_heap_inuse_bytes{namespace=\"go-micro-example\"}",
+              "legendFormat": "{{pod}}",
+              "refId": "A"
+            }
+          ],
+          "gridPos": {"h": 8, "w": 8, "x": 8, "y": 8}
+        },
+        {
+          "type": "timeseries",
+          "title": "GC pause (seconds, p99)",
+          "datasource": {"type": "prometheus", "uid": "Prometheus"},
+          "targets": [
+            {
+              "expr": "go_gc_duration_seconds{namespace=\"go-micro-example\", quantile=\"1\"}",
+              "legendFormat": "{{pod}}",
+              "refId": "A"
+            }
+          ],
+          "gridPos": {"h": 8, "w": 8, "x": 16, "y": 8}
+        },
+        {
+          "type": "stat",
+          "title": "Basic Auth attempts (SEC-002b, should be 0)",
+          "datasource": {"type": "prometheus", "uid": "Prometheus"},
+          "targets": [
+            {
+              "expr": "sum(auth_basic_auth_attempts_total{namespace=\"go-micro-example\"})",
+              "refId": "A"
+            }
+          ],
+          "gridPos": {"h": 4, "w": 24, "x": 0, "y": 16}
+        }
+      ],
+      "schemaVersion": 39,
+      "title": "go-micro-example metrics",
+      "uid": "gme-metrics",
       "version": 1
     }
 ---
