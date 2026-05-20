@@ -8,14 +8,16 @@ endpoint, CORS origins, etc.), and any cluster-specific labels.
 
 ```text
 deploy/
-└── base/
-    ├── kustomization.yaml   # stitches resources, namespace, labels
-    ├── deployment.yaml      # pod spec + security context + probes
-    ├── service.yaml         # ClusterIP
-    ├── configmap.yaml       # non-secret GME_* / OTEL_* env vars
-    ├── externalsecret.yaml  # ESO → Vault → in-cluster Secret
-    ├── networkpolicy.yaml   # default-deny + per-dependency allows
-    └── hpa.yaml             # CPU-based autoscaler
+├── base/
+│   ├── kustomization.yaml   # stitches resources, namespace, labels
+│   ├── deployment.yaml      # pod spec + security context + probes
+│   ├── service.yaml         # ClusterIP
+│   ├── configmap.yaml       # non-secret GME_* / OTEL_* env vars
+│   ├── externalsecret.yaml  # ESO → Vault → in-cluster Secret
+│   ├── networkpolicy.yaml   # default-deny + per-dependency allows
+│   └── hpa.yaml             # CPU-based autoscaler
+└── kind/
+    └── cluster.yaml         # K8S-001 local Tier 1 validation gate
 ```
 
 ## Quick start
@@ -148,3 +150,35 @@ kustomize build deploy/base | kubeconform -strict -ignore-missing-schemas -summa
 # rejections that schema validation alone misses):
 kustomize build deploy/base | kubectl apply --dry-run=server -f -
 ```
+
+### Local Tier 1 validation against a real apiserver (K8S-001)
+
+`kubeconform` validates schemas offline. To also exercise the
+apiserver's admission path — admission controllers, RBAC, label
+selector mismatches, kustomize/apiserver drift — stand up a local
+[`kind`](https://kind.sigs.k8s.io/) cluster and dry-run-apply the
+base against it:
+
+```sh
+make k8s-up         # creates a single-node kind cluster pinned to
+                    # the kube version in deploy/kind/cluster.yaml
+make k8s-validate   # renders the base, filters ExternalSecret, and
+                    # `kubectl apply --dry-run=server`s the rest
+make k8s-down       # tears the cluster down
+```
+
+`make k8s-validate` filters out the `ExternalSecret` resource
+because the external-secrets.io CRDs are not installed in this
+Tier 1 cluster — K8S-005 wires External Secrets Operator and
+removes the filter. Everything else in the base goes through the
+apiserver unchanged.
+
+**Local prereqs:** `kind`, `kubectl`, and
+[`yq`](https://github.com/mikefarah/yq) on `PATH`. The make targets
+print an install hint if any of them is missing.
+
+CI runs the same gate via `.github/workflows/k8s-validate.yml`,
+path-filtered to PRs that touch `deploy/**`. It uses
+[`helm/kind-action`](https://github.com/helm/kind-action) (pinned
+by commit SHA) to provision the cluster, then invokes
+`make k8s-validate`.

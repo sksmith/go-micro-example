@@ -1,0 +1,16 @@
+# K8S-001: kind cluster config for the local Tier 1 validation gate.
+#
+# Single-node control-plane is enough to exercise the apiserver's
+# admission/validation path against the OPS-004 base. No worker
+# nodes — Tier 2 (K8S-002/003) is the layer that actually runs pods.
+#
+# The node image is pinned by digest so every developer machine and
+# CI runner exercises the exact same Kubernetes build. Bump
+# intentionally when the upstream kind release publishes a new image;
+# the digests live in https://github.com/kubernetes-sigs/kind/releases.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: go-micro-example
+nodes:
+  - role: control-plane
+    image: kindest/node:v1.31.14@sha256:6f86cf509dbb42767b6e79debc3f2c32e4ee01386f0489b3b2be24b0a55aac2b
