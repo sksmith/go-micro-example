@@ -17,7 +17,7 @@ deploy/
 │   ├── networkpolicy.yaml   # default-deny + per-dependency allows
 │   └── hpa.yaml             # CPU-based autoscaler
 ├── overlays/
-│   ├── local/                   # K8S-002/003/004/006/009/010/011/012 (plain Secret)
+│   ├── local/                   # K8S-002/003/004/006/009/010/011/012/013 (plain Secret)
 │   │   ├── kustomization.yaml
 │   │   ├── namespace.yaml
 │   │   ├── secret.yaml          # plain dev Secret
@@ -31,7 +31,8 @@ deploy/
 │   │   ├── loki.yaml            # K8S-011 Loki single-binary
 │   │   ├── promtail.yaml        # K8S-011 Promtail log shipper
 │   │   ├── grafana.yaml         # K8S-011/012 Grafana UI
-│   │   └── prometheus.yaml      # K8S-012 annotation-scrape Prometheus
+│   │   ├── prometheus.yaml      # K8S-012 annotation-scrape Prometheus
+│   │   └── headlamp.yaml        # K8S-013 Kubernetes UI
 │   └── local-eso/               # K8S-005 (ESO + dev Vault)
 │       ├── kustomization.yaml
 │       ├── external-secrets-operator.yaml
@@ -616,6 +617,53 @@ recording rules) or hand a long-term-storage backend like Mimir.
 The HPA custom-metric path (`http_requests_per_second` via the
 Prometheus Adapter against `external.metrics.k8s.io`) is a
 separate follow-up — K8S-004 stubs it out in `deploy/base/hpa.yaml`.
+
+### Kubernetes UI: Headlamp (K8S-013)
+
+Operating the local cluster as a stack of `kubectl get/describe/logs`
+commands works but burns terminal time on workflows that are
+obviously visual ("which pod is restarting, what event explains
+it, what does its deployment look like"). The local overlay runs
+[Headlamp](https://headlamp.dev) — an open-source Kubernetes UI —
+so the operator has a clickable view of the same state.
+
+```sh
+make k8s-local-ui-headlamp
+# Headlamp: http://localhost:8001
+# Token (paste into the Headlamp login screen):
+# eyJhbGciOi…
+```
+
+The target mints a fresh 24-hour ServiceAccount token (no static
+credentials in the image), prints it to stdout, port-forwards
+`svc/headlamp 8001:80`, and (on macOS) opens a browser tab. Paste
+the token into the login screen.
+
+What to verify on first visit:
+
+- **Workloads → Pods**, namespace dropdown set to
+  `go-micro-example`: shows app + postgres + rabbitmq +
+  otel-collector pods alongside any UI pods you've enabled
+  (jaeger, loki, promtail, grafana, prometheus, pgadmin, headlamp
+  itself).
+- Clicking the app **Deployment** opens the spec / events /
+  replicas panes. The **Logs** tab streams output without
+  switching to a terminal — that's the `pods/log` Role doing its
+  job.
+- The **Events** view across the namespace flags any restart /
+  pull / scheduling problems without `kubectl describe`.
+
+**RBAC scope.** The Headlamp ServiceAccount is bound to the
+built-in `view` ClusterRole (read-only across the cluster) plus a
+narrow Role in the `go-micro-example` namespace granting
+`pods/exec`, `pods/log`, and `pods/portforward`. Deliberately *not*
+`cluster-admin` — what you see in the UI matches what a real
+read-only developer would have in a staging cluster.
+
+Real installs swap the SA-token login for OIDC / SSO; that's out
+of scope for the dev loop. Alternatives: `k9s` (terminal-only,
+no port-forward needed), Lens (desktop), the official Kubernetes
+Dashboard (similar feature set, heavier RBAC out of the box).
 
 ### Real ExternalSecret flow against in-cluster Vault (K8S-005)
 
