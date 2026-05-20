@@ -270,6 +270,15 @@ k8s-local-ui-grafana:
 	@command -v open >/dev/null 2>&1 && (sleep 1 && open http://localhost:3000) &
 	kubectl -n go-micro-example port-forward svc/grafana 3000:3000
 
+# K8S-012: open the Prometheus expression browser. Useful for
+# /targets (annotation-discovered scrape targets) and ad-hoc PromQL
+# without the Grafana dashboard wrapper.
+.PHONY: k8s-local-ui-prometheus
+k8s-local-ui-prometheus:
+	@echo "Prometheus: http://localhost:9090  (/targets, /graph)"
+	@command -v open >/dev/null 2>&1 && (sleep 1 && open http://localhost:9090) &
+	kubectl -n go-micro-example port-forward svc/prometheus 9090:9090
+
 # K8S-005: ESO-flavoured local stack — installs External Secrets
 # Operator, brings up an in-cluster dev Vault, seeds the secret
 # paths the base ExternalSecret references, and rolls out the app
