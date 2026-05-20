@@ -1,0 +1,47 @@
+# OPS-004: Kustomize base for go-micro-example. Stitches the workload
+# (Deployment + Service), config (ConfigMap + ExternalSecret),
+# autoscaling (HPA), and network policy into a single
+# `kustomize build` output.
+#
+# Render:    kustomize build deploy/base
+# Apply:     kubectl apply -k deploy/base
+#
+# Operators wrap this base in environment overlays (deploy/overlays/<env>/)
+# for replicas, image tags, and patches; the base is intentionally
+# deployable on its own against a cluster that satisfies the prereqs
+# documented in deploy/README.md.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: go-micro-example
+
+# `labels` with includeSelectors: false adds metadata labels only —
+# it does NOT inject them into Deployment/Service/NetworkPolicy
+# selector blocks. That matters here because NetworkPolicy uses
+# podSelectors to identify *other* services (postgres, rabbitmq,
+# dns); injecting our own app label into those would silently make
+# the egress rules match nothing. Selectors are declared explicitly
+# in each manifest instead.
+labels:
+  - includeSelectors: false
+    includeTemplates: false
+    pairs:
+      app.kubernetes.io/name: go-micro-example
+      app.kubernetes.io/part-of: go-micro-example
+      app.kubernetes.io/managed-by: kustomize
+
+resources:
+  - deployment.yaml
+  - service.yaml
+  - configmap.yaml
+  - externalsecret.yaml
+  - networkpolicy.yaml
+  - hpa.yaml
+
+# Image tag is the one thing every environment overlay must override.
+# The placeholder keeps `kustomize build` resolvable without a real
+# image; CI swaps it via `kustomize edit set image` or an overlay
+# patch.
+images:
+  - name: ghcr.io/sksmith/go-micro-example
+    newTag: latest

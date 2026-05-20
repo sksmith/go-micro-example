@@ -1,0 +1,92 @@
+# OPS-004: default-deny egress with explicit allow-lists for each
+# dependency the service actually talks to. The acceptance criteria
+# called out DB, AMQP, and OTLP collector; this policy adds DNS
+# (required to resolve the others by name) and Redis (which is
+# optional but ships in the example stack), and leaves ingress
+# permissive — operators wire their own ingress controller selector
+# in an overlay.
+#
+# Selectors are by label rather than namespace so the policy is
+# portable. If your DB pod is labeled differently, override via
+# `kustomize edit` or an overlay patch.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: go-micro-example
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: go-micro-example
+  policyTypes:
+    - Ingress
+    - Egress
+
+  # Ingress: allow from the ingress controller (label-selected,
+  # tune per cluster) and from Prometheus scrapers. Tightening
+  # to specific source namespaces is an overlay-level decision.
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: ingress-nginx
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+      ports:
+        - protocol: TCP
+          port: 8080
+
+  # Egress: explicit allow per dependency. Anything not on this
+  # list is dropped at the pod boundary.
+  egress:
+    # kube-dns / CoreDNS — required so the Service name lookups
+    # below resolve.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+    # Postgres
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgresql
+      ports:
+        - protocol: TCP
+          port: 5432
+
+    # RabbitMQ (AMQP plaintext; TLS-AMQP would be 5671)
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: rabbitmq
+      ports:
+        - protocol: TCP
+          port: 5672
+
+    # Redis (optional — empty GME_REDIS_URL disables the egress).
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: redis
+      ports:
+        - protocol: TCP
+          port: 6379
+
+    # OpenTelemetry collector — OTLP/gRPC on 4317. Match the
+    # otel-collector chart's default label; override per cluster.
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: opentelemetry-collector
+      ports:
+        - protocol: TCP
+          port: 4317

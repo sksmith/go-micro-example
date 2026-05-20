@@ -64,6 +64,7 @@ api/
   client/v1/                # generated Go client (oapi-codegen)
 
 config/                     # viper-backed config + defaults
+deploy/                     # Kustomize base for Kubernetes deployment (OPS-004)
 docs/                       # human-authored ADRs, error model, lifecycle notes
 plan/                       # (gitignored) working tickets and matrix
 scripts/, web/              # ops scripts, frontend source
