@@ -17,7 +17,7 @@ deploy/
 │   ├── networkpolicy.yaml   # default-deny + per-dependency allows
 │   └── hpa.yaml             # CPU-based autoscaler
 ├── overlays/
-│   ├── local/                   # K8S-002/003/004/006/011 (plain Secret)
+│   ├── local/                   # K8S-002/003/004/006/011/012 (plain Secret)
 │   │   ├── kustomization.yaml
 │   │   ├── namespace.yaml
 │   │   ├── secret.yaml          # plain dev Secret
@@ -28,7 +28,8 @@ deploy/
 │   │   ├── otel-collector.yaml  # K8S-006 OTel collector
 │   │   ├── loki.yaml            # K8S-011 Loki single-binary
 │   │   ├── promtail.yaml        # K8S-011 Promtail log shipper
-│   │   └── grafana.yaml         # K8S-011/012 Grafana UI
+│   │   ├── grafana.yaml         # K8S-011/012 Grafana UI
+│   │   └── prometheus.yaml      # K8S-012 annotation-scrape Prometheus
 │   └── local-eso/               # K8S-005 (ESO + dev Vault)
 │       ├── kustomization.yaml
 │       ├── external-secrets-operator.yaml
@@ -451,6 +452,55 @@ real clusters typically restrict via PodSecurity. A production
 deployment would use the Grafana Loki helm chart with object
 storage, run several replicas, and replace Promtail with Grafana
 Alloy or vector.dev.
+
+### Metrics UI: Prometheus + Grafana (K8S-012)
+
+The OPS-004 base sets `prometheus.io/scrape: "true"`,
+`prometheus.io/port: "8080"`, and `prometheus.io/path: "/metrics"`
+on the app pod template, but no scraper was running in the cluster
+— so the chi middleware's `url_hit_count` / `url_latency` series,
+the SEC-002b Basic-Auth counter, and the Go runtime metrics were
+all unindexed. The local overlay now lands a single-replica
+Prometheus that picks the app up via those annotations, plus a
+Grafana datasource and starter dashboard that visualise the
+result.
+
+```sh
+make k8s-local-ui-prometheus
+# Prometheus: http://localhost:9090  (/targets, /graph)
+
+make k8s-local-ui-grafana
+# Grafana: http://localhost:3000  (admin / admin)
+```
+
+First-visit checks:
+
+- **Prometheus → Status → Targets** — the `kubernetes-pods` job
+  shows the app pod as `UP`, scraped at
+  `<pod-ip>:8080/metrics`. No ServiceMonitor / PodMonitor required.
+- **Prometheus → Graph** — type
+  `sum(rate(url_hit_count[1m])) by (url)` and execute. After a
+  short burst of traffic (`make k8s-local-loadtest`) the panel
+  fills in.
+- **Grafana → Dashboards → go-micro-example metrics** — renders
+  the RPS, p99 latency, goroutines, heap, GC pause, and the
+  SEC-002b Basic-Auth counter (which should remain at 0
+  post-SEC-002c).
+
+The Prometheus pod carries
+`app.kubernetes.io/name: prometheus`, which the base
+NetworkPolicy's ingress allow-list already admits on TCP 8080 —
+so the scrape path works without an overlay patch.
+
+**Dev-only posture.** Single replica, in-memory TSDB on an
+emptyDir, 2-hour retention. No Alertmanager, no Prometheus
+Adapter, no Thanos. Production would either use
+`kube-prometheus-stack` (Operator + Alertmanager + Grafana +
+recording rules) or hand a long-term-storage backend like Mimir.
+
+The HPA custom-metric path (`http_requests_per_second` via the
+Prometheus Adapter against `external.metrics.k8s.io`) is a
+separate follow-up — K8S-004 stubs it out in `deploy/base/hpa.yaml`.
 
 ### Real ExternalSecret flow against in-cluster Vault (K8S-005)
 

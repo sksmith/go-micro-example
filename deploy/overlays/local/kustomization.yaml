@@ -41,6 +41,10 @@ resources:
   - loki.yaml
   - promtail.yaml
   - grafana.yaml
+  # K8S-012: Prometheus + the SEC-002b / chi-middleware / Go-runtime
+  # dashboards. Scrapes the OPS-004 `prometheus.io/scrape: "true"`
+  # annotation on the app pod, so no per-target config is required.
+  - prometheus.yaml
 
 # RabbitMQ loads its exchanges/queues/bindings from
 # scripts/rabbitmq/definitions.json on boot (DSN-015). Mounting the
