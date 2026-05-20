@@ -19,6 +19,7 @@ import (
 	"github.com/sksmith/go-micro-example/internal/inventory"
 	"github.com/sksmith/go-micro-example/internal/platform/httpx"
 	"github.com/sksmith/go-micro-example/internal/user"
+	"github.com/sksmith/go-micro-example/internal/web"
 )
 
 const (
@@ -37,6 +38,8 @@ const (
 	EnvPath         = "/env"
 	AuthPath        = "/auth"
 	TokenPath       = "/token"
+
+	UIPath = "/ui"
 )
 
 // ConfigureRouter instantiates a go-chi router with middleware and routes for the server.
@@ -113,6 +116,23 @@ func ConfigureRouter(cfg *config.Config, invSvc inventory.InventoryService, resS
 	if cfg.Docs.Enabled.Value {
 		r.Handle(OpenAPIEndpoint, OpenAPIHandler())
 		r.Mount(DocsEndpoint, SwaggerUIHandler(cfg.AppName.Value))
+	}
+
+	// DSN-027: the HTMX operator console mounts at /ui. It runs
+	// outside the SEC-007 rate-limit/body-cap group so a noisy demo
+	// session doesn't blow the budget — the UI assets are static
+	// embeds (no DB, no Redis) and the only mutating route it
+	// exposes, /ui/auth/token, delegates to the same AuthApi that
+	// the API-tree path uses and inherits its rate-limit on the
+	// downstream call. Mounted nil-safe: an absent signer (test
+	// wiring) yields a UI that renders fine but reports "auth
+	// unavailable" on the unlock card.
+	if cfg.UI.Enabled.Value {
+		var issuer web.TokenIssuer
+		if signer != nil {
+			issuer = uiTokenIssuer{users: userService, signer: signer}
+		}
+		r.Mount(UIPath, web.Mount(cfg.UI.JaegerQueryURL.Value, issuer))
 	}
 
 	// SEC-007: everything user-facing — auth and the API tree — sits

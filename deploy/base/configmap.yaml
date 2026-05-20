@@ -41,6 +41,14 @@ data:
   # Docs UI disabled in prod (per the SEC-013 / SEC-014 posture).
   GME_DOCS_ENABLED: "false"
 
+  # DSN-027: HTMX operator console at /ui. Default enabled so kind
+  # / local clusters land on a usable demo; prod-style overlays
+  # should patch this to "false". JaegerQueryURL is empty in base
+  # so the trace pane shows the muted "disabled" note unless the
+  # overlay points it at an in-cluster Jaeger query API.
+  GME_UI_ENABLED: "true"
+  GME_UI_JAEGERQUERYURL: ""
+
   # OpenTelemetry. Empty endpoint installs a no-op provider so the
   # app starts cleanly even without a collector; set in the overlay
   # to point at your in-cluster collector.

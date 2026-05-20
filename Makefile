@@ -199,3 +199,20 @@ k8s-up: docker
 k8s-down:
 	@command -v kind >/dev/null 2>&1 || { echo "kind not found."; exit 1; }
 	kind delete cluster --name $(KIND_CLUSTER)
+
+# k8s-deploy-app rebuilds the app image, reloads it into the running
+# kind cluster, and triggers a rolling restart of the go-micro-example
+# Deployment. The image tag stays $(IMG_TAG) (default `dev`) so the
+# overlay's `imagePullPolicy: Never` keeps resolving — kubelet would
+# otherwise try to pull from ghcr if the tag rotated. Because the tag
+# is unchanged Kubernetes wouldn't notice the new bytes on its own, so
+# `kubectl rollout restart` forces a fresh pod that picks the new
+# image up off containerd. Use this after editing app code; for
+# manifest changes apply the overlay directly with the kustomize line
+# from `make k8s-up`.
+.PHONY: k8s-deploy-app
+k8s-deploy-app: docker
+	@command -v kind >/dev/null 2>&1 || { echo "kind not found."; exit 1; }
+	kind load docker-image $(IMG_NAME):$(IMG_TAG) --name $(KIND_CLUSTER)
+	kubectl -n go-micro-example rollout restart deploy/go-micro-example
+	kubectl -n go-micro-example rollout status  deploy/go-micro-example --timeout=180s

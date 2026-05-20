@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>operator console · go-micro-example</title>
+  <link rel="stylesheet" href="/ui/static/ui.css">
+  <script src="/ui/static/htmx.min.js" defer></script>
+  <meta name="description" content="Every input/output surface, exercised end-to-end.">
+</head>
+<body>
+  <div class="scanlines" aria-hidden="true"></div>
+  <div class="grain" aria-hidden="true"></div>
+
+  <header class="banner">
+    <div class="banner__brand">
+      <span class="brand__mark" aria-hidden="true">▮</span>
+      <span class="brand__name">go-micro-example</span>
+      <span class="brand__sub">operator console</span>
+    </div>
+    <div class="banner__meta">
+      <span class="banner__chip">build · DSN-027</span>
+      <span class="banner__chip" data-clock>2026-05-20 00:00:00 UTC</span>
+    </div>
+  </header>
+
+  <main class="console">
+    <section class="rail" aria-label="capability list">
+      <header class="rail__head">
+        <span class="rail__legend">surfaces</span>
+        <span class="rail__count">9</span>
+      </header>
+
+      <div class="card card--auth"
+     id="card-auth"
+     data-state="locked">
+  <header class="card__head">
+    <span class="card__id">SEC-002a</span>
+    <h2 class="card__title">Authenticate</h2>
+  </header>
+  
+    <form class="card__body card__form"
+          hx-post="/ui/auth/token"
+          hx-target="#card-auth"
+          hx-swap="outerHTML">
+      <label>user <input type="text" name="username" autocomplete="username" required></label>
+      <label>pass <input type="password" name="password" autocomplete="current-password" required></label>
+      <button class="card__cta" type="submit">unlock<span class="card__cta-cursor" aria-hidden="true">▌</span></button>
+    </form>
+    <p class="card__hint">until you unlock, mutating cards show a locked scope view.</p>
+  
+</div>
+
+      <ol class="rail__list">
+        
+          <li class="card card--needs-auth"
+    id="card-rest-create"
+    style="--stagger:rest-create;"
+    data-card="rest-create">
+  <header class="card__head">
+    <span class="card__id">DSN-026</span>
+    <h2 class="card__title">REST create</h2>
+  </header>
+  <p class="card__body">PUT a new product through the inventory API and read it back.</p>
+  <div class="card__meta">
+    <span class="card__verb card__verb--PUT">PUT</span>
+    <span class="card__path">/api/v1/inventory</span>
+  </div>
+  <button class="card__cta"
+          hx-post="/ui/cards/rest-create/try"
+          hx-target="#scope-body"
+          hx-swap="innerHTML transition:true"
+          hx-indicator="#card-rest-create">
+    try it<span class="card__cta-cursor" aria-hidden="true">▌</span>
+  </button>
+  <span class="card__banner" aria-hidden="true">inventory.create</span>
+</li>
+        
+          <li class="card card--needs-auth"
+    id="card-kafka-publish"
+    style="--stagger:kafka-publish;"
+    data-card="kafka-publish">
+  <header class="card__head">
+    <span class="card__id">DSN-016</span>
+    <h2 class="card__title">Kafka publish</h2>
+  </header>
+  <p class="card__body">Emit a RecordProduction command, watch the outbound product-quantity-changed event land.</p>
+  <div class="card__meta">
+    <span class="card__verb card__verb--PUT">PUT</span>
+    <span class="card__path">/api/v1/inventory/{sku}/productionEvent</span>
+  </div>
+  <button class="card__cta"
+          hx-post="/ui/cards/kafka-publish/try"
+          hx-target="#scope-body"
+          hx-swap="innerHTML transition:true"
+          hx-indicator="#card-kafka-publish">
+    try it<span class="card__cta-cursor" aria-hidden="true">▌</span>
+  </button>
+  <span class="card__banner" aria-hidden="true">kafka.produce</span>
+</li>
+        
+          <li class="card card--needs-auth"
+    id="card-rest-outbound"
+    style="--stagger:rest-outbound;"
+    data-card="rest-outbound">
+  <header class="card__head">
+    <span class="card__id">DSN-018</span>
+    <h2 class="card__title">Outbound REST</h2>
+  </header>
+  <p class="card__body">Hit the catalog client; observe retries, deadlines, and OTel client span.</p>
+  <div class="card__meta">
+    <span class="card__verb card__verb--GET">GET</span>
+    <span class="card__path">/api/v1/inventory/{sku}</span>
+  </div>
+  <button class="card__cta"
+          hx-post="/ui/cards/rest-outbound/try"
+          hx-target="#scope-body"
+          hx-swap="innerHTML transition:true"
+          hx-indicator="#card-rest-outbound">
+    try it<span class="card__cta-cursor" aria-hidden="true">▌</span>
+  </button>
+  <span class="card__banner" aria-hidden="true">catalog.lookup</span>
+</li>
+        
+          <li class="card card--needs-auth"
+    id="card-redis-cache"
+    style="--stagger:redis-cache;"
+    data-card="redis-cache">
+  <header class="card__head">
+    <span class="card__id">DSN-020</span>
+    <h2 class="card__title">Redis cache</h2>
+  </header>
+  <p class="card__body">Read the same SKU twice; the second response is a cache hit on the response cache.</p>
+  <div class="card__meta">
+    <span class="card__verb card__verb--GET">GET</span>
+    <span class="card__path">/api/v1/inventory/{sku}</span>
+  </div>
+  <button class="card__cta"
+          hx-post="/ui/cards/redis-cache/try"
+          hx-target="#scope-body"
+          hx-swap="innerHTML transition:true"
+          hx-indicator="#card-redis-cache">
+    try it<span class="card__cta-cursor" aria-hidden="true">▌</span>
+  </button>
+  <span class="card__banner" aria-hidden="true">cache.aside</span>
+</li>
+        
+          <li class="card card--needs-auth"
+    id="card-idempotency"
+    style="--stagger:idempotency;"
+    data-card="idempotency">
+  <header class="card__head">
+    <span class="card__id">DSN-021a</span>
+    <h2 class="card__title">Idempotency</h2>
+  </header>
+  <p class="card__body">Repeat a mutating PUT with the same Idempotency-Key — byte-identical response, only one effect.</p>
+  <div class="card__meta">
+    <span class="card__verb card__verb--PUT">PUT</span>
+    <span class="card__path">/api/v1/inventory</span>
+  </div>
+  <button class="card__cta"
+          hx-post="/ui/cards/idempotency/try"
+          hx-target="#scope-body"
+          hx-swap="innerHTML transition:true"
+          hx-indicator="#card-idempotency">
+    try it<span class="card__cta-cursor" aria-hidden="true">▌</span>
+  </button>
+  <span class="card__banner" aria-hidden="true">idem.replay</span>
+</li>
+        
+          <li class="card"
+    id="card-rate-limit"
+    style="--stagger:rate-limit;"
+    data-card="rate-limit">
+  <header class="card__head">
+    <span class="card__id">DSN-021b</span>
+    <h2 class="card__title">Rate limit</h2>
+  </header>
+  <p class="card__body">Hammer /auth/token until the Redis-backed bucket says 429.</p>
+  <div class="card__meta">
+    <span class="card__verb card__verb--POST">POST</span>
+    <span class="card__path">/auth/token</span>
+  </div>
+  <button class="card__cta"
+          hx-post="/ui/cards/rate-limit/try"
+          hx-target="#scope-body"
+          hx-swap="innerHTML transition:true"
+          hx-indicator="#card-rate-limit">
+    try it<span class="card__cta-cursor" aria-hidden="true">▌</span>
+  </button>
+  <span class="card__banner" aria-hidden="true">rl:auth</span>
+</li>
+        
+          <li class="card"
+    id="card-user-cache"
+    style="--stagger:user-cache;"
+    data-card="user-cache">
+  <header class="card__head">
+    <span class="card__id">DSN-021c</span>
+    <h2 class="card__title">User cache</h2>
+  </header>
+  <p class="card__body">Authenticate twice; second auth resolves the user row from Redis instead of Postgres.</p>
+  <div class="card__meta">
+    <span class="card__verb card__verb--POST">POST</span>
+    <span class="card__path">/auth/token</span>
+  </div>
+  <button class="card__cta"
+          hx-post="/ui/cards/user-cache/try"
+          hx-target="#scope-body"
+          hx-swap="innerHTML transition:true"
+          hx-indicator="#card-user-cache">
+    try it<span class="card__cta-cursor" aria-hidden="true">▌</span>
+  </button>
+  <span class="card__banner" aria-hidden="true">cache.user</span>
+</li>
+        
+          <li class="card card--needs-auth"
+    id="card-rabbitmq"
+    style="--stagger:rabbitmq;"
+    data-card="rabbitmq">
+  <header class="card__head">
+    <span class="card__id">DSN-024</span>
+    <h2 class="card__title">RabbitMQ</h2>
+  </header>
+  <p class="card__body">Publish an inventory update; observe the AMQP envelope land on the exchange.</p>
+  <div class="card__meta">
+    <span class="card__verb card__verb--PUT">PUT</span>
+    <span class="card__path">/api/v1/inventory/{sku}/productionEvent</span>
+  </div>
+  <button class="card__cta"
+          hx-post="/ui/cards/rabbitmq/try"
+          hx-target="#scope-body"
+          hx-swap="innerHTML transition:true"
+          hx-indicator="#card-rabbitmq">
+    try it<span class="card__cta-cursor" aria-hidden="true">▌</span>
+  </button>
+  <span class="card__banner" aria-hidden="true">amqp.publish</span>
+</li>
+        
+          <li class="card card--needs-auth"
+    id="card-grpc"
+    style="--stagger:grpc;"
+    data-card="grpc">
+  <header class="card__head">
+    <span class="card__id">DSN-022</span>
+    <h2 class="card__title">gRPC</h2>
+  </header>
+  <p class="card__body">Pending DSN-022. Listed here so the surface is visible from day one.</p>
+  <div class="card__meta">
+    <span class="card__verb card__verb--RPC">RPC</span>
+    <span class="card__path">inventory.v1.Inventory/GetProduct</span>
+  </div>
+  <button class="card__cta"
+          hx-post="/ui/cards/grpc/try"
+          hx-target="#scope-body"
+          hx-swap="innerHTML transition:true"
+          hx-indicator="#card-grpc">
+    try it<span class="card__cta-cursor" aria-hidden="true">▌</span>
+  </button>
+  <span class="card__banner" aria-hidden="true">grpc.invoke</span>
+</li>
+        
+      </ol>
+
+      <footer class="rail__foot">
+        <p class="rail__legend">Every input/output surface, exercised end-to-end.</p>
+        <p class="rail__legend">read the spec ▸ <a href="/docs">/docs</a></p>
+      </footer>
+    </section>
+
+    <section class="scope" aria-label="response scope">
+      <div class="scope__chrome" aria-hidden="true">
+        <span class="scope__bracket scope__bracket--tl"></span>
+        <span class="scope__bracket scope__bracket--tr"></span>
+        <span class="scope__bracket scope__bracket--bl"></span>
+        <span class="scope__bracket scope__bracket--br"></span>
+      </div>
+      <header class="scope__head">
+        <span class="scope__label">scope · last action</span>
+        <span class="scope__id">r-fixed-id</span>
+      </header>
+      <div id="scope-body" class="scope__body" aria-live="polite">
+        <article class="scope-view scope-view--idle">
+  <header class="scope-view__head">
+    <span class="scope-view__verb">IDLE</span>
+    <span class="scope-view__url">awaiting a card</span>
+    <span class="scope-view__status">--- · standby</span>
+  </header>
+  <p class="scope-view__hint">Fire any capability on the left. The full request, response, and a live ASCII span tree appear here.</p>
+  <pre class="scope-view__tree"><code>┌──────────────────────────────────────────────────────┐
+│  scope ready · no action recorded yet                │
+│                                                      │
+│  ▸ click <strong>try it</strong> on any card to populate this pane     │
+│  ▸ mutating cards require the auth card first        │
+│  ▸ trace tree renders inline when jaeger is wired    │
+└──────────────────────────────────────────────────────┘</code></pre>
+</article>
+      </div>
+    </section>
+  </main>
+
+  <footer class="page-foot">
+    <span>© 2026 go-micro-example · DSN-027</span>
+    <span>r-fixed-id</span>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,22 @@
+{{define "card.gohtml"}}<li class="card{{if .NeedsAuth}} card--needs-auth{{end}}"
+    id="card-{{.Slug}}"
+    style="--stagger:{{.Slug}};"
+    data-card="{{.Slug}}">
+  <header class="card__head">
+    <span class="card__id">{{.Ticket}}</span>
+    <h2 class="card__title">{{.Title}}</h2>
+  </header>
+  <p class="card__body">{{.Body}}</p>
+  <div class="card__meta">
+    <span class="card__verb card__verb--{{.Method}}">{{.Method}}</span>
+    <span class="card__path">{{.Path}}</span>
+  </div>
+  <button class="card__cta"
+          hx-post="/ui/cards/{{.Slug}}/try"
+          hx-target="#scope-body"
+          hx-swap="innerHTML transition:true"
+          hx-indicator="#card-{{.Slug}}">
+    try it<span class="card__cta-cursor" aria-hidden="true">▌</span>
+  </button>
+  <span class="card__banner" aria-hidden="true">{{.BannerLine}}</span>
+</li>{{end}}

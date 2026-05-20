@@ -78,6 +78,20 @@ type Config struct {
 	Docs        DocsConfig        `json:"docs"        yaml:"docs"`
 	TLS         TLSConfig         `json:"tls"         yaml:"tls"`
 	CORS        CORSConfig        `json:"cors"        yaml:"cors"`
+	UI          UIConfig          `json:"ui"          yaml:"ui"`
+}
+
+// UIConfig drives DSN-027: the server-rendered HTMX UI mounted at /ui.
+// Enabled defaults to true for local/dev profiles and false for prod —
+// the production posture treats the demo UI as an internal-only tool
+// and refuses to serve it without an explicit opt-in. JaegerQueryURL
+// is the base URL of an in-cluster Jaeger Query API (K8S-010); empty
+// disables the live trace-tree pane and the scope view renders the
+// JSON pieces without the ASCII span hierarchy.
+type UIConfig struct {
+	Enabled        BoolConfig   `json:"enabled"        yaml:"enabled"`
+	JaegerQueryURL StringConfig `json:"jaegerQueryUrl" yaml:"jaegerQueryUrl"`
+	Description    string       `json:"description"    yaml:"description"`
 }
 
 // CORSConfig drives SEC-006. The previous implementation hard-coded
@@ -270,6 +284,9 @@ func init() {
 	viper.SetDefault("tls.certFile", def.TLS.CertFile.Default)
 	viper.SetDefault("tls.keyFile", def.TLS.KeyFile.Default)
 
+	viper.SetDefault("ui.enabled", def.UI.Enabled.Default)
+	viper.SetDefault("ui.jaegerQueryUrl", def.UI.JaegerQueryURL.Default)
+
 	viper.SetDefault("config.print", def.Config.Print.Default)
 	viper.SetDefault("config.source", def.Config.Source.Default)
 
@@ -342,6 +359,8 @@ func bindSensitiveEnv() {
 		"tls.keyFile",
 		"cors.allowedOrigins",
 		"cors.allowCredentials",
+		"ui.enabled",
+		"ui.jaegerQueryUrl",
 	} {
 		// Errors here would mean a programming error in the key list —
 		// viper.BindEnv only fails on empty input.
@@ -641,6 +660,10 @@ func setupDefaults(config *Config) {
 	config.CORS.Description = "SEC-006: browser CORS policy. AllowedOrigins is a comma-separated list of EXACT origins (scheme://host[:port]); wildcards are intentionally not supported. Empty disables CORS entirely. AllowCredentials reflects only matching origins."
 	config.CORS.AllowedOrigins = StringConfig{Value: "http://localhost:8080,https://localhost", Default: "http://localhost:8080,https://localhost", Description: "Comma-separated exact origins permitted to make credentialed cross-origin requests. Empty disables CORS. Override in prod via GME_CORS_ALLOWEDORIGINS with your real front-end origins."}
 	config.CORS.AllowCredentials = BoolConfig{Value: true, Default: true, Description: "Send Access-Control-Allow-Credentials: true for matching origins. Safe only because AllowedOrigins is an exact list — never set this true alongside a wildcard origin."}
+
+	config.UI.Description = "DSN-027: server-rendered HTMX UI mounted at /ui. Enabled on local/dev; disable in prod by setting GME_UI_ENABLED=false or ui.enabled: false. JaegerQueryURL points at the in-cluster Jaeger query API (K8S-010); empty disables the live ASCII span tree."
+	config.UI.Enabled = BoolConfig{Value: true, Default: true, Description: "Serve the /ui HTMX UI. Default true; turn off for prod-ish deployments where the UI shouldn't ship."}
+	config.UI.JaegerQueryURL = StringConfig{Value: "", Default: "", Description: "Base URL for the Jaeger Query API (no trailing slash, e.g. http://jaeger-query.observability:16686). Empty disables the trace-tree feature."}
 
 	config.TLS.Description = "SEC-005: optional in-process TLS termination. Production deployments terminate TLS at the ingress/sidecar and leave Enabled=false; set Enabled=true with cert/key paths for standalone hosts."
 	config.TLS.Enabled = BoolConfig{Value: false, Default: false, Description: "Serve HTTPS directly via http.Server.ListenAndServeTLS. Default false; production should terminate TLS upstream."}

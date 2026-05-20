@@ -36,10 +36,22 @@ func main() {
 
 	printSummary(os.Stdout, results)
 
+	allPassed := true
 	for _, r := range results {
 		if r.Status != StatusPass {
-			os.Exit(1)
+			allPassed = false
+			break
 		}
+	}
+	if allPassed {
+		// DSN-027: surface the UI URL so docker-compose users land on
+		// the operator console immediately after the smoke passes.
+		// Skipped on failure to keep the human eye on the
+		// orchestrator's reason rows.
+		fmt.Printf("\nUI ready ▸ %s/ui\n", cfg.BaseURL)
+	}
+	if !allPassed {
+		os.Exit(1)
 	}
 }
 

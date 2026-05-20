@@ -104,6 +104,7 @@ type EnvResponse struct {
 	Revision    *ConfigStringConfig      `json:"revision,omitempty"`
 	Sha1Version *ConfigStringConfig      `json:"sha1Version,omitempty"`
 	Tls         *ConfigTLSConfig         `json:"tls,omitempty"`
+	Ui          *ConfigUIConfig          `json:"ui,omitempty"`
 }
 
 // FieldProblem defines model for FieldProblem.
@@ -345,6 +346,13 @@ type ConfigTLSConfig struct {
 	Description *string             `json:"description,omitempty"`
 	Enabled     *ConfigBoolConfig   `json:"enabled,omitempty"`
 	KeyFile     *ConfigStringConfig `json:"keyFile,omitempty"`
+}
+
+// ConfigUIConfig defines model for config.UIConfig.
+type ConfigUIConfig struct {
+	Description    *string             `json:"description,omitempty"`
+	Enabled        *ConfigBoolConfig   `json:"enabled,omitempty"`
+	JaegerQueryUrl *ConfigStringConfig `json:"jaegerQueryUrl,omitempty"`
 }
 
 // InternalUserCreateUserRequestDto defines model for internal_user.CreateUserRequestDto.

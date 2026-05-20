@@ -1,0 +1,15 @@
+{{define "scope_empty.gohtml"}}<article class="scope-view scope-view--idle">
+  <header class="scope-view__head">
+    <span class="scope-view__verb">IDLE</span>
+    <span class="scope-view__url">awaiting a card</span>
+    <span class="scope-view__status">--- · standby</span>
+  </header>
+  <p class="scope-view__hint">Fire any capability on the left. The full request, response, and a live ASCII span tree appear here.</p>
+  <pre class="scope-view__tree"><code>┌──────────────────────────────────────────────────────┐
+│  scope ready · no action recorded yet                │
+│                                                      │
+│  ▸ click <strong>try it</strong> on any card to populate this pane     │
+│  ▸ mutating cards require the auth card first        │
+│  ▸ trace tree renders inline when jaeger is wired    │
+└──────────────────────────────────────────────────────┘</code></pre>
+</article>{{end}}
