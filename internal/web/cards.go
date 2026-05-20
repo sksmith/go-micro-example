@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 )
 
 // ScopeView is the right-pane response view rendered after a card
@@ -171,7 +172,12 @@ func runCardScenario(ctx context.Context, card CapabilityCard, token string, tra
 
 	switch card.Slug {
 	case "rest-create":
-		body := []byte(`{"sku":"DEMO-SKU-001","name":"Operator Console Widget","upc":"0000000001"}`)
+		// Every click creates a fresh SKU so the upsert path runs and
+		// the response shows a real "201 Created" instead of returning
+		// the cached row from a previous click. A short uuid suffix
+		// keeps the SKU human-readable in the scope pane.
+		sku := "DEMO-SKU-" + shortID()
+		body := fmt.Appendf(nil, `{"sku":%q,"name":"Operator Console Widget","upc":"0000000001"}`, sku)
 		view.RequestBody = prettyJSON(body)
 		view.URL = baseURL + "/api/v1/inventory"
 		view.Method = http.MethodPut
@@ -180,11 +186,18 @@ func runCardScenario(ctx context.Context, card CapabilityCard, token string, tra
 		executeAndFill(hc, req, &view, trace)
 
 	case "kafka-publish", "rabbitmq":
-		body := []byte(`{"requestId":"ui-demo","quantity":5}`)
+		// Fresh requestId + Idempotency-Key per click so the
+		// production_events table records a new row, available
+		// actually increments, and a new Kafka/AMQP message lands on
+		// the topic/exchange with its own trace id. A stable id here
+		// would mean the second click replays the cached response and
+		// emits no new spans.
+		reqID := uuid.NewString()
+		body := fmt.Appendf(nil, `{"requestId":%q,"quantity":5}`, reqID)
 		view.URL = baseURL + "/api/v1/inventory/DEMO-SKU-001/productionEvent"
 		view.Method = http.MethodPut
 		view.RequestBody = prettyJSON(body)
-		req := newDemoRequest(ctx, http.MethodPut, view.URL, body, token, "ui-"+card.Slug)
+		req := newDemoRequest(ctx, http.MethodPut, view.URL, body, token, "ui-"+card.Slug+"-"+reqID)
 		view.RequestHeaders = headerKVs(req.Header)
 		executeAndFill(hc, req, &view, trace)
 
@@ -195,6 +208,11 @@ func runCardScenario(ctx context.Context, card CapabilityCard, token string, tra
 		executeAndFill(hc, req, &view, trace)
 
 	case "idempotency":
+		// Intentionally stable Idempotency-Key. The whole point of
+		// this card is to demonstrate that a repeated mutating PUT
+		// with the same key returns the byte-identical cached
+		// response and only one row lands in product_inventory.
+		// Don't randomize anything here.
 		body := []byte(`{"sku":"DEMO-IDEM-001","name":"Idempotent Widget","upc":"0000000002"}`)
 		view.URL = baseURL + "/api/v1/inventory"
 		view.Method = http.MethodPut
@@ -322,6 +340,13 @@ func prettyJSON(b []byte) string {
 		return pretty.String()
 	}
 	return string(b)
+}
+
+// shortID returns the first 8 hex chars of a uuid v4 — enough
+// uniqueness for a click-driven demo and short enough to keep the
+// generated SKU readable in the scope pane.
+func shortID() string {
+	return strings.ReplaceAll(uuid.NewString(), "-", "")[:8]
 }
 
 func jsonQuote(s string) string {
