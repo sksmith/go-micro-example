@@ -1,62 +1,54 @@
-# K8S-002: Local overlay. Swaps the GHCR image reference for a
-# locally-built `go-micro-example:dev` tag and tells the kubelet
-# to use whatever's already in the node's container store instead
-# of trying to pull from a registry (the image lives in kind's
-# containerd, loaded by `make docker-load`).
+# Local overlay: the one-and-only `make k8s-up` target renders this
+# directory. Combines the in-cluster dependencies (Postgres /
+# RabbitMQ), the OTel collector, every K8S-007..013 UI pod (Vault,
+# RabbitMQ-mgmt, pgAdmin, Jaeger, Loki + Promtail + Grafana,
+# Prometheus, Headlamp), and the real ESO + dev Vault flow so the
+# base ExternalSecret resolves locally.
 #
-# K8S-003 will extend this same overlay with in-cluster Postgres /
-# RabbitMQ and a plain Secret that replaces the base ExternalSecret;
-# until that lands, applying this overlay produces a pod that pulls
-# its image cleanly but CrashLoopBackOffs because no DB / AMQP exist.
+# ESO and the kube-network-policies enforcer install in their own
+# namespaces and ship with cluster-scoped resources, so they're
+# applied separately by the Makefile (server-side, before the
+# kustomize render) — they're not listed here.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 # The base's `namespace:` directive only applies to resources
-# declared in the base itself. Re-declaring it here injects the
-# same namespace into the overlay's new resources (postgres,
-# rabbitmq, the plain Secret, and the generated rabbitmq-definitions
-# ConfigMap) so they land alongside the app instead of defaulting
-# to `default`. The Namespace resource itself is cluster-scoped and
-# is unaffected.
+# declared in the base itself. Re-declaring it here injects the same
+# namespace into the overlay's new resources so they land alongside
+# the app instead of defaulting to `default`. The Namespace resource
+# itself is cluster-scoped and is unaffected.
 namespace: go-micro-example
 
 resources:
   - ../../base
-  # K8S-003: in-cluster dependencies. Replace the cluster's "real"
-  # Postgres / RabbitMQ / ExternalSecret with dev-only manifests so
-  # the overlay produces a Ready pod without any operator install.
+  # Namespace + dev dependencies (Postgres, RabbitMQ).
   - namespace.yaml
-  - secret.yaml
   - postgres.yaml
   - rabbitmq.yaml
-  # K8S-006: OTel collector. Receives the app's OTLP/gRPC spans and
-  # prints them via the debug exporter — see otel-collector.yaml +
-  # the OTEL_EXPORTER_OTLP_ENDPOINT patch in this file.
+  # OTel collector. Receives the app's OTLP/gRPC spans and forwards
+  # them to the `debug` exporter (stdout) and Jaeger (UI). See
+  # otel-collector.yaml + the OTEL_EXPORTER_OTLP_ENDPOINT patch
+  # below.
   - otel-collector.yaml
-  # K8S-009: pgAdmin pod preconfigured with a server entry pointing
-  # at the in-cluster postgres Service. Browsable via
-  # `make k8s-local-ui-pgadmin`.
+  # Real ESO flow against an in-cluster dev Vault. Vault runs in
+  # dev-mode (root token `root`, in-memory KV storage); the
+  # bootstrap Job seeds the kv paths the base ExternalSecret reads.
+  # The `ClusterSecretStore` (`vault-backend`) points ESO at this
+  # Vault. ESO itself (the operator + CRDs + webhook) is applied
+  # out-of-band by the Makefile because the CRD bundle exceeds
+  # kubectl's annotation size limit and needs server-side apply.
+  - vault.yaml
+  - secretstore.yaml
+  - bootstrap-job.yaml
+  # UI pods (K8S-009..013). Each is independent — pull whichever you
+  # care about via `kubectl port-forward svc/<name>` once `k8s-up`
+  # finishes (see deploy/README.md for the service-name table).
   - pgadmin.yaml
-  # K8S-010: Jaeger all-in-one. Acts as a second exporter target on
-  # the OTel collector's traces pipeline so spans show up in a
-  # browsable Gantt view at http://localhost:16686.
   - jaeger.yaml
-  # K8S-011: Loki + Promtail + Grafana. Promtail (DaemonSet) tails
-  # the kubelet's pod logs and ships to Loki; Grafana provides the
-  # Logs UI via a provisioned Loki datasource. Grafana's datasource
-  # ConfigMap is the shared seam K8S-012 (metrics) appends a
-  # Prometheus entry to.
   - loki.yaml
   - promtail.yaml
   - grafana.yaml
-  # K8S-012: Prometheus + the SEC-002b / chi-middleware / Go-runtime
-  # dashboards. Scrapes the OPS-004 `prometheus.io/scrape: "true"`
-  # annotation on the app pod, so no per-target config is required.
   - prometheus.yaml
-  # K8S-013: Headlamp Kubernetes UI. ServiceAccount-token login;
-  # `view` ClusterRoleBinding for read-only access plus a narrow
-  # in-namespace Role for pods/exec + pods/log so the interactive
-  # panes work.
   - headlamp.yaml
 
 # RabbitMQ loads its exchanges/queues/bindings from
@@ -84,15 +76,19 @@ images:
 # Without this override the kubelet would still try to pull from
 # the (non-existent) registry and the pod would ErrImagePull.
 #
-# The `$patch: delete` block removes the base ExternalSecret. The
-# external-secrets.io CRDs are not installed in the K8S-001 cluster
-# (K8S-005's territory), and applying the resource would fail with
-# "no matches for kind ExternalSecret". K8S-003 ships an in-cluster
-# plain Secret (secret.yaml) with the same envFrom keys.
+# The NetworkPolicy patch lets the busybox load-test recipe in the
+# README reach the app on :8080 — the base policy only allows
+# ingress from `ingress-nginx` and `prometheus` labels.
 #
-# The NetworkPolicy patch lets the K8S-004 load-test pod
-# (`hack/k8s-loadtest.sh`) reach the app on :8080 — the base policy
-# only allows ingress from `ingress-nginx` and `prometheus` labels.
+# The OTel collector patch points the app at the in-cluster collector
+# Service and cranks sampling to 100% so smoke tests see every span.
+# The base ConfigMap keeps the production-friendly defaults (empty
+# endpoint → no-op exporter, 10% sampling) so a real overlay can
+# re-patch to its own collector address.
+#
+# The ExternalSecret refreshInterval patch drops the cadence from 1h
+# (the base default for production) to 30s so the unhappy-path demo
+# (kill Vault, observe SecretSyncedError) is interactive locally.
 patches:
   - target:
       group: apps
@@ -103,17 +99,6 @@ patches:
       - op: replace
         path: /spec/template/spec/containers/0/imagePullPolicy
         value: Never
-  - target:
-      group: external-secrets.io
-      version: v1
-      kind: ExternalSecret
-      name: go-micro-example-secrets
-    patch: |-
-      $patch: delete
-      apiVersion: external-secrets.io/v1
-      kind: ExternalSecret
-      metadata:
-        name: go-micro-example-secrets
   - target:
       group: networking.k8s.io
       version: v1
@@ -126,11 +111,6 @@ patches:
           podSelector:
             matchLabels:
               app.kubernetes.io/component: loadtest
-  # K8S-006: point the app at the in-cluster collector and crank
-  # sampling to 100% for smoke-test reproducibility. The base
-  # ConfigMap keeps the production-friendly defaults (empty endpoint
-  # → no-op exporter, 10% sampling) so a real overlay can re-patch
-  # to its own collector address.
   - target:
       version: v1
       kind: ConfigMap
@@ -142,3 +122,12 @@ patches:
       - op: replace
         path: /data/OTEL_TRACES_SAMPLER_ARG
         value: "1.0"
+  - target:
+      group: external-secrets.io
+      version: v1
+      kind: ExternalSecret
+      name: go-micro-example-secrets
+    patch: |-
+      - op: replace
+        path: /spec/refreshInterval
+        value: 30s

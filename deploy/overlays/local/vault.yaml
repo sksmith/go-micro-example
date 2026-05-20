@@ -1,4 +1,4 @@
-# K8S-005: in-cluster Vault running in dev mode for the local-eso
+# K8S-005: in-cluster Vault running in dev mode for the local
 # overlay. Dev mode keeps the entire KV store in memory, so the
 # secret paths the bootstrap Job seeds (kv/go-micro-example/db,
 # .../rabbitmq, .../jwt) vanish on pod restart — that's the whole
