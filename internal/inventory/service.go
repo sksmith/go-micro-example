@@ -94,12 +94,11 @@ func (s *service) SetCache(c cache.Cache, ttl time.Duration) {
 func productCacheKey(sku string) string { return "inv:product:" + sku + ":v1" }
 
 func (s *service) CreateProduct(ctx context.Context, product Product) (err error) {
-	ctx, end := observability.StartServiceSpan(ctx, tracerName, "CreateProduct",
+	const funcName = "CreateProduct"
+	ctx, end := observability.StartServiceSpan(ctx, tracerName, funcName,
 		attribute.String("inventory.sku", product.Sku),
 	)
 	defer func() { end(err) }()
-
-	const funcName = "CreateProduct"
 
 	dbProduct, err := s.repo.GetProduct(ctx, product.Sku)
 	if err != nil && !errors.Is(err, persistence.ErrNotFound) {
@@ -140,14 +139,13 @@ func (s *service) CreateProduct(ctx context.Context, product Product) (err error
 }
 
 func (s *service) Produce(ctx context.Context, product Product, pr ProductionRequest) (err error) {
-	ctx, end := observability.StartServiceSpan(ctx, tracerName, "Produce",
+	const funcName = "Produce"
+	ctx, end := observability.StartServiceSpan(ctx, tracerName, funcName,
 		attribute.String("inventory.sku", product.Sku),
 		attribute.String("request_id", pr.RequestID),
 		attribute.Int64("inventory.quantity", pr.Quantity),
 	)
 	defer func() { end(err) }()
-
-	const funcName = "Produce"
 
 	log.Ctx(ctx).Debug().
 		Str("func", funcName).
@@ -221,15 +219,14 @@ func (s *service) Produce(ctx context.Context, product Product, pr ProductionReq
 }
 
 func (s *service) Reserve(ctx context.Context, rr ReservationRequest) (res Reservation, err error) {
-	ctx, end := observability.StartServiceSpan(ctx, tracerName, "Reserve",
+	const funcName = "Reserve"
+	ctx, end := observability.StartServiceSpan(ctx, tracerName, funcName,
 		attribute.String("inventory.sku", rr.Sku),
 		attribute.String("request_id", rr.RequestID),
 		attribute.String("inventory.requester", rr.Requester),
 		attribute.Int64("inventory.quantity", rr.Quantity),
 	)
 	defer func() { end(err) }()
-
-	const funcName = "Reserve"
 
 	log.Ctx(ctx).Debug().
 		Str("func", funcName).
@@ -318,12 +315,11 @@ func (s *service) GetAllProductInventory(ctx context.Context, limit, offset int)
 }
 
 func (s *service) GetProduct(ctx context.Context, sku string) (product Product, err error) {
-	ctx, end := observability.StartServiceSpan(ctx, tracerName, "GetProduct",
+	const funcName = "GetProduct"
+	ctx, end := observability.StartServiceSpan(ctx, tracerName, funcName,
 		attribute.String("inventory.sku", sku),
 	)
 	defer func() { end(err) }()
-
-	const funcName = "GetProduct"
 
 	log.Ctx(ctx).Debug().Str("func", funcName).Str("sku", sku).Msg("getting product")
 
@@ -335,12 +331,11 @@ func (s *service) GetProduct(ctx context.Context, sku string) (product Product, 
 }
 
 func (s *service) GetProductInventory(ctx context.Context, sku string) (product ProductInventory, err error) {
-	ctx, end := observability.StartServiceSpan(ctx, tracerName, "GetProductInventory",
+	const funcName = "GetProductInventory"
+	ctx, end := observability.StartServiceSpan(ctx, tracerName, funcName,
 		attribute.String("inventory.sku", sku),
 	)
 	defer func() { end(err) }()
-
-	const funcName = "GetProductInventory"
 
 	log.Ctx(ctx).Debug().Str("func", funcName).Str("sku", sku).Msg("getting product inventory")
 
@@ -369,7 +364,8 @@ func (s *service) GetProductInventory(ctx context.Context, sku string) (product 
 }
 
 func (s *service) GetReservation(ctx context.Context, ID uint64) (rsv Reservation, err error) {
-	ctx, end := observability.StartServiceSpan(ctx, tracerName, "GetReservation",
+	const funcName = "GetReservation"
+	ctx, end := observability.StartServiceSpan(ctx, tracerName, funcName,
 		// Format as a string: reservation IDs come from a Postgres
 		// uint64 sequence and OTel's only numeric attribute helper
 		// is Int64, which gosec G115 flags as an unchecked overflow
@@ -377,8 +373,6 @@ func (s *service) GetReservation(ctx context.Context, ID uint64) (rsv Reservatio
 		attribute.String("inventory.reservation_id", strconv.FormatUint(ID, 10)),
 	)
 	defer func() { end(err) }()
-
-	const funcName = "GetReservation"
 
 	log.Ctx(ctx).Debug().Str("func", funcName).Uint64("id", ID).Msg("getting reservation")
 
@@ -390,15 +384,14 @@ func (s *service) GetReservation(ctx context.Context, ID uint64) (rsv Reservatio
 }
 
 func (s *service) GetReservations(ctx context.Context, options GetReservationsOptions, limit, offset int) (rsv []Reservation, err error) {
-	ctx, end := observability.StartServiceSpan(ctx, tracerName, "GetReservations",
+	const funcName = "GetReservations"
+	ctx, end := observability.StartServiceSpan(ctx, tracerName, funcName,
 		attribute.String("inventory.sku", options.Sku),
 		attribute.String("inventory.state", string(options.State)),
 		attribute.Int("inventory.limit", limit),
 		attribute.Int("inventory.offset", offset),
 	)
 	defer func() { end(err) }()
-
-	const funcName = "GetReservations"
 
 	log.Ctx(ctx).Debug().
 		Str("func", funcName).
@@ -452,12 +445,11 @@ func (s *service) UnsubscribeReservations(id ReservationsSubID) {
 }
 
 func (s *service) FillReserves(ctx context.Context, product Product) (err error) {
-	ctx, end := observability.StartServiceSpan(ctx, tracerName, "FillReserves",
+	const funcName = "FillReserves"
+	ctx, end := observability.StartServiceSpan(ctx, tracerName, funcName,
 		attribute.String("inventory.sku", product.Sku),
 	)
 	defer func() { end(err) }()
-
-	const funcName = "fillReserves"
 
 	tx, err := s.repo.BeginTransaction(ctx)
 	defer func() {
