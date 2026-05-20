@@ -1,0 +1,186 @@
+# K8S-011: Promtail DaemonSet that tails the kubelet's container log
+# directory and ships lines to the in-cluster Loki Service. Runs on
+# every node (kind clusters default to one) and discovers pods via
+# the kube API.
+#
+# RBAC: the ServiceAccount needs `get/list/watch` on pods (for
+# kubernetes_sd_configs role=pod). No `create/update/delete` —
+# Promtail is read-only.
+#
+# Filesystem access: /var/log/pods (where the kubelet writes
+# per-container log files) is hostPath-mounted into the pod, plus
+# /var/lib/docker/containers for the legacy log path some
+# kubelets symlink to. emptyDir for the positions cursor (so a
+# Promtail restart doesn't re-ship everything from the start of the
+# file).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: promtail
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: promtail
+rules:
+  - apiGroups: [""]
+    resources:
+      - nodes
+      - nodes/proxy
+      - services
+      - endpoints
+      - pods
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: promtail
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: promtail
+subjects:
+  - kind: ServiceAccount
+    name: promtail
+    namespace: go-micro-example
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: promtail-config
+data:
+  promtail.yaml: |
+    server:
+      http_listen_port: 9080
+      grpc_listen_port: 0
+
+    positions:
+      filename: /run/promtail/positions.yaml
+
+    clients:
+      - url: http://loki:3100/loki/api/v1/push
+
+    scrape_configs:
+      - job_name: kubernetes-pods
+        # The kubelet writes container logs in CRI multi-line format
+        # under /var/log/pods; this pipeline stage strips the CRI
+        # header so the Loki line is just the application log body.
+        pipeline_stages:
+          - cri: {}
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          # Extract a stable `app` label from a small priority list:
+          # the OPS-004 base sets app.kubernetes.io/name; older charts
+          # set `app`; everything else falls back to the pod name.
+          - source_labels:
+              - __meta_kubernetes_pod_label_app_kubernetes_io_name
+              - __meta_kubernetes_pod_label_app
+              - __meta_kubernetes_pod_name
+            regex: ^;*([^;]+)(;.*)?$
+            action: replace
+            target_label: app
+          - source_labels:
+              - __meta_kubernetes_namespace
+            action: replace
+            target_label: namespace
+          - source_labels:
+              - __meta_kubernetes_pod_name
+            action: replace
+            target_label: pod
+          - source_labels:
+              - __meta_kubernetes_pod_container_name
+            action: replace
+            target_label: container
+          - source_labels:
+              - __meta_kubernetes_pod_node_name
+            action: replace
+            target_label: node
+          # The kubelet writes each container's logs to
+          # /var/log/pods/<namespace>_<pod>_<uid>/<container>/*.log.
+          # Build that path from labels so Promtail tails the right
+          # files on the hostPath mount.
+          - action: replace
+            replacement: /var/log/pods/*$1/*.log
+            separator: /
+            source_labels:
+              - __meta_kubernetes_pod_uid
+              - __meta_kubernetes_pod_container_name
+            target_label: __path__
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: promtail
+  labels:
+    app.kubernetes.io/name: promtail
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: promtail
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: promtail
+    spec:
+      serviceAccountName: promtail
+      # Tolerate any node taint — kind doesn't add any by default, but
+      # this lets the DaemonSet also schedule on a control-plane node
+      # if a future multi-node kind config is used.
+      tolerations:
+        - effect: NoSchedule
+          operator: Exists
+      containers:
+        - name: promtail
+          image: grafana/promtail:3.5.1
+          args:
+            - -config.file=/etc/promtail/promtail.yaml
+          ports:
+            - name: http
+              containerPort: 9080
+              protocol: TCP
+          env:
+            # Used by the Promtail config / journal stage; not strictly
+            # required for the kubernetes_sd_configs path above but
+            # cheap to expose.
+            - name: HOSTNAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          volumeMounts:
+            - name: config
+              mountPath: /etc/promtail
+              readOnly: true
+            - name: positions
+              mountPath: /run/promtail
+            - name: pod-logs
+              mountPath: /var/log/pods
+              readOnly: true
+            - name: containers
+              mountPath: /var/lib/docker/containers
+              readOnly: true
+          securityContext:
+            # Promtail needs to read the kubelet's pod log directory,
+            # which is owned by root. readOnlyRootFilesystem stays
+            # off because the in-memory positions cursor lives at
+            # /run/promtail; the volume mount above covers writes.
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - DAC_READ_SEARCH
+      volumes:
+        - name: config
+          configMap:
+            name: promtail-config
+        - name: positions
+          emptyDir: {}
+        - name: pod-logs
+          hostPath:
+            path: /var/log/pods
+        - name: containers
+          hostPath:
+            path: /var/lib/docker/containers

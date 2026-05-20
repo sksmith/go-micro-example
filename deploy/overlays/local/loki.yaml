@@ -1,0 +1,134 @@
+# K8S-011: in-cluster Loki for the local overlay. Single-binary mode
+# (target=all) keeps the whole log-ingest / query stack in one pod
+# with filesystem storage backed by an emptyDir — fine for the
+# throwaway dev cluster, decisively not for production (no
+# replication, ephemeral storage, single point of contention).
+#
+# Promtail (see promtail.yaml) ships node-local container logs here;
+# Grafana (see grafana.yaml) queries this Service for the Logs UI.
+#
+# The Loki pod isn't matched by the base NetworkPolicy podSelector
+# (different label), so the Promtail→Loki and Grafana→Loki egress
+# paths are unconstrained.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: loki-config
+data:
+  config.yaml: |
+    # Single-binary Loki: every component (distributor, ingester,
+    # querier, store-gateway, ruler) runs in this process. Sized for
+    # local-dev volume; a real deployment would split components and
+    # use object storage with a backing index DB.
+    auth_enabled: false
+
+    server:
+      http_listen_port: 3100
+      grpc_listen_port: 9095
+      # Loki's healthz handler is only available after the ring is up;
+      # the readiness probe in the Deployment retries until that's true.
+      log_level: info
+
+    common:
+      path_prefix: /loki
+      storage:
+        filesystem:
+          chunks_directory: /loki/chunks
+          rules_directory: /loki/rules
+      replication_factor: 1
+      ring:
+        instance_addr: 127.0.0.1
+        kvstore:
+          store: inmemory
+
+    schema_config:
+      configs:
+        - from: 2024-01-01
+          store: tsdb
+          object_store: filesystem
+          schema: v13
+          index:
+            prefix: index_
+            period: 24h
+
+    limits_config:
+      # DSN-005 logs ship JSON with `request_id` / `trace_id` fields;
+      # structured-metadata extraction (LogQL `| json`) requires the
+      # v13 schema and this flag.
+      allow_structured_metadata: true
+      # Reject samples older than 24h — local dev never needs longer.
+      reject_old_samples: true
+      reject_old_samples_max_age: 24h
+
+    analytics:
+      # Don't phone home from a dev cluster.
+      reporting_enabled: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: loki
+spec:
+  selector:
+    app.kubernetes.io/name: loki
+  ports:
+    - name: http
+      port: 3100
+      targetPort: 3100
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loki
+  labels:
+    app.kubernetes.io/name: loki
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: loki
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: loki
+    spec:
+      containers:
+        - name: loki
+          # 3.5.x is the current Loki series with the v13 schema and
+          # structured-metadata support the JSON-parsing recipes above
+          # rely on.
+          image: grafana/loki:3.5.1
+          args:
+            - -config.file=/etc/loki/config.yaml
+            - -target=all
+          ports:
+            - name: http
+              containerPort: 3100
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            failureThreshold: 30
+          volumeMounts:
+            - name: config
+              mountPath: /etc/loki
+              readOnly: true
+            - name: data
+              mountPath: /loki
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+      volumes:
+        - name: config
+          configMap:
+            name: loki-config
+        - name: data
+          emptyDir: {}
