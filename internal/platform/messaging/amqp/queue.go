@@ -115,6 +115,48 @@ func URL(cfg *config.Config) string {
 // sleep without polluting the production path.
 var redialBackoff = 2 * time.Second
 
+// sessionHeartbeatInterval is how often the Publish / Subscribe
+// loops re-fire onSession while a session is open and healthy. Set
+// well below the consumer-side staleness window
+// (inventory.amqpSessionStaleAfter = 10 s) so an idle-but-healthy
+// session is never falsely reported unready. Package-level var so
+// tests can shrink it.
+var sessionHeartbeatInterval = 2 * time.Second
+
+// startSessionHeartbeat fires onSession every
+// sessionHeartbeatInterval until the returned stop function is
+// called. Returns a no-op stop when onSession is nil so callers
+// don't have to nil-check. onSession is invoked from the goroutine
+// and is expected to be non-blocking (it's the readiness-probe
+// timestamp store in the production path); a slow onSession will
+// not break the heartbeat itself but will delay the stop signal
+// being observed.
+func startSessionHeartbeat(onSession func()) (stop func()) {
+	if onSession == nil {
+		return func() {}
+	}
+	// Snapshot the interval in the caller goroutine so the spawned
+	// ticker doesn't race with tests that swap the package var
+	// between cases — the `go` statement establishes a happens-before
+	// edge, but a subsequent assignment by a different goroutine
+	// would still race with the ticker's read.
+	interval := sessionHeartbeatInterval
+	done := make(chan struct{})
+	go func() {
+		t := time.NewTicker(interval)
+		defer t.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-t.C:
+				onSession()
+			}
+		}
+	}()
+	return func() { close(done) }
+}
+
 // Redial continually connects to url, returning a channel of session
 // factories. Each emitted session represents a fresh (connection,
 // channel) pair; consumers read sessions sequentially as connections
@@ -193,94 +235,114 @@ func dialUntilSuccess(ctx context.Context, dialer Dialer) (Session, bool) {
 
 // Publish publishes messages to a reconnecting session against a
 // fanout exchange. Messages from messages are consumed and delivered;
-// the loop drains and retries on transient failures. onSession is
-// called each time a fresh (connection, channel) pair is obtained so
-// callers can track liveness for readiness probes (TST-004); nil is
-// allowed for callers that don't need the signal.
+// the loop drains and retries on transient failures.
+//
+// onSession is called when a fresh (connection, channel) pair is
+// obtained and periodically thereafter (every
+// sessionHeartbeatInterval) for as long as that session stays open.
+// The repeat ticks let readiness probes distinguish an idle-but-
+// healthy session from a stuck redial (TST-005) — the callback's
+// timestamp keeps moving while the session is alive and freezes the
+// moment the inner loop exits because the broker dropped the
+// channel. onSession should be non-blocking; nil is allowed for
+// callers that don't need the signal.
 func Publish(sessions chan chan Session, exchange string, messages <-chan Message, onSession func()) {
 	for session := range sessions {
-		var (
-			running bool
-			reading = messages
-			pending = make(chan Message, 1)
-			confirm = make(chan amqp.Confirmation, 1)
-		)
-
-		pub := <-session
-		if onSession != nil {
-			onSession()
+		if !publishSession(session, exchange, messages, onSession) {
+			return
 		}
+	}
+}
 
-		// publisher confirms for this channel/connection
-		if err := pub.Confirm(false); err != nil {
-			log.Info().Msg("publisher confirms not supported")
-			close(confirm) // confirms not supported, simulate by always nacking
-		} else {
-			pub.NotifyPublish(confirm)
-		}
+// publishSession runs a single session's publish loop, factored out
+// so a deferred stopHeartbeat() runs regardless of how the inner
+// loop exits (broker drop, publish error, or messages channel
+// closed). Returns true when the outer Publish loop should iterate
+// to a new session, false when the entire Publish call should
+// return (messages was closed by the producer).
+func publishSession(session chan Session, exchange string, messages <-chan Message, onSession func()) bool {
+	var (
+		running bool
+		reading = messages
+		pending = make(chan Message, 1)
+		confirm = make(chan amqp.Confirmation, 1)
+	)
 
-		log.Debug().Str("exchange", exchange).Msg("ready to publish messages")
+	pub := <-session
+	if onSession != nil {
+		onSession()
+	}
+	stopHeartbeat := startSessionHeartbeat(onSession)
+	defer stopHeartbeat()
 
-		// body must outlive the inner-loop iteration so the confirm
-		// arrival a few selects later can still reach the message
-		// whose Publish call kicked it off. The pre-refactor loop
-		// declared `var body Message` inside the for, which meant
-		// every confirm/nack saw a zero-value body — TST-003 spans
-		// would never end and the nack log line printed empty bodies.
-		var body Message
-	Publish:
-		for {
-			select {
-			case confirmed, ok := <-confirm:
-				if !ok {
-					// Channel/session lost before the broker confirmed
-					// the in-flight body. Surface that on the producer
-					// span so the trace shows the publish neither
-					// succeeded nor was nacked.
-					endProducerSpan(body.producerSpan, codes.Error, "broker confirm channel closed", nil)
-					break Publish
-				}
-				if confirmed.Ack {
-					endProducerSpan(body.producerSpan, codes.Ok, "", nil)
-				} else {
-					log.Info().Uint64("message", confirmed.DeliveryTag).Str("body", string(body.Body)).Msg("nack")
-					endProducerSpan(body.producerSpan, codes.Error, "broker nacked", nil)
-				}
-				reading = messages
+	// publisher confirms for this channel/connection
+	if err := pub.Confirm(false); err != nil {
+		log.Info().Msg("publisher confirms not supported")
+		close(confirm) // confirms not supported, simulate by always nacking
+	} else {
+		pub.NotifyPublish(confirm)
+	}
 
-			case body = <-pending:
-				routingKey := "ignored for fanout exchanges, application dependent for other exchanges"
-				headers := amqp.Table{}
-				if body.RequestID != "" {
-					headers[RequestIDHeader] = body.RequestID
-				}
-				for k, v := range body.TraceHeaders {
-					headers[k] = v
-				}
-				err := pub.Publish(exchange, routingKey, false, false, amqp.Publishing{
-					Headers: headers,
-					Body:    body.Body,
-				})
-				// Retry failed delivery on the next session. The
-				// producer span ends here with the original error;
-				// the retry on the next session is untraced (no fresh
-				// span available without ctx-threading the retry).
-				if err != nil {
-					endProducerSpan(body.producerSpan, codes.Error, "publish failed", err)
-					pending <- body
-					_ = pub.Close()
-					break Publish
-				}
+	log.Debug().Str("exchange", exchange).Msg("ready to publish messages")
 
-			case body, running = <-reading:
-				// all messages consumed
-				if !running {
-					return
-				}
-				// work on pending delivery until ack'd
-				pending <- body
-				reading = nil
+	// body must outlive the inner-loop iteration so the confirm
+	// arrival a few selects later can still reach the message
+	// whose Publish call kicked it off. The pre-refactor loop
+	// declared `var body Message` inside the for, which meant
+	// every confirm/nack saw a zero-value body — TST-003 spans
+	// would never end and the nack log line printed empty bodies.
+	var body Message
+	for {
+		select {
+		case confirmed, ok := <-confirm:
+			if !ok {
+				// Channel/session lost before the broker confirmed
+				// the in-flight body. Surface that on the producer
+				// span so the trace shows the publish neither
+				// succeeded nor was nacked.
+				endProducerSpan(body.producerSpan, codes.Error, "broker confirm channel closed", nil)
+				return true
 			}
+			if confirmed.Ack {
+				endProducerSpan(body.producerSpan, codes.Ok, "", nil)
+			} else {
+				log.Info().Uint64("message", confirmed.DeliveryTag).Str("body", string(body.Body)).Msg("nack")
+				endProducerSpan(body.producerSpan, codes.Error, "broker nacked", nil)
+			}
+			reading = messages
+
+		case body = <-pending:
+			routingKey := "ignored for fanout exchanges, application dependent for other exchanges"
+			headers := amqp.Table{}
+			if body.RequestID != "" {
+				headers[RequestIDHeader] = body.RequestID
+			}
+			for k, v := range body.TraceHeaders {
+				headers[k] = v
+			}
+			err := pub.Publish(exchange, routingKey, false, false, amqp.Publishing{
+				Headers: headers,
+				Body:    body.Body,
+			})
+			// Retry failed delivery on the next session. The
+			// producer span ends here with the original error;
+			// the retry on the next session is untraced (no fresh
+			// span available without ctx-threading the retry).
+			if err != nil {
+				endProducerSpan(body.producerSpan, codes.Error, "publish failed", err)
+				pending <- body
+				_ = pub.Close()
+				return true
+			}
+
+		case body, running = <-reading:
+			// all messages consumed
+			if !running {
+				return false
+			}
+			// work on pending delivery until ack'd
+			pending <- body
+			reading = nil
 		}
 	}
 }
@@ -325,44 +387,65 @@ func StartConsumerSpan(ctx context.Context, queue string, msg Message) (context.
 
 // Subscribe consumes deliveries from an exclusive queue and forwards
 // them onto messages. The request_id header is restored onto the
-// Message so context propagation survives the broker hop. onSession
-// is called each time a fresh session is obtained and Consume
-// succeeds (TST-004); nil is allowed.
+// Message so context propagation survives the broker hop.
+//
+// onSession is called when a fresh (connection, channel) pair is
+// obtained and Consume succeeds, and periodically thereafter (every
+// sessionHeartbeatInterval) for as long as the deliveries channel
+// stays open. The repeat ticks satisfy the same TST-005 readiness
+// requirement as Publish: an idle queue with no incoming messages
+// still has a live AMQP session, and the callback's timestamp keeps
+// moving so /ready stays 200. nil is allowed.
 func Subscribe(sessions chan chan Session, queue string, messages chan<- Message, onSession func()) {
 	for session := range sessions {
-		sub := <-session
-
-		deliveries, err := sub.Consume(queue, "", false, false, false, false, nil)
-		if err != nil {
-			log.Error().Str("queue", queue).Err(err).Msg("cannot consume from")
+		if !subscribeSession(session, queue, messages, onSession) {
 			return
 		}
+	}
+}
 
-		if onSession != nil {
-			onSession()
+// subscribeSession runs a single session's consume loop, factored
+// out so the heartbeat is torn down via defer when the deliveries
+// channel closes (session loss) regardless of how the inner range
+// exits. Returns true when the outer Subscribe loop should iterate
+// to a new session, false when Subscribe itself should return
+// (mirrors the original "Consume error exits" fail-fast contract).
+func subscribeSession(session chan Session, queue string, messages chan<- Message, onSession func()) bool {
+	sub := <-session
+
+	deliveries, err := sub.Consume(queue, "", false, false, false, false, nil)
+	if err != nil {
+		log.Error().Str("queue", queue).Err(err).Msg("cannot consume from")
+		return false
+	}
+
+	if onSession != nil {
+		onSession()
+	}
+	stopHeartbeat := startSessionHeartbeat(onSession)
+	defer stopHeartbeat()
+
+	log.Info().Str("queue", queue).Msg("listening for messages")
+
+	for msg := range deliveries {
+		reqID := ""
+		traceHeaders := map[string]string{}
+		for k, v := range msg.Headers {
+			s, ok := v.(string)
+			if !ok {
+				continue
+			}
+			if k == RequestIDHeader {
+				reqID = s
+				continue
+			}
+			traceHeaders[k] = s
 		}
-
-		log.Info().Str("queue", queue).Msg("listening for messages")
-
-		for msg := range deliveries {
-			reqID := ""
-			traceHeaders := map[string]string{}
-			for k, v := range msg.Headers {
-				s, ok := v.(string)
-				if !ok {
-					continue
-				}
-				if k == RequestIDHeader {
-					reqID = s
-					continue
-				}
-				traceHeaders[k] = s
-			}
-			messages <- Message{Body: msg.Body, RequestID: reqID, TraceHeaders: traceHeaders}
-			err = sub.Ack(msg.DeliveryTag, false)
-			if err != nil {
-				log.Error().Err(err).Str("queue", queue).Msg("failed to acknowledge to queue")
-			}
+		messages <- Message{Body: msg.Body, RequestID: reqID, TraceHeaders: traceHeaders}
+		err = sub.Ack(msg.DeliveryTag, false)
+		if err != nil {
+			log.Error().Err(err).Str("queue", queue).Msg("failed to acknowledge to queue")
 		}
 	}
+	return true
 }

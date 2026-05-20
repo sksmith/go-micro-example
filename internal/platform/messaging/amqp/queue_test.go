@@ -594,3 +594,107 @@ func TestSubscribe_ConsumeErrorExits(t *testing.T) {
 		t.Fatal("Subscribe didn't return after Consume failure")
 	}
 }
+
+// withShortHeartbeat shrinks sessionHeartbeatInterval for tests that
+// need to observe ticks within a short runtime. Mirrors the
+// withShortBackoff helper.
+func withShortHeartbeat(t *testing.T) {
+	t.Helper()
+	prev := sessionHeartbeatInterval
+	sessionHeartbeatInterval = 5 * time.Millisecond
+	t.Cleanup(func() { sessionHeartbeatInterval = prev })
+}
+
+// TestPublish_OnSessionTicksWhileSessionOpen is the TST-005 regression
+// pin: while the AMQP session stays open, onSession must keep firing
+// at sessionHeartbeatInterval so the readiness probe sees an idle
+// long-lived session as ready (rather than reporting "no session in
+// 10s" 10 s after the initial connect).
+func TestPublish_OnSessionTicksWhileSessionOpen(t *testing.T) {
+	withShortHeartbeat(t)
+
+	fake := newFakeSession()
+	sessions := make(chan chan Session, 1)
+	sess := make(chan Session, 1)
+	sess <- fake
+	sessions <- sess
+
+	messages := make(chan Message)
+	var ticks atomic.Int32
+	done := make(chan struct{})
+	go func() {
+		Publish(sessions, "test.exchange", messages, func() { ticks.Add(1) })
+		close(done)
+	}()
+
+	// Wait until at least three ticks have landed without publishing
+	// anything. The session is healthy and idle; the heartbeat is the
+	// only thing driving onSession after the initial connect.
+	waitFor(t, func() bool { return ticks.Load() >= 3 },
+		"expected onSession to tick repeatedly on an idle session")
+
+	close(messages)
+	close(sessions)
+	<-done
+}
+
+// TestSubscribe_OnSessionTicksWhileSessionOpen mirrors the Publish
+// test on the consumer side: a Subscribe holding an open deliveries
+// channel must keep refreshing onSession so the consumer's readiness
+// probe stays green even when no messages are arriving.
+func TestSubscribe_OnSessionTicksWhileSessionOpen(t *testing.T) {
+	withShortHeartbeat(t)
+
+	fake := newFakeSession()
+	sessions := make(chan chan Session, 1)
+	sess := make(chan Session, 1)
+	sess <- fake
+	sessions <- sess
+
+	out := make(chan Message, 1)
+	var ticks atomic.Int32
+	done := make(chan struct{})
+	go func() {
+		Subscribe(sessions, "test.queue", out, func() { ticks.Add(1) })
+		close(done)
+	}()
+
+	waitFor(t, func() bool { return ticks.Load() >= 3 },
+		"expected onSession to tick repeatedly on an idle consumer session")
+
+	// Closing deliveries drops out of the inner range; sessions is
+	// drained but not closed yet, so close it to let Subscribe return.
+	close(fake.deliveries)
+	close(sessions)
+	<-done
+}
+
+// TestSessionHeartbeat_StopsAfterClose pins the heartbeat-teardown
+// contract: once stopSessionHeartbeat fires (i.e. the inner publish/
+// consume loop has exited), no further onSession calls land — which
+// is what lets lastSessionAt age out and Ping report unready when a
+// session is truly stuck.
+func TestSessionHeartbeat_StopsAfterClose(t *testing.T) {
+	withShortHeartbeat(t)
+
+	var ticks atomic.Int32
+	stop := startSessionHeartbeat(func() { ticks.Add(1) })
+	waitFor(t, func() bool { return ticks.Load() >= 2 },
+		"expected at least two ticks before stopping")
+	stop()
+
+	stopped := ticks.Load()
+	// Wait several heartbeat intervals to confirm no further ticks fire.
+	time.Sleep(50 * time.Millisecond)
+	if got := ticks.Load(); got != stopped {
+		t.Errorf("onSession kept firing after stop: stopped=%d, now=%d", stopped, got)
+	}
+}
+
+// TestSessionHeartbeat_NilOnSessionIsNoop guards against a panic
+// when callers don't need readiness signalling — Publish/Subscribe
+// both accept a nil onSession and the heartbeat helper must too.
+func TestSessionHeartbeat_NilOnSessionIsNoop(t *testing.T) {
+	stop := startSessionHeartbeat(nil)
+	stop() // must not panic
+}
