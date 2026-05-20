@@ -177,7 +177,11 @@ k8s-validate:
 	@command -v kubectl >/dev/null 2>&1 || { echo "kubectl not found."; exit 1; }
 	@command -v yq >/dev/null 2>&1 || { echo "yq not found. Install via 'brew install yq' (macOS) or see https://github.com/mikefarah/yq#install."; exit 1; }
 	@kubectl get namespace go-micro-example >/dev/null 2>&1 || kubectl create namespace go-micro-example
-	kubectl kustomize $(KUSTOMIZE_DIR) | yq 'select(.kind != "ExternalSecret")' | kubectl apply --dry-run=server -f -
+	# --load-restrictor=LoadRestrictionsNone: the K8S-003 overlay's
+	# configMapGenerator reads scripts/rabbitmq/* from outside its
+	# own directory (shared source of truth with docker-compose).
+	# Harmless for base (which stays inside deploy/base/).
+	kubectl kustomize --load-restrictor=LoadRestrictionsNone $(KUSTOMIZE_DIR) | yq 'select(.kind != "ExternalSecret")' | kubectl apply --dry-run=server -f -
 
 k8s-validate-local:
 	$(MAKE) k8s-validate KUSTOMIZE_DIR=deploy/overlays/local
@@ -185,9 +189,22 @@ k8s-validate-local:
 # K8S-002: build the app image with the dev tag and load it into the
 # kind node's containerd store. The overlay's `imagePullPolicy: Never`
 # tells the kubelet to use this image directly — no registry round-trip.
-# The pod will still CrashLoopBackOff until K8S-003 lands the in-cluster
-# DB / AMQP; what `docker-load` proves is that the image lands where
-# the kubelet expects it.
 docker-load: docker
 	@command -v kind >/dev/null 2>&1 || { echo "kind not found."; exit 1; }
 	kind load docker-image $(IMG_NAME):$(IMG_TAG) --name $(KIND_CLUSTER)
+
+# K8S-003: full local stack — kind cluster + image load + the local
+# overlay (in-cluster Postgres / RabbitMQ + dev Secret). `rollout
+# status` blocks until the app Deployment is Available, which (via
+# the readiness probe) means migrations completed and AMQP redial
+# succeeded. The 300 s timeout covers the 150 s startup-probe budget
+# from DSN-002 plus a margin for image-pull and DB init on a cold
+# kind cluster.
+.PHONY: k8s-local-up k8s-local-down
+k8s-local-up: k8s-up docker-load
+	kubectl kustomize --load-restrictor=LoadRestrictionsNone deploy/overlays/local | kubectl apply -f -
+	kubectl -n go-micro-example rollout status deploy/go-micro-example --timeout=300s
+
+k8s-local-down:
+	-kubectl kustomize --load-restrictor=LoadRestrictionsNone deploy/overlays/local | kubectl delete --ignore-not-found -f -
+	$(MAKE) k8s-down

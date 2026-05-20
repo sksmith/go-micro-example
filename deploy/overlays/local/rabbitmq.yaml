@@ -1,0 +1,88 @@
+# K8S-003: in-cluster RabbitMQ for the local overlay. Mirrors the
+# docker-compose layout — 4.0-management-alpine, exchanges/queues/
+# bindings loaded at boot from scripts/rabbitmq/definitions.json via
+# RabbitMQ's `load_definitions` directive — so the same DSN-015
+# topology is in place without a separate setup step.
+#
+# Service name `rabbitmq` matches the base ConfigMap's
+# GME_RABBITMQ_HOST; pod label `app.kubernetes.io/name: rabbitmq`
+# matches the base NetworkPolicy egress allow-list.
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq
+spec:
+  selector:
+    app.kubernetes.io/name: rabbitmq
+  ports:
+    - name: amqp
+      port: 5672
+      targetPort: 5672
+      protocol: TCP
+    - name: management
+      port: 15672
+      targetPort: 15672
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rabbitmq
+  labels:
+    app.kubernetes.io/name: rabbitmq
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rabbitmq
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: rabbitmq
+    spec:
+      containers:
+        - name: rabbitmq
+          image: rabbitmq:4.0-management-alpine
+          ports:
+            - name: amqp
+              containerPort: 5672
+              protocol: TCP
+            - name: management
+              containerPort: 15672
+              protocol: TCP
+          env:
+            # Default user/pass loaded from definitions.json — these
+            # env vars are redundant with the definitions but keep
+            # the credentials visible alongside the rest of the dev
+            # config.
+            - name: RABBITMQ_DEFAULT_USER
+              value: guest
+            - name: RABBITMQ_DEFAULT_PASS
+              value: guest
+          volumeMounts:
+            - name: rabbitmq-definitions
+              mountPath: /etc/rabbitmq/definitions.json
+              subPath: definitions.json
+              readOnly: true
+            - name: rabbitmq-definitions
+              mountPath: /etc/rabbitmq/rabbitmq.conf
+              subPath: rabbitmq.conf
+              readOnly: true
+          readinessProbe:
+            exec:
+              command:
+                - rabbitmq-diagnostics
+                - "-q"
+                - check_running
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 10
+            failureThreshold: 30
+      volumes:
+        - name: rabbitmq-definitions
+          configMap:
+            # `rabbitmq-definitions` is built by the overlay's
+            # configMapGenerator from scripts/rabbitmq/*. Kustomize
+            # appends a content-hash suffix to the actual ConfigMap
+            # name and rewrites this reference accordingly.
+            name: rabbitmq-definitions

@@ -11,8 +11,36 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
+# The base's `namespace:` directive only applies to resources
+# declared in the base itself. Re-declaring it here injects the
+# same namespace into the overlay's new resources (postgres,
+# rabbitmq, the plain Secret, and the generated rabbitmq-definitions
+# ConfigMap) so they land alongside the app instead of defaulting
+# to `default`. The Namespace resource itself is cluster-scoped and
+# is unaffected.
+namespace: go-micro-example
+
 resources:
   - ../../base
+  # K8S-003: in-cluster dependencies. Replace the cluster's "real"
+  # Postgres / RabbitMQ / ExternalSecret with dev-only manifests so
+  # the overlay produces a Ready pod without any operator install.
+  - namespace.yaml
+  - secret.yaml
+  - postgres.yaml
+  - rabbitmq.yaml
+
+# RabbitMQ loads its exchanges/queues/bindings from
+# scripts/rabbitmq/definitions.json on boot (DSN-015). Mounting the
+# files via a kustomize-generated ConfigMap keeps a single source of
+# truth between the docker-compose stack and this overlay; the
+# content-hash suffix kustomize appends to the ConfigMap name means
+# editing definitions triggers a rolling restart automatically.
+configMapGenerator:
+  - name: rabbitmq-definitions
+    files:
+      - ../../../scripts/rabbitmq/definitions.json
+      - ../../../scripts/rabbitmq/rabbitmq.conf
 
 # The base pod references `ghcr.io/sksmith/go-micro-example:latest`.
 # Kustomize matches on the original name and rewrites both the

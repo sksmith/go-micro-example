@@ -18,7 +18,11 @@ deploy/
 │   └── hpa.yaml             # CPU-based autoscaler
 ├── overlays/
 │   └── local/
-│       └── kustomization.yaml  # K8S-002 dev image + Never pull policy
+│       ├── kustomization.yaml  # K8S-002/003 overlay (image + deps)
+│       ├── namespace.yaml      # K8S-003 self-contained namespace
+│       ├── secret.yaml         # K8S-003 plain dev Secret
+│       ├── postgres.yaml       # K8S-003 in-cluster Postgres
+│       └── rabbitmq.yaml       # K8S-003 in-cluster RabbitMQ
 └── kind/
     └── cluster.yaml         # K8S-001 local Tier 1 validation gate
 ```
@@ -186,45 +190,76 @@ path-filtered to PRs that touch `deploy/**`. It uses
 by commit SHA) to provision the cluster, then invokes both
 `make k8s-validate` (base) and `make k8s-validate-local` (overlay).
 
-### Run a real pod locally (K8S-002)
+### Run a Ready pod locally (K8S-002 + K8S-003)
 
-The base manifest references `ghcr.io/sksmith/go-micro-example:latest`,
-an image that won't exist until OPS-007 wires goreleaser. To exercise
-the manifest against the kind cluster *now*, the local overlay swaps
-the reference for a locally-built `go-micro-example:dev` tag and sets
-`imagePullPolicy: Never` so the kubelet uses kind's containerd store
-directly.
+The local overlay (`deploy/overlays/local`) layers four things on
+top of the base:
 
-```sh
-make k8s-up         # K8S-001 cluster
-make docker-load    # `make docker IMG_TAG=dev` + `kind load docker-image`
-kubectl apply -k deploy/overlays/local
-```
+- An image rewrite + `imagePullPolicy: Never` so the kubelet uses a
+  locally-built `go-micro-example:dev` image (K8S-002).
+- A `$patch: delete` that strips the base `ExternalSecret` — the
+  external-secrets.io CRDs aren't installed at this tier (K8S-005's
+  territory), and the overlay supplies a plain `Secret` of the same
+  name instead.
+- A plain `Secret` (`go-micro-example-secrets`) carrying the dev
+  credentials the Deployment's `envFrom` expects (matches the
+  docker-compose defaults).
+- In-cluster `postgres` and `rabbitmq` Deployments + Services with
+  the `app.kubernetes.io/name` labels the base NetworkPolicy
+  selects on. RabbitMQ loads its exchanges/queues/bindings from
+  `scripts/rabbitmq/definitions.json` via a kustomize-generated
+  ConfigMap, so the DSN-015 topology is in place on first boot.
 
-The pod will reach the kubelet, pull the local image cleanly (no
-`ErrImagePull`), and then stall in `CreateContainerConfigError` —
-the base Deployment's `envFrom` references a Secret named
-`go-micro-example-secrets` that the overlay does not yet provide
-(K8S-003 lands the plain Secret + in-cluster Postgres / RabbitMQ in
-the same overlay). What this proves at the K8S-002 step is that the
-image makes it onto the node, the `imagePullPolicy: Never` patch
-applied, and the manifest is otherwise sound. The overlay also
-deletes the base `ExternalSecret` via `$patch: delete`, so the apply
-doesn't trip over the external-secrets.io CRDs being absent
-(K8S-005's territory).
-
-Verify the image rewrite landed and the kubelet did not try to pull
-from a registry:
+One-shot bring-up and tear-down:
 
 ```sh
-kubectl -n go-micro-example describe pod -l app.kubernetes.io/name=go-micro-example \
-  | grep -E 'Image:|Pull Policy:'
-# Image:           go-micro-example:dev
-# Pull Policy:     Never
-
-kubectl -n go-micro-example get events --field-selector=type=Warning \
-  | grep -E 'ErrImagePull|ImagePullBackOff' || echo 'no image-pull errors'
+make k8s-local-up    # k8s-up + docker-load + apply + rollout status
+make k8s-local-down  # delete overlay + k8s-down
 ```
+
+`k8s-local-up` blocks on `kubectl rollout status` until the app
+Deployment is Available, which (via the readiness probe in
+DSN-002 + TST-004) means migrations completed and AMQP redial
+succeeded.
+
+Verify the dependencies are up and the app talked to both of them:
+
+```sh
+kubectl -n go-micro-example get pods
+# go-micro-example-…  …/1   Running   # see TST-005 below for /1 caveat
+# postgres-…          1/1   Running
+# rabbitmq-…          1/1   Running
+
+kubectl -n go-micro-example logs deploy/go-micro-example \
+  | grep -E 'executing migrations|ready to publish messages|listening'
+# INF executing migrations
+# DBG ready to publish messages exchange=inventory.exchange
+# DBG ready to publish messages exchange=reservation.exchange
+# INF listening port=8080
+# INF listening for messages queue=product.queue
+# DBG ready to publish messages exchange=product.dlt.exchange
+```
+
+The "executing migrations" log proves the Postgres egress allow-list
+works (pgx connected via Service name `postgres`), and the "ready to
+publish messages" lines prove the RabbitMQ allow-list works (AMQP
+session established via Service name `rabbitmq`). NetworkPolicy
+enforcement is intrinsic: if the egress rules were wrong, neither
+side would connect.
+
+The pod image is also distroless (no shell), so the conventional
+`kubectl exec … sh -c '…'` connectivity probe doesn't apply here —
+the log evidence above is the substitute.
+
+> **TST-005 caveat.** After the first ~10 s, `/ready` flips to 503
+> because the AMQP staleness check at
+> `internal/inventory/transport_queue.go` doesn't refresh on a
+> healthy long-lived session — `sessionOK()` only fires on
+> (re)connect. The pod still serves traffic; readiness probes will
+> mark it NotReady and Service rotation will drop it. Track in
+> [TST-005](../plan/TST-005-amqp-readiness-stable-session.md);
+> until it's fixed, `make k8s-local-up`'s `kubectl rollout status`
+> succeeds on the initial roll but the pod won't *stay* Ready.
 
 `make k8s-validate-local` runs the dry-run-apply against the overlay
 without needing the image — useful in CI and for sanity-checking

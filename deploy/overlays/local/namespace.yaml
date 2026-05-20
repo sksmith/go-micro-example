@@ -1,0 +1,10 @@
+# K8S-003: declare the namespace as part of the overlay so
+# `kubectl apply -k deploy/overlays/local` is self-contained — no
+# `kubectl create namespace` precondition. The base's
+# `namespace: go-micro-example` directive places every namespaced
+# resource here; this manifest just ensures the namespace itself
+# exists in the cluster.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: go-micro-example
