@@ -17,13 +17,14 @@ deploy/
 │   ├── networkpolicy.yaml   # default-deny + per-dependency allows
 │   └── hpa.yaml             # CPU-based autoscaler
 ├── overlays/
-│   ├── local/                   # K8S-002/003/004 (plain Secret)
+│   ├── local/                   # K8S-002/003/004/006 (plain Secret)
 │   │   ├── kustomization.yaml
 │   │   ├── namespace.yaml
 │   │   ├── secret.yaml          # plain dev Secret
 │   │   ├── postgres.yaml
 │   │   ├── rabbitmq.yaml
-│   │   └── metrics-server.yaml
+│   │   ├── metrics-server.yaml
+│   │   └── otel-collector.yaml  # K8S-006 OTel collector
 │   └── local-eso/               # K8S-005 (ESO + dev Vault)
 │       ├── kustomization.yaml
 │       ├── external-secrets-operator.yaml
@@ -289,6 +290,68 @@ the app on :8080. Within ~30 s the HPA target should cross 70 % and
 Scale-down is intentionally slow — the OPS-004 HPA sets
 `scaleDown.stabilizationWindowSeconds: 300`, so replicas hold their
 peak for five minutes after load stops before stepping back down.
+
+### Trace verification against an in-cluster OTel collector (K8S-006)
+
+The local overlay also runs an OpenTelemetry Collector
+(`otel/opentelemetry-collector-contrib:0.152.0`) with a `debug`
+exporter — no Jaeger/Tempo backend, just stdout. The overlay
+patches the base ConfigMap to point the app's
+`OTEL_EXPORTER_OTLP_ENDPOINT` at the collector Service and cranks
+`OTEL_TRACES_SAMPLER_ARG` to `1.0` so every request produces spans.
+
+The collector lives in the `go-micro-example` namespace labelled
+`app.kubernetes.io/name: opentelemetry-collector`, which is exactly
+the label the base NetworkPolicy egress allow-list selects on (port
+4317 / OTLP-gRPC) — so the app pod can reach it without an overlay
+patch on the NetworkPolicy.
+
+End-to-end smoke test (assumes `make k8s-local-up` already ran):
+
+```sh
+kubectl -n go-micro-example port-forward svc/go-micro-example 8080:80 &
+
+# Bootstrap admin / admin (BOOTSTRAP_ADMIN_PASSWORD in the K8S-003
+# Secret) — note Basic creds against /auth/token, not JSON.
+TOKEN=$(curl -sS -u admin:admin -X POST http://localhost:8080/auth/token \
+  | jq -r .access_token)
+
+# Seed a product, then read it back so HTTP + service + pgx all fire.
+curl -sS -X PUT http://localhost:8080/api/v1/inventory \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"sku":"test1sku","upc":"upc1","name":"smoke test"}'
+
+curl -sS -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8080/api/v1/inventory/test1sku
+
+kubectl -n go-micro-example logs deploy/otel-collector --tail=200
+```
+
+In the collector log you should see a trace with three spans
+stitched together by parent ID:
+
+- **SERVER** `/api/v1/inventory/{sku}` — `otelchi` (HTTP root)
+- **INTERNAL** `GetProductInventory` — `inventory.Service` (DSN-004b)
+- **CLIENT** `query SELECT … FROM products p, product_inventory pi …` — `otelpgx`
+
+Exercising the AMQP propagation (DSN-004a) takes one more curl —
+`PUT /api/v1/inventory/{sku}/productionEvent` publishes an
+`inventory.exchange` event, and the resulting trace adds a PRODUCER
+span (`amqp.publish inventory.exchange`) under the SERVER root:
+
+```sh
+curl -sS -X PUT \
+  http://localhost:8080/api/v1/inventory/test1sku/productionEvent \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -H "Idempotency-Key: smoke-$(date +%s)" \
+  -d '{"requestId":"smoke-1","quantity":7}'
+```
+
+The app doesn't itself consume `inventory.queue`, so CONSUMER spans
+don't fire end-to-end in this minimal demo. Publishing into
+`product.queue` (which the app *does* subscribe to) would show
+those — left as a future addition if/when the demo orchestrator
+gets ported to k8s.
 
 ### Real ExternalSecret flow against in-cluster Vault (K8S-005)
 

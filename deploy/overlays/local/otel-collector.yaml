@@ -1,0 +1,104 @@
+# K8S-006: in-cluster OpenTelemetry Collector for the local overlay.
+# Receives spans from the app on OTLP/gRPC :4317 and prints them to
+# stdout via the `debug` exporter — sufficient for "are the spans
+# arriving?" without standing up Jaeger or Tempo. The pod label
+# `app.kubernetes.io/name: opentelemetry-collector` matches the base
+# NetworkPolicy's egress allow-list so the app pod can reach it.
+#
+# Wires into the DSN-004 / DSN-004a / DSN-004b instrumentation: when
+# the overlay patches OTEL_EXPORTER_OTLP_ENDPOINT (see
+# kustomization.yaml), the app's OTLP exporter actually has somewhere
+# to send. `OTEL_TRACES_SAMPLER_ARG=1.0` in the same patch turns the
+# sampler all the way up so smoke tests see every span.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+data:
+  collector.yaml: |
+    # Single OTLP/gRPC receiver, single debug exporter. Sized for a
+    # smoke test, not production traffic — there's no batch processor
+    # because the volume is "one curl at a time" and we want spans to
+    # land in the logs immediately. A real collector would chain
+    # batch + memory_limiter + a real exporter (jaeger / tempo / etc).
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+
+    exporters:
+      debug:
+        verbosity: detailed
+
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          exporters: [debug]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector
+spec:
+  selector:
+    app.kubernetes.io/name: opentelemetry-collector
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector
+  labels:
+    app.kubernetes.io/name: opentelemetry-collector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: opentelemetry-collector
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: opentelemetry-collector
+    spec:
+      containers:
+        - name: otel-collector
+          # v0.152.0 — the contrib image carries the full processor /
+          # exporter set; the upstream core image would also work for
+          # this minimal pipeline. Pinning the tag keeps the smoke
+          # test reproducible across developer machines.
+          image: otel/opentelemetry-collector-contrib:0.152.0
+          args:
+            - --config=/etc/otel/collector.yaml
+          ports:
+            - name: otlp-grpc
+              containerPort: 4317
+              protocol: TCP
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: config
+              mountPath: /etc/otel
+              readOnly: true
+          readinessProbe:
+            # The collector exposes a tcp listener on 4317 once
+            # configuration parses; readiness on that port is enough
+            # for the smoke test to wait on a deterministic signal
+            # instead of sleeping.
+            tcpSocket:
+              port: 4317
+            initialDelaySeconds: 2
+            periodSeconds: 2
+      volumes:
+        - name: config
+          configMap:
+            name: otel-collector-config
