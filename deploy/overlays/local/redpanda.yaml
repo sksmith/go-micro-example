@@ -1,0 +1,84 @@
+# Local overlay: single-node Redpanda for the DSN-016 Kafka transport.
+# Mirrors the docker-compose `redpanda` service so traces, schemas,
+# and behaviour stay consistent between the two demo stacks.
+#
+# Why Redpanda over upstream Kafka:
+# - Single binary, KRaft-only, boots in ~5s vs Kafka+Zookeeper's tens
+#   of seconds. The whole point of the local overlay is fast bring-up.
+# - Wire-compatible with the Kafka protocol — the franz-go client in
+#   internal/platform/messaging/kafka/ doesn't know the difference.
+#
+# Service name `redpanda` matches the ConfigMap's GME_KAFKA_BROKERS
+# patch (redpanda:29092); the in-cluster listener is :29092, kept
+# distinct from the external :9092 the docker-compose stack publishes
+# so anyone running both stacks side by side doesn't have a port
+# collision. No NodePort here — Redpanda is internal-only; the
+# admin/debug UI lives on its own and isn't exposed.
+apiVersion: v1
+kind: Service
+metadata:
+  name: redpanda
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: redpanda
+  ports:
+    - name: kafka-internal
+      port: 29092
+      targetPort: 29092
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redpanda
+  labels:
+    app.kubernetes.io/name: redpanda
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: redpanda
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: redpanda
+    spec:
+      containers:
+        - name: redpanda
+          image: redpandadata/redpanda:v24.2.7
+          args:
+            - redpanda
+            - start
+            - --overprovisioned
+            - --smp=1
+            - --memory=512M
+            - --reserve-memory=0M
+            - --node-id=0
+            - --check=false
+            # Single internal listener; matches the franz-go
+            # bootstrap broker in GME_KAFKA_BROKERS.
+            - --kafka-addr=INTERNAL://0.0.0.0:29092
+            - --advertise-kafka-addr=INTERNAL://redpanda:29092
+          ports:
+            - name: kafka-internal
+              containerPort: 29092
+          # Readiness probe via rpk cluster info — only flips to Ready
+          # once Redpanda has elected itself controller and is willing
+          # to serve metadata requests. Without this the app pod can
+          # race the broker on startup and the kafka producer init
+          # fails before the cluster is reachable.
+          readinessProbe:
+            exec:
+              command: ["rpk", "cluster", "info", "-X", "brokers=localhost:29092"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              cpu: 500m
+              memory: 768Mi
