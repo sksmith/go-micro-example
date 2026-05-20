@@ -1,0 +1,79 @@
+# K8S-005: bootstrap Job that seeds the secret paths the base
+# ExternalSecret references. Runs once after Vault becomes Ready;
+# re-runs every time the overlay is re-applied (Job's generated
+# name differs each time would require kustomize hash, simpler to
+# delete + reapply). The Job exits 0 once the writes complete.
+#
+# The CLI image is `hashicorp/vault:2.0.1` — same as the server
+# image, so we get a known-compatible `vault` binary without
+# pulling another tag. The token + address come from env so the
+# script reads top-to-bottom without `-address` / `-token` flags
+# on every command.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: vault-bootstrap
+spec:
+  backoffLimit: 4
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: vault-bootstrap
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: bootstrap
+          image: hashicorp/vault:2.0.1
+          env:
+            - name: VAULT_ADDR
+              value: http://vault.go-micro-example.svc:8200
+            - name: VAULT_TOKEN
+              value: root
+          # The Vault 2.x binary refuses to execute without IPC_LOCK
+          # (same reason as the server pod in vault.yaml) — even the
+          # CLI exits with "Operation not permitted" without it.
+          # Add the cap, drop everything else, and disable privilege
+          # escalation so this short-lived dev Job stays narrow.
+          securityContext:
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - IPC_LOCK
+            allowPrivilegeEscalation: false
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+              echo "==> waiting for Vault to be ready at $VAULT_ADDR"
+              i=0
+              until vault status >/dev/null 2>&1; do
+                i=$((i + 1))
+                if [ $((i % 5)) = 0 ]; then
+                  echo "    still waiting (last status output below)"
+                  vault status 2>&1 | sed 's/^/    /' || true
+                fi
+                sleep 2
+              done
+
+              echo "==> enabling kv v2 mount at kv/ if not already"
+              if ! vault secrets list -format=json | grep -q '"kv/"'; then
+                vault secrets enable -path=kv kv-v2
+              fi
+
+              echo "==> seeding go-micro-example/db"
+              vault kv put kv/go-micro-example/db \
+                user=postgres \
+                pass=postgres
+
+              echo "==> seeding go-micro-example/rabbitmq"
+              vault kv put kv/go-micro-example/rabbitmq \
+                user=guest \
+                pass=guest
+
+              echo "==> seeding go-micro-example/jwt"
+              vault kv put kv/go-micro-example/jwt \
+                signing_key=demo-only-jwt-signing-key-do-not-use
+
+              echo "==> bootstrap complete"

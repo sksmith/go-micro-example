@@ -1,0 +1,67 @@
+# K8S-005: ESO-flavoured local overlay. Compared to deploy/overlays/local
+# this drops the hand-rolled plain Secret and lets the base
+# ExternalSecret resolve through External Secrets Operator against
+# the in-cluster dev Vault. Postgres / RabbitMQ / namespace /
+# image-rewrite are shared with the K8S-003 overlay via direct file
+# references so the two overlays don't drift on the dependency
+# manifests.
+#
+# `make k8s-eso-up` applies the ESO bundle (external-secrets-operator.yaml)
+# out-of-band before this kustomization renders — see the Makefile.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: go-micro-example
+
+resources:
+  - ../../base
+  # Shared dependency manifests from the K8S-003 overlay — kept in
+  # one place so a future change to Postgres / RabbitMQ shape
+  # touches both flows simultaneously.
+  - ../local/namespace.yaml
+  - ../local/postgres.yaml
+  - ../local/rabbitmq.yaml
+  # ESO-specific resources.
+  - vault.yaml
+  - secretstore.yaml
+  - bootstrap-job.yaml
+
+# Mirror the K8S-003 overlay so the same DSN-015 RabbitMQ topology
+# loads on first boot.
+configMapGenerator:
+  - name: rabbitmq-definitions
+    files:
+      - ../../../scripts/rabbitmq/definitions.json
+      - ../../../scripts/rabbitmq/rabbitmq.conf
+
+# Same image rewrite as the K8S-002/003 overlay — the dev tag plus
+# imagePullPolicy: Never so kind's containerd serves the locally
+# loaded image.
+images:
+  - name: ghcr.io/sksmith/go-micro-example
+    newName: go-micro-example
+    newTag: dev
+
+patches:
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: go-micro-example
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Never
+  # Drop the base ExternalSecret refreshInterval from 1h to 30s so
+  # the unhappy-path demo (stop Vault, observe SecretSyncedError
+  # within a minute) is interactive. A real cluster keeps the 1h
+  # cadence — overrides per environment.
+  - target:
+      group: external-secrets.io
+      version: v1
+      kind: ExternalSecret
+      name: go-micro-example-secrets
+    patch: |-
+      - op: replace
+        path: /spec/refreshInterval
+        value: 30s

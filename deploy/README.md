@@ -17,13 +17,19 @@ deploy/
 │   ├── networkpolicy.yaml   # default-deny + per-dependency allows
 │   └── hpa.yaml             # CPU-based autoscaler
 ├── overlays/
-│   └── local/
-│       ├── kustomization.yaml   # K8S-002/003/004 overlay
-│       ├── namespace.yaml       # K8S-003 self-contained namespace
-│       ├── secret.yaml          # K8S-003 plain dev Secret
-│       ├── postgres.yaml        # K8S-003 in-cluster Postgres
-│       ├── rabbitmq.yaml        # K8S-003 in-cluster RabbitMQ
-│       └── metrics-server.yaml  # K8S-004 vendored metrics-server
+│   ├── local/                   # K8S-002/003/004 (plain Secret)
+│   │   ├── kustomization.yaml
+│   │   ├── namespace.yaml
+│   │   ├── secret.yaml          # plain dev Secret
+│   │   ├── postgres.yaml
+│   │   ├── rabbitmq.yaml
+│   │   └── metrics-server.yaml
+│   └── local-eso/               # K8S-005 (ESO + dev Vault)
+│       ├── kustomization.yaml
+│       ├── external-secrets-operator.yaml
+│       ├── vault.yaml           # in-cluster Vault dev mode
+│       ├── secretstore.yaml     # ClusterSecretStore vault-backend
+│       └── bootstrap-job.yaml   # seeds Vault kv paths
 └── kind/
     └── cluster.yaml         # K8S-001 local Tier 1 validation gate
 ```
@@ -283,6 +289,69 @@ the app on :8080. Within ~30 s the HPA target should cross 70 % and
 Scale-down is intentionally slow — the OPS-004 HPA sets
 `scaleDown.stabilizationWindowSeconds: 300`, so replicas hold their
 peak for five minutes after load stops before stepping back down.
+
+### Real ExternalSecret flow against in-cluster Vault (K8S-005)
+
+The K8S-003 overlay sidesteps the base `ExternalSecret` by shipping
+a plain Secret of the same name. The K8S-005 overlay
+(`deploy/overlays/local-eso/`) restores the real ESO flow against a
+throwaway in-cluster Vault, so the secret-resolution path is
+actually exercised locally:
+
+- Vault runs in `go-micro-example` (dev mode, hard-coded root token).
+- A `ClusterSecretStore` named `vault-backend` points at the
+  in-cluster Vault Service.
+- A one-shot Job seeds `kv/go-micro-example/{db,rabbitmq,jwt}` with
+  the same dev credentials docker-compose uses.
+- The base `ExternalSecret` resolves through ESO and materialises
+  the `go-micro-example-secrets` Secret the app's `envFrom`
+  references.
+- `refreshInterval` is patched from 1 h down to 30 s in the overlay
+  so the unhappy-path demo (below) is interactive.
+
+```sh
+make k8s-eso-up    # kind + ESO + Vault + bootstrap + app
+make k8s-eso-down  # tear everything down
+```
+
+`k8s-eso-up` is heavier than `k8s-local-up` — it pulls the ESO
+bundle and the Vault image, and waits on three rollouts plus the
+bootstrap Job — so first-time bring-up runs ~3–5 minutes on a cold
+machine.
+
+Verify the path end-to-end:
+
+```sh
+kubectl get clustersecretstore vault-backend
+# vault-backend   Valid   ReadWrite   True
+
+kubectl -n go-micro-example get externalsecret go-micro-example-secrets
+# go-micro-example-secrets   ClusterSecretStore   vault-backend   30s   SecretSynced   True
+
+kubectl -n go-micro-example get secret go-micro-example-secrets
+# go-micro-example-secrets   Opaque   5   ← materialised by ESO
+```
+
+Demonstrate the unhappy path (Vault unreachable → ExternalSecret
+flips to `SecretSyncedError` within one refresh interval):
+
+```sh
+kubectl -n go-micro-example scale deploy/vault --replicas=0
+sleep 45
+kubectl -n go-micro-example get externalsecret go-micro-example-secrets \
+  -o jsonpath='{.status.conditions[?(@.type=="Ready")].reason}'
+# SecretSyncedError
+
+kubectl -n go-micro-example scale deploy/vault --replicas=1
+# ESO recovers on the next refresh; the already-materialised Secret
+# stays present so the app pod doesn't restart.
+```
+
+**Dev-only posture.** The Vault is in dev mode with the root token
+hard-coded; the `ClusterSecretStore` authenticates with that token
+via a Kubernetes Secret. A real cluster swaps to Kubernetes auth (or
+AppRole) and runs Vault on durable storage. Copying this overlay
+into a staging environment would be a security incident.
 
 `make k8s-validate-local` runs the dry-run-apply against the overlay
 without needing the image — useful in CI and for sanity-checking
