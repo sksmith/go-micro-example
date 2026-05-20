@@ -279,6 +279,20 @@ k8s-local-ui-prometheus:
 	@command -v open >/dev/null 2>&1 && (sleep 1 && open http://localhost:9090) &
 	kubectl -n go-micro-example port-forward svc/prometheus 9090:9090
 
+# K8S-013: open the Headlamp Kubernetes UI. Mints a fresh 24h
+# ServiceAccount token (no static creds baked into the image) and
+# echoes it for paste into the UI login screen, then port-forwards
+# svc/headlamp 8001:80. Ctrl-C tears the forward down.
+.PHONY: k8s-local-ui-headlamp
+k8s-local-ui-headlamp:
+	@echo "Headlamp: http://localhost:8001"
+	@echo ""
+	@echo "Token (paste into the Headlamp login screen):"
+	@kubectl -n go-micro-example create token headlamp --duration=24h
+	@echo ""
+	@command -v open >/dev/null 2>&1 && (sleep 1 && open http://localhost:8001) &
+	kubectl -n go-micro-example port-forward svc/headlamp 8001:80
+
 # K8S-005: ESO-flavoured local stack — installs External Secrets
 # Operator, brings up an in-cluster dev Vault, seeds the secret
 # paths the base ExternalSecret references, and rolls out the app

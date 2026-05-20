@@ -53,6 +53,11 @@ resources:
   # dashboards. Scrapes the OPS-004 `prometheus.io/scrape: "true"`
   # annotation on the app pod, so no per-target config is required.
   - prometheus.yaml
+  # K8S-013: Headlamp Kubernetes UI. ServiceAccount-token login;
+  # `view` ClusterRoleBinding for read-only access plus a narrow
+  # in-namespace Role for pods/exec + pods/log so the interactive
+  # panes work.
+  - headlamp.yaml
 
 # RabbitMQ loads its exchanges/queues/bindings from
 # scripts/rabbitmq/definitions.json on boot (DSN-015). Mounting the

@@ -1,0 +1,126 @@
+# K8S-013: in-cluster Headlamp UI for the local overlay. Headlamp
+# is an open-source web UI for Kubernetes — a clickable counterpart
+# to `kubectl get/describe/logs`. The dev workflow is "stand up
+# kind, paste the token, browse the namespace" so the operator can
+# see what's running without stitching three terminals together.
+#
+# The ServiceAccount lives in the `go-micro-example` namespace
+# (kustomize's `namespace:` directive lands it there); it's bound
+# to the cluster `view` role for read-only access plus a narrow
+# Role for `pods/exec` and `pods/log` so the in-UI logs / shell
+# panes work without elevating to cluster-admin.
+#
+# Token retrieval is a `kubectl create token` call against this SA —
+# see `make k8s-local-ui-headlamp`. There's no static token mounted
+# in the pod, so a leaked image doesn't leak credentials.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: headlamp
+---
+# Cluster-wide read access (the kube `view` ClusterRole). Includes
+# get/list/watch on most core resources and many built-in CRDs.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: headlamp-view
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+  - kind: ServiceAccount
+    name: headlamp
+    namespace: go-micro-example
+---
+# Narrow exec/log access scoped to the namespace the developer cares
+# about. `view` covers list/get on pods but not exec or log streaming.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: headlamp-pod-interact
+  namespace: go-micro-example
+rules:
+  - apiGroups: [""]
+    resources:
+      - pods/exec
+      - pods/log
+    verbs: ["create", "get", "list", "watch"]
+  - apiGroups: [""]
+    resources:
+      - pods/portforward
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: headlamp-pod-interact
+  namespace: go-micro-example
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: headlamp-pod-interact
+subjects:
+  - kind: ServiceAccount
+    name: headlamp
+    namespace: go-micro-example
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: headlamp
+spec:
+  selector:
+    app.kubernetes.io/name: headlamp
+  ports:
+    - name: http
+      port: 80
+      targetPort: 4466
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: headlamp
+  labels:
+    app.kubernetes.io/name: headlamp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: headlamp
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: headlamp
+    spec:
+      serviceAccountName: headlamp
+      securityContext:
+        runAsUser: 100
+        runAsGroup: 101
+        runAsNonRoot: true
+      containers:
+        - name: headlamp
+          # 0.36 is the current stable release at the time of writing.
+          # Pin the tag so the dev workflow is reproducible — bump
+          # intentionally, not via @latest drift.
+          image: ghcr.io/headlamp-k8s/headlamp:v0.36.0
+          args:
+            - "-in-cluster"
+            - "-plugins-dir=/headlamp/plugins"
+          ports:
+            - name: http
+              containerPort: 4466
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            failureThreshold: 30
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
