@@ -89,20 +89,21 @@ log evidence above is the substitute.
 
 ## Reaching the UIs
 
-Each UI is a Service in `go-micro-example`. Port-forward whichever
-one you want; every command below is namespaced with
-`-n go-micro-example`.
+Each UI is a Service in the `go-micro-example` namespace.
+Port-forward the one you want in a separate terminal (the command
+stays in the foreground; Ctrl-C tears the forward down), then open
+the URL.
 
-| UI         | URL                              | Port-forward                                | Login                       |
-| ---------- | -------------------------------- | ------------------------------------------- | --------------------------- |
-| App        | <http://localhost:8080>          | `port-forward svc/go-micro-example 8080:80` | bootstrap `admin` / `admin` |
-| Vault      | <http://localhost:8200/ui>       | `port-forward svc/vault 8200:8200`          | token `root` (1)            |
-| RabbitMQ   | <http://localhost:15672>         | `port-forward svc/rabbitmq 15672:15672`     | `guest` / `guest`           |
-| pgAdmin    | <http://localhost:9090>          | `port-forward svc/pgadmin 9090:80`          | (2)                         |
-| Jaeger     | <http://localhost:16686>         | `port-forward svc/jaeger 16686:16686`       | —                           |
-| Grafana    | <http://localhost:3000>          | `port-forward svc/grafana 3000:3000`        | `admin` / `admin`           |
-| Prometheus | <http://localhost:9090>          | `port-forward svc/prometheus 9090:9090`     | —                           |
-| Headlamp   | <http://localhost:8001>          | `port-forward svc/headlamp 8001:80`         | token (3)                   |
+| UI         | URL                        | Port-forward                                                            | Login                       |
+| ---------- | -------------------------- | ----------------------------------------------------------------------- | --------------------------- |
+| App        | <http://localhost:8080>    | `kubectl -n go-micro-example port-forward svc/go-micro-example 8080:80` | bootstrap `admin` / `admin` |
+| Vault      | <http://localhost:8200/ui> | `kubectl -n go-micro-example port-forward svc/vault 8200:8200`          | token `root` (1)            |
+| RabbitMQ   | <http://localhost:15672>   | `kubectl -n go-micro-example port-forward svc/rabbitmq 15672:15672`     | `guest` / `guest`           |
+| pgAdmin    | <http://localhost:9090>    | `kubectl -n go-micro-example port-forward svc/pgadmin 9090:80`          | (2)                         |
+| Jaeger     | <http://localhost:16686>   | `kubectl -n go-micro-example port-forward svc/jaeger 16686:16686`       | —                           |
+| Grafana    | <http://localhost:3000>    | `kubectl -n go-micro-example port-forward svc/grafana 3000:3000`        | `admin` / `admin`           |
+| Prometheus | <http://localhost:9090>    | `kubectl -n go-micro-example port-forward svc/prometheus 9090:9090`     | —                           |
+| Headlamp   | <http://localhost:8001>    | `kubectl -n go-micro-example port-forward svc/headlamp 8001:80`         | token (3)                   |
 
 1. Dev-mode root token; never reuse outside this cluster.
 2. Sign in as `admin@example.com` / `admin`; the preregistered
