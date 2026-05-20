@@ -123,6 +123,21 @@ patches:
           ports:
             - protocol: TCP
               port: 8080
+      # Allow the DSN-027 operator-console pane to query the
+      # in-cluster Jaeger Query API on :16686. The base policy
+      # intentionally doesn't allow this — the UI is a dev/local
+      # feature gated by GME_UI_JAEGERQUERYURL and prod overlays
+      # leave that empty so this rule is never exercised there.
+      - op: add
+        path: /spec/egress/-
+        value:
+          to:
+            - podSelector:
+                matchLabels:
+                  app.kubernetes.io/name: jaeger
+          ports:
+            - protocol: TCP
+              port: 16686
   # Promote the base ClusterIP app Service to NodePort so kind's
   # extraPortMappings can publish http://localhost:8080. The base
   # Service stays ClusterIP-shaped for real deployments (the overlay
