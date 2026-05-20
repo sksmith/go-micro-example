@@ -11,6 +11,7 @@ import (
 	"github.com/sksmith/go-micro-example/internal/platform/events"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/plugin/kotel"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 )
 
@@ -26,7 +27,16 @@ type Producer struct {
 // returned client is fully initialized; call Close on shutdown.
 func NewProducer(brokers []string, topic string) (*Producer, error) {
 	ensureMetrics()
-	tracer := kotel.NewTracer(kotel.TracerProvider(nil))
+	// kotel.TracerProvider(nil) tells kotel to use a no-op tracer,
+	// which silently drops every kafka.produce / kafka.consume span
+	// even though the hooks fire — that's why the DSN-027 trace tree
+	// never showed a producer span on Jaeger. Hand kotel the global
+	// provider that DSN-004 installed at startup so spans land in
+	// the same pipeline as the chi server and AMQP producer spans.
+	tracer := kotel.NewTracer(
+		kotel.TracerProvider(otel.GetTracerProvider()),
+		kotel.TracerPropagator(otel.GetTextMapPropagator()),
+	)
 	client, err := kgo.NewClient(
 		kgo.SeedBrokers(brokers...),
 		kgo.DefaultProduceTopic(topic),

@@ -10,6 +10,7 @@ import (
 	"github.com/sksmith/go-micro-example/internal/platform/events"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/plugin/kotel"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 )
 
@@ -56,7 +57,14 @@ func NewConsumer(cfg ConsumerConfig) (*Consumer, error) {
 	}
 	ensureMetrics()
 
-	tracer := kotel.NewTracer(kotel.TracerProvider(nil))
+	// Same fix as producer.go: kotel.TracerProvider(nil) routes every
+	// span to a no-op tracer. Hand it the global provider so the
+	// consumer spans share the OTel pipeline that ships them to the
+	// collector and Jaeger.
+	tracer := kotel.NewTracer(
+		kotel.TracerProvider(otel.GetTracerProvider()),
+		kotel.TracerPropagator(otel.GetTextMapPropagator()),
+	)
 	hooks := kotel.NewKotel(kotel.WithTracer(tracer)).Hooks()
 
 	client, err := kgo.NewClient(
