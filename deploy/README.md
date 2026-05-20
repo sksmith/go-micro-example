@@ -471,6 +471,37 @@ via a Kubernetes Secret. A real cluster swaps to Kubernetes auth (or
 AppRole) and runs Vault on durable storage. Copying this overlay
 into a staging environment would be a security incident.
 
+#### Vault UI (K8S-007)
+
+The Vault binary ships a browser UI at `/ui`. Reach it with:
+
+```sh
+make k8s-eso-ui-vault
+# Vault UI:    http://localhost:8200/ui
+# Root token:  root  (dev-mode only)
+```
+
+The target port-forwards `svc/vault 8200:8200` in the foreground —
+Ctrl-C tears the forward down. On macOS it also `open`s a browser
+tab at the UI URL.
+
+Log in with method `Token` and paste `root`. The seeded kv paths
+(populated by `bootstrap-job.yaml`) live on the `kv/` mount:
+
+- `kv/go-micro-example/db`        — Postgres user / password
+- `kv/go-micro-example/rabbitmq`  — RabbitMQ user / password
+- `kv/go-micro-example/jwt`       — JWT signing key
+
+If the Vault pod restarted, the kv tree is empty (dev-mode storage
+is in-memory). Run `make k8s-eso-reseed` first; the same Job that
+populates it on first boot reseeds it.
+
+**Dev token only.** `root` here is the hard-coded
+`VAULT_DEV_ROOT_TOKEN_ID` from `vault.yaml` — it exists because the
+in-cluster Vault is throwaway. Production Vault auth (Kubernetes
+auth, AppRole, OIDC) is K8S-005's territory; the UI is just a window
+into the same throwaway store.
+
 `make k8s-validate-local` runs the dry-run-apply against the overlay
 without needing the image — useful in CI and for sanity-checking
 overlay edits.
