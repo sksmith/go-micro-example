@@ -49,6 +49,12 @@ data:
   GME_UI_ENABLED: "true"
   GME_UI_JAEGERQUERYURL: ""
 
+  # DSN-016: Kafka brokers (comma-separated bootstrap list). Empty
+  # disables the franz-go producer + consumer cleanly. The local
+  # overlay patches this to "redpanda:29092"; prod overlays should
+  # set it to their real bootstrap brokers.
+  GME_KAFKA_BROKERS: ""
+
   # OpenTelemetry. Empty endpoint installs a no-op provider so the
   # app starts cleanly even without a collector; set in the overlay
   # to point at your in-cluster collector.

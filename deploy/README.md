@@ -64,6 +64,7 @@ kubectl -n go-micro-example get pods
 # go-micro-example-…   1/1   Running
 # postgres-…           1/1   Running
 # rabbitmq-…           1/1   Running
+# redpanda-…           1/1   Running
 # vault-…              1/1   Running
 # jaeger-…             1/1   Running
 # loki-…               1/1   Running

@@ -82,9 +82,9 @@
     data-card="kafka-publish">
   <header class="card__head">
     <span class="card__id">DSN-016</span>
-    <h2 class="card__title">Kafka publish</h2>
+    <h2 class="card__title">Production event</h2>
   </header>
-  <p class="card__body">Emit a RecordProduction command, watch the outbound product-quantity-changed event land.</p>
+  <p class="card__body">Record production for a SKU. The handler writes the production_events row, updates available, then publishes in parallel to RabbitMQ (inventory.exchange) and Kafka (product-quantity-changed.v1) when each is wired. Both producers are OTel-instrumented — their spans land under the same trace id.</p>
   <div class="card__meta">
     <span class="card__verb card__verb--PUT">PUT</span>
     <span class="card__path">/api/v1/inventory/{sku}/productionEvent</span>
@@ -96,7 +96,7 @@
           hx-indicator="#card-kafka-publish">
     try it<span class="card__cta-cursor" aria-hidden="true">▌</span>
   </button>
-  <span class="card__banner" aria-hidden="true">kafka.produce</span>
+  <span class="card__banner" aria-hidden="true">amqp &#43; kafka</span>
 </li>
         
           <li class="card card--needs-auth"

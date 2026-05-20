@@ -228,12 +228,12 @@ func capabilityCards() []CapabilityCard {
 		{
 			Slug:       "kafka-publish",
 			Ticket:     "DSN-016",
-			Title:      "Kafka publish",
-			Body:       "Emit a RecordProduction command, watch the outbound product-quantity-changed event land.",
+			Title:      "Production event",
+			Body:       "Record production for a SKU. The handler writes the production_events row, updates available, then publishes in parallel to RabbitMQ (inventory.exchange) and Kafka (product-quantity-changed.v1) when each is wired. Both producers are OTel-instrumented — their spans land under the same trace id.",
 			Method:     "PUT",
 			Path:       "/api/v1/inventory/{sku}/productionEvent",
 			NeedsAuth:  true,
-			BannerLine: "kafka.produce",
+			BannerLine: "amqp + kafka",
 		},
 		{
 			Slug:       "rest-outbound",

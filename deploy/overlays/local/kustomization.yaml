@@ -21,10 +21,15 @@ namespace: go-micro-example
 
 resources:
   - ../../base
-  # Namespace + dev dependencies (Postgres, RabbitMQ).
+  # Namespace + dev dependencies (Postgres, RabbitMQ, Redpanda).
   - namespace.yaml
   - postgres.yaml
   - rabbitmq.yaml
+  # Redpanda is the local Kafka broker (single-node KRaft, Kafka-API
+  # compatible) that lets the DSN-016 producer/consumer demo exercise
+  # the Kafka transport without docker-compose. Prod overlays don't
+  # ship this — they point GME_KAFKA_BROKERS at a real cluster.
+  - redpanda.yaml
   # OTel collector. Receives the app's OTLP/gRPC spans and forwards
   # them to the `debug` exporter (stdout) and Jaeger (UI). See
   # otel-collector.yaml + the OTEL_EXPORTER_OTLP_ENDPOINT patch
@@ -138,6 +143,20 @@ patches:
           ports:
             - protocol: TCP
               port: 16686
+      # Allow the franz-go producer + consumer to reach the local
+      # Redpanda broker on its internal listener (:29092). Base
+      # policy doesn't allow this because prod overlays point
+      # GME_KAFKA_BROKERS at a managed Kafka outside the cluster.
+      - op: add
+        path: /spec/egress/-
+        value:
+          to:
+            - podSelector:
+                matchLabels:
+                  app.kubernetes.io/name: redpanda
+          ports:
+            - protocol: TCP
+              port: 29092
   # Promote the base ClusterIP app Service to NodePort so kind's
   # extraPortMappings can publish http://localhost:8080. The base
   # Service stays ClusterIP-shaped for real deployments (the overlay
@@ -173,6 +192,13 @@ patches:
       - op: replace
         path: /data/GME_UI_JAEGERQUERYURL
         value: http://jaeger:16686
+      # Point the franz-go producer + consumer at the in-cluster
+      # Redpanda broker. The internal listener is :29092 (mirrors
+      # docker-compose) so anyone running both stacks doesn't clash
+      # on host port 9092.
+      - op: replace
+        path: /data/GME_KAFKA_BROKERS
+        value: redpanda:29092
   - target:
       group: external-secrets.io
       version: v1
