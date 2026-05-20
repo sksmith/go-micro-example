@@ -33,6 +33,10 @@ resources:
   # prints them via the debug exporter — see otel-collector.yaml +
   # the OTEL_EXPORTER_OTLP_ENDPOINT patch in this file.
   - otel-collector.yaml
+  # K8S-009: pgAdmin pod preconfigured with a server entry pointing
+  # at the in-cluster postgres Service. Browsable via
+  # `make k8s-local-ui-pgadmin`.
+  - pgadmin.yaml
 
 # RabbitMQ loads its exchanges/queues/bindings from
 # scripts/rabbitmq/definitions.json on boot (DSN-015). Mounting the

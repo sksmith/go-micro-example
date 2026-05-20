@@ -240,6 +240,17 @@ k8s-local-ui-rabbitmq:
 	@command -v open >/dev/null 2>&1 && (sleep 1 && open http://localhost:15672) &
 	kubectl -n go-micro-example port-forward svc/rabbitmq 15672:15672
 
+# K8S-009: open pgAdmin for the in-cluster postgres Service. The pod
+# ships a preconfigured server entry pointing at `postgres:5432`, so
+# the `go-micro-example` tree unfolds without manual setup; the
+# operator types the password on first connect.
+.PHONY: k8s-local-ui-pgadmin
+k8s-local-ui-pgadmin:
+	@echo "pgAdmin: http://localhost:9090  (admin@example.com / admin)"
+	@echo "Postgres password (when prompted for the 'go-micro-example' server): postgres"
+	@command -v open >/dev/null 2>&1 && (sleep 1 && open http://localhost:9090) &
+	kubectl -n go-micro-example port-forward svc/pgadmin 9090:80
+
 # K8S-005: ESO-flavoured local stack — installs External Secrets
 # Operator, brings up an in-cluster dev Vault, seeds the secret
 # paths the base ExternalSecret references, and rolls out the app

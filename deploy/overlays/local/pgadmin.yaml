@@ -1,0 +1,109 @@
+# K8S-009: in-cluster pgAdmin for the local overlay. Mirrors the
+# docker-compose `pgadmin` service so developers can browse rows,
+# inspect migrations, and run ad-hoc SQL without leaving the kind
+# cluster. The preconfigured server connection (servers.json) lands
+# the operator on the `go-micro-example-db` database the migrations
+# write to without any manual setup.
+#
+# Dev-only. No persistent storage (the dev workflow is "throwaway
+# cluster"); the admin credentials are hard-coded to admin@example.com
+# / admin to match docker-compose.yml's defaults.
+#
+# The pgAdmin pod is not subject to the base NetworkPolicy (different
+# label), so its egress to `postgres:5432` and ingress from the
+# operator's port-forward are unconstrained.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pgadmin-servers
+data:
+  # Preconfigured server registration mounted at
+  # /pgadmin4/servers.json. pgAdmin loads it on first container start
+  # so the `go-micro-example` server entry shows up under the Local
+  # group without manual "Register Server" clicks. The operator still
+  # has to type the password on first connect — saving it via
+  # PGPASSFILE is a larger setup for marginal benefit in dev.
+  servers.json: |
+    {
+      "Servers": {
+        "1": {
+          "Name": "go-micro-example",
+          "Group": "Local",
+          "Host": "postgres",
+          "Port": 5432,
+          "MaintenanceDB": "go-micro-example-db",
+          "Username": "postgres",
+          "SSLMode": "disable"
+        }
+      }
+    }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pgadmin
+spec:
+  selector:
+    app.kubernetes.io/name: pgadmin
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pgadmin
+  labels:
+    app.kubernetes.io/name: pgadmin
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: pgadmin
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: pgadmin
+    spec:
+      containers:
+        - name: pgadmin
+          image: dpage/pgadmin4:9
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          env:
+            - name: PGADMIN_DEFAULT_EMAIL
+              value: admin@example.com
+            - name: PGADMIN_DEFAULT_PASSWORD
+              value: admin
+            # Skip the "Server mode" desktop-vs-server upgrade dialog
+            # on every login by pinning the mode. False ⇒ desktop
+            # mode, which is the docker-compose default and lets a
+            # single user sign in without LDAP/OAUTH glue.
+            - name: PGADMIN_CONFIG_SERVER_MODE
+              value: "False"
+            - name: PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED
+              value: "False"
+          volumeMounts:
+            - name: servers
+              mountPath: /pgadmin4/servers.json
+              subPath: servers.json
+              readOnly: true
+            # /var/lib/pgadmin is where the container writes its
+            # SQLite config DB and session data. The pgAdmin image
+            # refuses to start if the directory is not writable.
+            # emptyDir keeps the dev workflow stateless — saved
+            # queries vanish with the cluster.
+            - name: data
+              mountPath: /var/lib/pgadmin
+      volumes:
+        - name: servers
+          configMap:
+            name: pgadmin-servers
+        - name: data
+          emptyDir: {}

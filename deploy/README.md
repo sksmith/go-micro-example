@@ -17,12 +17,13 @@ deploy/
 │   ├── networkpolicy.yaml   # default-deny + per-dependency allows
 │   └── hpa.yaml             # CPU-based autoscaler
 ├── overlays/
-│   ├── local/                   # K8S-002/003/004/006 (plain Secret)
+│   ├── local/                   # K8S-002/003/004/006/009 (plain Secret)
 │   │   ├── kustomization.yaml
 │   │   ├── namespace.yaml
 │   │   ├── secret.yaml          # plain dev Secret
 │   │   ├── postgres.yaml
 │   │   ├── rabbitmq.yaml
+│   │   ├── pgadmin.yaml         # K8S-009 pgAdmin UI for Postgres
 │   │   ├── metrics-server.yaml
 │   │   ├── kube-network-policies.yaml  # NetworkPolicy enforcer
 │   │   └── otel-collector.yaml  # K8S-006 OTel collector
@@ -295,6 +296,36 @@ image for browsing convenience; the OPS-004 base does not pull this
 tag. Real deployments either disable the plugin (`rabbitmq-plugins
 disable rabbitmq_management`) or restrict it to a management
 network — exposing :15672 publicly is a security incident.
+
+#### pgAdmin for Postgres (K8S-009)
+
+`docker-compose.yml` ships a pgAdmin alongside Postgres so developers
+can browse rows, inspect migrations, and run ad-hoc SQL without a
+desktop client. The local overlay mirrors that — `pgadmin.yaml`
+defines a Deployment + Service + ConfigMap (`servers.json`) that
+preconfigures a server entry pointing at the in-cluster `postgres`
+Service.
+
+```sh
+make k8s-local-ui-pgadmin
+# pgAdmin: http://localhost:9090  (admin@example.com / admin)
+# Postgres password (when prompted for the 'go-micro-example' server): postgres
+```
+
+The target port-forwards `svc/pgadmin 9090:80`, prints the admin
+credentials and the Postgres password, and (on macOS) opens a
+browser tab. Sign in with `admin@example.com` / `admin`. The tree
+on the left should already show **Local → go-micro-example** —
+expand it, supply `postgres` as the password on first connect, and
+browse **Databases → go-micro-example-db → Schemas → public →
+Tables** to confirm the migrations applied (`products`,
+`product_inventory`, `production_events`, `users`,
+`idempotency_keys`, plus a few migration-tracking tables).
+
+The pgAdmin pod is intentionally stateless: `/var/lib/pgadmin`
+mounts an `emptyDir`, so saved queries vanish with the cluster.
+`make k8s-local-down` removes the pgAdmin Deployment, Service, and
+ConfigMap along with the rest of the overlay.
 
 #### NetworkPolicy enforcement on kind
 
