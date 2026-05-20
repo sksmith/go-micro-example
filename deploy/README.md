@@ -24,6 +24,7 @@ deploy/
 │   │   ├── postgres.yaml
 │   │   ├── rabbitmq.yaml
 │   │   ├── metrics-server.yaml
+│   │   ├── kube-network-policies.yaml  # NetworkPolicy enforcer
 │   │   └── otel-collector.yaml  # K8S-006 OTel collector
 │   └── local-eso/               # K8S-005 (ESO + dev Vault)
 │       ├── kustomization.yaml
@@ -251,13 +252,49 @@ kubectl -n go-micro-example logs deploy/go-micro-example \
 The "executing migrations" log proves the Postgres egress allow-list
 works (pgx connected via Service name `postgres`), and the "ready to
 publish messages" lines prove the RabbitMQ allow-list works (AMQP
-session established via Service name `rabbitmq`). NetworkPolicy
-enforcement is intrinsic: if the egress rules were wrong, neither
-side would connect.
+session established via Service name `rabbitmq`).
 
 The pod image is also distroless (no shell), so the conventional
 `kubectl exec … sh -c '…'` connectivity probe doesn't apply here —
 the log evidence above is the substitute.
+
+#### NetworkPolicy enforcement on kind
+
+The default kind CNI (kindnet) **does not enforce NetworkPolicy on
+its own**. Without an enforcer the OPS-004 policy lands as a
+contract but is a silent no-op locally — every pod's egress stays
+default-allow. `make k8s-local-up` therefore also installs
+[`kube-network-policies`](https://github.com/kubernetes-sigs/kube-network-policies)
+as a DaemonSet in `kube-system`; it syncs nftables rules against
+the cluster's NetworkPolicies so denial paths actually drop packets.
+
+To verify enforcement directly, drive a probe pod labelled like the
+app and try a port that isn't on the egress allow-list:
+
+```sh
+kubectl -n go-micro-example run netpol-probe --restart=Never \
+  --image=busybox:1.37 \
+  --labels='app.kubernetes.io/name=go-micro-example' \
+  --command -- /bin/sh -c '
+    nc -nzv -w 3 postgres 5432   # ALLOW (on egress list)
+    nc -nzv -w 3 postgres 1234   # DENY  (no rule matches)
+  '
+kubectl -n go-micro-example logs netpol-probe
+kubectl -n kube-system logs ds/kube-network-policies | grep "Packet denied"
+```
+
+The enforcer log shows `"Packet denied by egress policy"` for the
+postgres:1234 attempt — proof the policy rules are being evaluated
+end-to-end.
+
+**Scope caveat.** `kube-network-policies` v1.0.0 enforces in-cluster
+pod-to-pod / pod-to-Service flows. It does **not** enforce
+pod-to-external (egress to an IP not owned by a cluster pod) and
+has port-granularity gaps on multi-port destination Services
+(traffic to a destination pod on a different port than the
+allow-list specifies is still permitted today). Full faithfulness
+to the spec requires a heavier CNI like Calico — a future overlay
+variant.
 
 ### HPA scale validation (K8S-004)
 
@@ -353,6 +390,15 @@ don't fire end-to-end in this minimal demo. Publishing into
 those — left as a future addition if/when the demo orchestrator
 gets ported to k8s.
 
+**Sampling caveat.** With `OTEL_TRACES_SAMPLER_ARG=1.0` and the
+default OTLP batch processor queue size (~2 K spans), high-volume
+routes can saturate the exporter and drop spans for other requests
+that happen during the same window. The K8S-004 load test driving
+`/live` at 24 concurrent wgets/wave will mask `/api/v1/*` spans
+emitted in parallel. For trace verification, run the smoke test
+above when no load driver is active, or lower
+`OTEL_TRACES_SAMPLER_ARG` in the overlay.
+
 ### Real ExternalSecret flow against in-cluster Vault (K8S-005)
 
 The K8S-003 overlay sidesteps the base `ExternalSecret` by shipping
@@ -404,11 +450,20 @@ sleep 45
 kubectl -n go-micro-example get externalsecret go-micro-example-secrets \
   -o jsonpath='{.status.conditions[?(@.type=="Ready")].reason}'
 # SecretSyncedError
-
-kubectl -n go-micro-example scale deploy/vault --replicas=1
-# ESO recovers on the next refresh; the already-materialised Secret
-# stays present so the app pod doesn't restart.
 ```
+
+Restoring Vault is a two-step recovery because dev-mode storage is
+in-memory — the kv state vanishes on restart:
+
+```sh
+kubectl -n go-micro-example scale deploy/vault --replicas=1
+make k8s-eso-reseed   # deletes the completed bootstrap Job and
+                      # reapplies the manifest, then force-syncs ESO
+# ExternalSecret returns to SecretSynced within ~5 seconds
+```
+
+The already-materialised Secret stays present throughout, so the
+app pod doesn't restart while ESO catches up.
 
 **Dev-only posture.** The Vault is in dev mode with the root token
 hard-coded; the `ClusterSecretStore` authenticates with that token
