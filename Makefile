@@ -268,3 +268,16 @@ k8s-eso-reseed:
 	kubectl kustomize --load-restrictor=LoadRestrictionsNone deploy/overlays/local-eso | kubectl apply -f - >/dev/null
 	kubectl -n go-micro-example wait --for=condition=complete job/vault-bootstrap --timeout=60s
 	kubectl -n go-micro-example annotate externalsecret go-micro-example-secrets force-sync=$$(date +%s) --overwrite
+
+# K8S-007: open the built-in Vault UI for the K8S-005 in-cluster dev
+# Vault. Port-forwards svc/vault 8200:8200 in the foreground; Ctrl-C
+# tears the forward down. On macOS, `open` launches a browser at the
+# UI URL pre-loaded with the dev root token. The token is hard-coded
+# to `root` because vault.yaml runs in dev mode — never copy this
+# workflow to a real cluster.
+.PHONY: k8s-eso-ui-vault
+k8s-eso-ui-vault:
+	@echo "Vault UI:    http://localhost:8200/ui"
+	@echo "Root token:  root  (dev-mode only — do not reuse outside the local-eso overlay)"
+	@command -v open >/dev/null 2>&1 && (sleep 1 && open http://localhost:8200/ui) &
+	kubectl -n go-micro-example port-forward svc/vault 8200:8200
