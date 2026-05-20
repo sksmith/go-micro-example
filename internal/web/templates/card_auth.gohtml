@@ -1,0 +1,27 @@
+{{define "card_auth.gohtml"}}<div class="card card--auth{{if eq .AuthState "ready"}} card--ready{{end}}"
+     id="card-auth"
+     data-state="{{.AuthState}}">
+  <header class="card__head">
+    <span class="card__id">SEC-002a</span>
+    <h2 class="card__title">Authenticate</h2>
+  </header>
+  {{if eq .AuthState "ready"}}
+    <p class="card__body">signed in · token stored in HttpOnly cookie</p>
+    <button class="card__cta"
+            hx-post="/ui/auth/logout"
+            hx-target="#card-auth"
+            hx-swap="outerHTML">
+      sign out<span class="card__cta-cursor" aria-hidden="true">▌</span>
+    </button>
+  {{else}}
+    <form class="card__body card__form"
+          hx-post="/ui/auth/token"
+          hx-target="#card-auth"
+          hx-swap="outerHTML">
+      <label>user <input type="text" name="username" autocomplete="username" required></label>
+      <label>pass <input type="password" name="password" autocomplete="current-password" required></label>
+      <button class="card__cta" type="submit">unlock<span class="card__cta-cursor" aria-hidden="true">▌</span></button>
+    </form>
+    <p class="card__hint">until you unlock, mutating cards show a locked scope view.</p>
+  {{end}}
+</div>{{end}}

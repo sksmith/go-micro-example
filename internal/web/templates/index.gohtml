@@ -1,0 +1,70 @@
+{{define "index.gohtml"}}<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{{.Title}} · go-micro-example</title>
+  <link rel="stylesheet" href="/ui/static/ui.css">
+  <script src="/ui/static/htmx.min.js" defer></script>
+  <meta name="description" content="{{.Description}}">
+</head>
+<body>
+  <div class="scanlines" aria-hidden="true"></div>
+  <div class="grain" aria-hidden="true"></div>
+
+  <header class="banner">
+    <div class="banner__brand">
+      <span class="brand__mark" aria-hidden="true">▮</span>
+      <span class="brand__name">go-micro-example</span>
+      <span class="brand__sub">operator console</span>
+    </div>
+    <div class="banner__meta">
+      <span class="banner__chip">build · DSN-027</span>
+      <span class="banner__chip" data-clock>{{.ServerTime}}</span>
+    </div>
+  </header>
+
+  <main class="console">
+    <section class="rail" aria-label="capability list">
+      <header class="rail__head">
+        <span class="rail__legend">surfaces</span>
+        <span class="rail__count">{{len .Cards}}</span>
+      </header>
+
+      {{template "card_auth.gohtml" .}}
+
+      <ol class="rail__list">
+        {{range $i, $c := .Cards}}
+          {{template "card.gohtml" $c}}
+        {{end}}
+      </ol>
+
+      <footer class="rail__foot">
+        <p class="rail__legend">{{.Description}}</p>
+        <p class="rail__legend">read the spec ▸ <a href="/docs">/docs</a></p>
+      </footer>
+    </section>
+
+    <section class="scope" aria-label="response scope">
+      <div class="scope__chrome" aria-hidden="true">
+        <span class="scope__bracket scope__bracket--tl"></span>
+        <span class="scope__bracket scope__bracket--tr"></span>
+        <span class="scope__bracket scope__bracket--bl"></span>
+        <span class="scope__bracket scope__bracket--br"></span>
+      </div>
+      <header class="scope__head">
+        <span class="scope__label">scope · last action</span>
+        <span class="scope__id">{{.RunID}}</span>
+      </header>
+      <div id="scope-body" class="scope__body" aria-live="polite">
+        {{template "scope_empty.gohtml" .}}
+      </div>
+    </section>
+  </main>
+
+  <footer class="page-foot">
+    <span>© {{.Year}} go-micro-example · DSN-027</span>
+    <span>{{.RunID}}</span>
+  </footer>
+</body>
+</html>{{end}}

@@ -1,0 +1,53 @@
+{{define "scope.gohtml"}}<article class="scope-view scope-view--{{.StatusKind}}" data-status="{{.Status}}">
+  <header class="scope-view__head">
+    <span class="scope-view__verb">{{.Method}}</span>
+    <span class="scope-view__url">{{.URL}}</span>
+    <span class="scope-view__status">{{if .Status}}{{.Status}}{{else}}---{{end}} · {{.StatusText}}</span>
+  </header>
+
+  <dl class="scope-view__stats">
+    <div><dt>latency</dt><dd>{{.LatencyMs}}ms</dd></div>
+    <div><dt>request id</dt><dd>{{if .RequestID}}{{.RequestID}}{{else}}—{{end}}</dd></div>
+    <div><dt>trace id</dt><dd>{{if .TraceID}}{{.TraceID}}{{else}}—{{end}}</dd></div>
+    <div><dt>card</dt><dd>{{.Card}}</dd></div>
+  </dl>
+
+  {{if .RequestBody}}
+  <section class="scope-view__pane">
+    <header>request body</header>
+    <pre class="scope-view__code scope-view__code--reveal"><code>{{.RequestBody}}</code></pre>
+  </section>
+  {{end}}
+
+  {{if .RequestHeaders}}
+  <section class="scope-view__pane">
+    <header>request headers</header>
+    <ul class="scope-view__kv">
+      {{range .RequestHeaders}}<li><span>{{.K}}</span><span>{{.V}}</span></li>{{end}}
+    </ul>
+  </section>
+  {{end}}
+
+  {{if .ResponseHeaders}}
+  <section class="scope-view__pane">
+    <header>response headers</header>
+    <ul class="scope-view__kv">
+      {{range .ResponseHeaders}}<li><span>{{.K}}</span><span>{{.V}}</span></li>{{end}}
+    </ul>
+  </section>
+  {{end}}
+
+  <section class="scope-view__pane">
+    <header>response body</header>
+    <pre class="scope-view__code scope-view__code--reveal"><code>{{if .ResponseBody}}{{.ResponseBody}}{{else}}(empty){{end}}</code></pre>
+  </section>
+
+  <section class="scope-view__pane scope-view__pane--trace">
+    <header>span tree {{if .SpanTreeNote}}<span class="scope-view__note">· {{.SpanTreeNote}}</span>{{end}}</header>
+    {{if .SpanTree}}
+      <pre class="scope-view__tree"><code>{{.SpanTree}}</code></pre>
+    {{else}}
+      <pre class="scope-view__tree scope-view__tree--empty"><code>(no span tree)</code></pre>
+    {{end}}
+  </section>
+</article>{{end}}

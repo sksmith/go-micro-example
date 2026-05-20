@@ -155,6 +155,9 @@ patches:
       - op: replace
         path: /data/OTEL_TRACES_SAMPLER_ARG
         value: "1.0"
+      - op: replace
+        path: /data/GME_UI_JAEGERQUERYURL
+        value: http://jaeger:16686
   - target:
       group: external-secrets.io
       version: v1

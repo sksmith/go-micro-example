@@ -72,6 +72,8 @@ components:
           $ref: '#/components/schemas/config.StringConfig'
         tls:
           $ref: '#/components/schemas/config.TLSConfig'
+        ui:
+          $ref: '#/components/schemas/config.UIConfig'
       type: object
     FieldProblem:
       properties:
@@ -406,6 +408,15 @@ components:
         enabled:
           $ref: '#/components/schemas/config.BoolConfig'
         keyFile:
+          $ref: '#/components/schemas/config.StringConfig'
+      type: object
+    config.UIConfig:
+      properties:
+        description:
+          type: string
+        enabled:
+          $ref: '#/components/schemas/config.BoolConfig'
+        jaegerQueryUrl:
           $ref: '#/components/schemas/config.StringConfig'
       type: object
     internal_user.CreateUserRequestDto:
