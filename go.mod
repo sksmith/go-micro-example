@@ -7,7 +7,7 @@ toolchain go1.25.10
 require (
 	github.com/common-nighthawk/go-figure v0.0.0-20210622060536-734e95fb86be
 	github.com/exaring/otelpgx v0.10.0
-	github.com/go-chi/chi/v5 v5.2.5
+	github.com/go-chi/chi/v5 v5.3.1
 	github.com/go-chi/cors v1.2.2
 	github.com/go-chi/render v1.0.3
 	github.com/golang-jwt/jwt/v4 v4.5.2
