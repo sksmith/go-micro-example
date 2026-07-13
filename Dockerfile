@@ -22,7 +22,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
 # nonroot user, /etc/ssl/certs/ca-certificates.crt, and defaults USER
 # to nonroot — so the apk ca-certs install and the cert copy that
 # `FROM scratch` needed both disappear (SEC-011).
-FROM gcr.io/distroless/static-debian12:nonroot@sha256:d093aa3e30dbadd3efe1310db061a14da60299baff8450a17fe0ccc514a16639
+FROM gcr.io/distroless/static-debian12:nonroot@sha256:b7bb25d9f7c31d2bdd1982feb4dafcaf137703c7075dbe2febb41c24212b946f
 
 WORKDIR /app
 
