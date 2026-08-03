@@ -19,7 +19,7 @@ jobs:
     name: kind dry-run apply
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Create kind cluster
         # helm/kind-action v1.14.0 — pinned by commit SHA so a tag
         # repoint can't silently change what runs in CI.

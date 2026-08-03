@@ -9,14 +9,14 @@ jobs:
     name: gosec
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           # Tooling Go matches project Go after DEP-001.
           go-version-file: go.mod
           cache: true
       - name: Run gosec
-        uses: securego/gosec@v2.26.1
+        uses: securego/gosec@v2.28.0
         with:
           # SARIF for the Security tab; -severity high gates the exit code
           # so the job fails only on High/Critical findings.
@@ -25,7 +25,7 @@ jobs:
           args: '-fmt sarif -out gosec.sarif -severity high -exclude-dir api/client ./...'
       - name: Upload SARIF
         if: ${{ always() && hashFiles('gosec.sarif') != '' }}
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@v4.37.4
         with:
           sarif_file: gosec.sarif
           category: gosec
@@ -38,6 +38,6 @@ jobs:
       # job. Output is text so the build log shows the offending
       # line directly; SARIF upload above covers the broader scan.
       - name: gosec G201/G202 hard-gate
-        uses: securego/gosec@v2.26.1
+        uses: securego/gosec@v2.28.0
         with:
           args: '-include=G201,G202 -exclude-dir api/client ./...'

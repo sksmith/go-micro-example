@@ -9,8 +9,8 @@ jobs:
     name: golangci-lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           # Tooling Go matches project Go after DEP-001.
           go-version-file: go.mod
@@ -23,7 +23,7 @@ jobs:
           args: --output.sarif.path=golangci-lint.sarif --output.text.path=stdout
       - name: Upload SARIF
         if: ${{ always() && hashFiles('golangci-lint.sarif') != '' }}
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@v4.37.4
         with:
           sarif_file: golangci-lint.sarif
           category: golangci-lint
