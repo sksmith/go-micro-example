@@ -2,7 +2,7 @@
 # the same toolchain layer every run (SEC-011). Bump the digest in the
 # same PR that bumps the Go minor version — the value comes from
 # `docker buildx imagetools inspect golang:1.26-alpine --format '{{.Manifest.Digest}}'`.
-FROM golang:1.26-alpine@sha256:91eda9776261207ea25fd06b5b7fed8d397dd2c0a283e77f2ab6e91bfa71079d AS builder
+FROM golang:1.27-alpine@sha256:4c9fe60190a2a3350ddc51de80d0224b8a6698d12bdfc999fee45ea9d6c46dbc AS builder
 
 WORKDIR /app
 
