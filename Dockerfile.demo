@@ -1,7 +1,7 @@
 # DSN-015 demo orchestrator. Builds only cmd/demo and ships the
 # binary on scratch. Shares the same Go toolchain pin as the main
 # Dockerfile (see DEP-001).
-FROM golang:1.26-alpine AS builder
+FROM golang:1.27-alpine AS builder
 
 WORKDIR /app
 COPY . .
